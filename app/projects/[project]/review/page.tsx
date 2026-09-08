@@ -89,6 +89,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [notFound, setNotFound] = useState(false);
   const [playhead, setPlayhead] = useState(0);
   const [trimBeat, setTrimBeat] = useState<string | null>(null);
+  const [gfxScanning, setGfxScanning] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [versions, setVersions] = useState<Snapshot[] | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -105,6 +106,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [undo, setUndo] = useState<{ beat: Beat; at: number } | null>(null);
   const [gfxFor, setGfxFor] = useState<Beat | null>(null);
   const [gfxNonce, setGfxNonce] = useState(0);
+  const [gfxOpen, setGfxOpen] = useState(false);
+  const [gfxCount, setGfxCount] = useState<number | null>(null);
 
   /** Where this line sits on the finished cut -- a graphic is timed against
    *  the cut, not the source. */
@@ -942,6 +945,36 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     learnFromEdits();
   }
 
+  /** Read one line and card it if it earns one.
+   *
+   *  Scoped to that line's words off the existing transcript, so it answers
+   *  immediately -- the whole-cut scan runs Whisper over the render and is the
+   *  wrong tool for "what belongs here". */
+  async function generateGraphicFor(label: string) {
+    if (!data) return;
+    const b = data.beats.find((x) => x.label === label);
+    if (!b) return;
+    const { placed } = layout(data.beats, data.edl);
+    const at = placed.find((c) => c.label === label);
+    if (!at) return;
+    setGfxScanning(label);
+    const res = await fetch(`/api/projects/${project}/graphics`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "scan_line",
+        from: b.start, to: b.end,
+        // source time -> cut time, for this clip
+        shift: at.at - b.start,
+      }),
+    });
+    setGfxScanning(null);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(body.error ?? "could not read that line"); return; }
+    const n = (body.added ?? []).length;
+    setGfxNonce((n) => n + 1);      // the panel reloads on this
+    toast(n ? `${n} graphic${n > 1 ? "s" : ""} added to that line` : (body.reason ?? "nothing on that line to card"));
+  }
+
   async function beatOp(payload: Record<string, unknown>, done: string) {
     pushHistory(String(payload.op ?? "that change"));
     const res = await fetch(`/api/projects/${project}/beats`, {
@@ -1391,10 +1424,30 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             onSplit={(label, at) => beatOp({ op: "split", label, at }, "Split into two clips")}
             onReorder={(order) => beatOp({ op: "reorder", order }, "Moved that line")}
             onCutSpan={cutSpan}
+            onGenerateGraphic={generateGraphicFor}
+            generatingGraphic={gfxScanning}
             onDetach={detachAudio}
             onTrimAudio={audioTrim}
             onFade={setFade}
           />
+          {/* Graphics belong to the thing they sit on, not to a panel of their
+              own halfway down the page. Folded away by default so the cut has
+              the room. */}
+          <details className="gfx-fold" open={gfxOpen}
+                   onToggle={(e) => setGfxOpen((e.target as HTMLDetailsElement).open)}>
+            <summary>
+              Motion graphics
+              {gfxCount !== null && <span className="gfx-count mono">{gfxCount}</span>}
+            </summary>
+            <GraphicsPanel
+              project={project}
+              hasCut={!!data.cutFile}
+              refreshKey={gfxNonce}
+              onSeek={scrubCut}
+              onJob={(jobId) => pollBuild(jobId)}
+              onCount={setGfxCount}
+            />
+          </details>
         </div>
       )}
 
@@ -1474,21 +1527,13 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
           </div>
         )}
 
-      <GraphicsPanel
-        project={project}
-        hasCut={!!data.cutFile}
-        refreshKey={gfxNonce}
-        onSeek={scrubCut}
-        onJob={(jobId) => pollBuild(jobId)}
-      />
-
       <div className="beats">
           <div className="beats-head">
             <h2>Lines</h2>
             <span className="eyebrow">
               {data.hasTranscript
                 ? `${data.beats.length - flaggedCount} clean · ${flaggedCount} needs a call`
-                : `${data.beats.length} beats · unscored, no transcript`}
+                : `${data.beats.length} lines · unscored, no transcript`}
             </span>
           </div>
           {data.beats.length === 0 && (

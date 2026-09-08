@@ -51,6 +51,7 @@ export default function GraphicsPanel({
   project,
   hasCut,
   refreshKey,
+  onCount,
   onSeek,
   onJob,
 }: {
@@ -58,6 +59,8 @@ export default function GraphicsPanel({
   hasCut: boolean;
   /** bumped when a graphic is added elsewhere, so the list picks it up */
   refreshKey?: number;
+  /** how many are proposed, so a collapsed panel can still say so */
+  onCount?: (n: number | null) => void;
   onSeek: (cutTime: number) => void;
   onJob: (jobId: string) => void;
 }) {
@@ -76,6 +79,8 @@ export default function GraphicsPanel({
   }, [project]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
+  useEffect(() => { onCount?.(graphics === null ? null : graphics.length); },
+            [graphics, onCount]);
 
   async function patch(id: string, p: Record<string, unknown>) {
     setError(null);
@@ -132,7 +137,6 @@ export default function GraphicsPanel({
     <div className="gfx">
       <div className="gfx-head">
         <div>
-          <h2>Motion graphics</h2>
           <p>
             {graphics === null
               ? "Loading…"

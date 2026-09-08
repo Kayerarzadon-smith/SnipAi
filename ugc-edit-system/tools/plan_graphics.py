@@ -109,6 +109,18 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cut")
     ap.add_argument("-o", "--out")
+    # Scanning ONE line does not deserve a Whisper run. The project already has
+    # word timings for the source, so a per-line scan reads those, keeps the
+    # words inside the line, and shifts the result into cut time. That is the
+    # difference between a button that answers instantly and one that thinks
+    # for a minute about footage it has already transcribed once.
+    ap.add_argument("--words", help="transcript.json to read instead of transcribing")
+    ap.add_argument("--from", dest="t_from", type=float,
+                    help="keep only words at or after this source time")
+    ap.add_argument("--to", dest="t_to", type=float,
+                    help="keep only words at or before this source time")
+    ap.add_argument("--shift", type=float, default=0.0,
+                    help="added to every time in the result, to land in cut time")
     ap.add_argument("--glossary", default=DEFAULT_GLOSSARY)
     ap.add_argument("--model", default="small.en")
     ap.add_argument("--hold", type=float, default=2.4)
@@ -122,7 +134,27 @@ def main():
     glossary = json.load(open(a.glossary))
     verified = {t["term"]: bool(t.get("verified")) for t in glossary["terms"]}
 
-    words = transcribe_words(a.cut, a.model)
+    if a.words:
+        # transcript.json is a list of SEGMENTS, each carrying its own words.
+        # Accept the flat shapes too rather than assume one -- this file is
+        # written by transcribe.py and read by several tools.
+        raw = json.load(open(a.words))
+        segs = raw["segments"] if isinstance(raw, dict) and "segments" in raw else raw
+        if isinstance(raw, dict) and "words" in raw:
+            segs = [raw]
+        flat = []
+        for seg in segs if isinstance(segs, list) else []:
+            if isinstance(seg, dict) and isinstance(seg.get("words"), list):
+                flat.extend(seg["words"])
+            elif isinstance(seg, dict) and "w" in seg:
+                flat.append(seg)
+        words = [{"w": w["w"], "s": float(w["s"]), "e": float(w["e"])} for w in flat]
+        if a.t_from is not None:
+            words = [w for w in words if w["e"] > a.t_from]
+        if a.t_to is not None:
+            words = [w for w in words if w["s"] < a.t_to]
+    else:
+        words = transcribe_words(a.cut, a.model)
     plan = []
 
     for c in find_cues(words, glossary, a.hold, a.lead):
@@ -141,11 +173,21 @@ def main():
         plan += callout_cues(words, a.hold, a.lead)
 
     plan = dedupe(plan, repeat_gap=a.repeat_gap)
+    if a.shift:
+        for g in plan:
+            g["start"] = round(g["start"] + a.shift, 3)
+            g["end"] = round(g["end"] + a.shift, 3)
     for i, g in enumerate(plan):
         g["id"] = f"g{i:02d}"
         g.setdefault("enabled", True)
 
     print(f"{os.path.basename(a.cut)}  {len(words)} words  ->  {len(plan)} graphic(s)")
+    if a.words:
+        # A per-line scan hands the plan back for the caller to merge, so it
+        # prints it whether or not there is an --out file. Guarding this on
+        # --out meant the app asked for a line's graphics, the tool found
+        # them, and nothing came back.
+        print(json.dumps(plan))
     for g in plan:
         label = g.get("term") or g.get("value") or g.get("text") or g.get("title")
         flag = "" if g.get("verified", True) else "   [definition UNVERIFIED]"

@@ -38,6 +38,8 @@ export default function Timeline({
   onFade,
   onReorder,
   onCutSpan,
+  onGenerateGraphic,
+  generatingGraphic,
 }: {
   clips: Clip[];
   edl?: EdlPiece[];
@@ -66,6 +68,9 @@ export default function Timeline({
   onReorder: (order: string[]) => void;
   /** take a stretch of the cut out, in cut seconds */
   onCutSpan: (from: number, to: number) => void;
+  /** read one line and put a card on it if it earns one */
+  onGenerateGraphic: (label: string) => void;
+  generatingGraphic: string | null;
 }) {
   const [zoomIx, setZoomIx] = useState(2);
   const zoomIxRef = useRef(2);
@@ -474,6 +479,14 @@ export default function Timeline({
                 }
               >
                 {selDetached ? "Relink audio" : "Detach audio"}
+              </button>
+              <button
+                className="ui-btn ui-btn-sm"
+                disabled={generatingGraphic !== null}
+                title="Read this line and put a card on it if it earns one"
+                onClick={() => onGenerateGraphic(sel.label)}
+              >
+                {generatingGraphic === sel.label ? "Reading…" : "Generate graphic"}
               </button>
               <button
                 className="ui-btn ui-btn-sm ui-btn-danger"

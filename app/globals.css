@@ -1252,3 +1252,28 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
   color: #fff; background: #ff4d6d; padding: 2px 7px; border-radius: 999px;
   white-space: nowrap;
 }
+
+/* ---- graphics, folded under the timeline --------------------------------
+   A card belongs to the moment it sits on. Putting the list in its own panel
+   halfway down the page made it a separate errand; here it is part of the
+   timeline, and shut unless you want it. */
+.gfx-fold { border-top: 1px solid var(--tl-border, var(--border-soft)); margin-top: 10px; }
+.gfx-fold > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 2px; font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+}
+.gfx-fold > summary::-webkit-details-marker { display: none; }
+.gfx-fold > summary::before {
+  content: ""; width: 0; height: 0; flex: none;
+  border-left: 5px solid currentColor; border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent; transition: transform .15s ease;
+}
+.gfx-fold[open] > summary::before { transform: rotate(90deg); }
+.gfx-fold > summary:hover { color: var(--text); }
+.gfx-count {
+  font-size: 10.5px; color: var(--accent); background: var(--accent-soft);
+  padding: 1px 7px; border-radius: 999px; font-variant-numeric: tabular-nums;
+}
+/* inside the fold it is a list, not a card with its own frame */
+.gfx-fold .gfx { background: none; border: none; padding: 0 0 12px; }

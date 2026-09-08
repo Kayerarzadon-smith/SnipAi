@@ -4,7 +4,7 @@ import { writeJsonAtomic } from "@/lib/jsonStore";
 import path from "node:path";
 import { projectDir } from "@/lib/paths";
 import { loadBeats, findCutFile } from "@/lib/beats";
-import { checkAvailability } from "@/lib/pipeline";
+import { checkAvailability, runTool } from "@/lib/pipeline";
 import { createJob, failJob, runningJob } from "@/lib/jobs";
 import { runPlanGraphicsJob, runRenderGraphicsJob } from "@/lib/pipeline";
 
@@ -115,13 +115,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { project: s
 /** Re-plan from the cut, or burn the enabled graphics in. */
 export async function POST(req: NextRequest, { params }: { params: { project: string } }) {
   const { project } = params;
-  let body: { action?: unknown; allowUnverified?: unknown };
+  let body: { action?: unknown; allowUnverified?: unknown;
+              from?: unknown; to?: unknown; shift?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
   }
-  if (body.action !== "add" && body.action !== "delete") {
+  const CHEAP = body.action === "add" || body.action === "delete" || body.action === "scan_line";
+  if (!CHEAP) {
     if (!findCutFile(project)) {
       return NextResponse.json({ error: "build a cut first" }, { status: 400 });
     }
@@ -129,10 +131,10 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
   const cut = findCutFile(project) ?? "";
 
   const avail = checkAvailability();
-  if (body.action !== "add" && body.action !== "delete" && (!avail.python3 || !avail.ffmpeg)) {
+  if (!CHEAP && (!avail.python3 || !avail.ffmpeg)) {
     return NextResponse.json({ error: "pipeline tools not available", availability: avail }, { status: 503 });
   }
-  const busy = body.action === "add" || body.action === "delete" ? null : runningJob();
+  const busy = CHEAP ? null : runningJob();
   if (busy) {
     return NextResponse.json(
       { error: `already running ${busy.step} on "${busy.project}"`, runningJobId: busy.id },
@@ -148,6 +150,61 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     runPlanGraphicsJob(job.id, project, cut).catch((e) =>
       failJob(job.id, e instanceof Error ? e.message : String(e)));
     return NextResponse.json({ jobId: job.id }, { status: 202 });
+  }
+
+  /* Graphics for ONE line, now, off the transcript that already exists.
+   *
+   * The whole-cut scan runs Whisper over the render, which is right for a
+   * sweep and far too slow for "what belongs on this line". The project has
+   * word timings for the source already, so this reads those, keeps the words
+   * inside the line, and shifts the result into cut time. It answers in
+   * milliseconds and needs no job. */
+  if (body.action === "scan_line") {
+    const from = Number(body.from);
+    const to = Number(body.to);
+    const shift = Number(body.shift ?? 0);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
+      return NextResponse.json({ error: "from and to must bracket the line" }, { status: 400 });
+    }
+    const words = path.join(projectDir(project), "work", "transcript.json");
+    if (!fs.existsSync(words)) {
+      return NextResponse.json({ error: "no transcript for this project yet" }, { status: 400 });
+    }
+    const res = await runTool("plan_graphics.py", [
+      findCutFile(project) ?? "none", "--words", words,
+      "--from", String(from), "--to", String(to), "--shift", String(shift),
+    ]);
+    if (!res.ok) {
+      return NextResponse.json({ error: "could not read that line" }, { status: 500 });
+    }
+    // the tool prints its report, then the plan as one JSON line
+    const line = res.stdout.trim().split("\n").filter((l) => l.startsWith("[")).pop();
+    let found: Record<string, unknown>[] = [];
+    try { found = line ? JSON.parse(line) : []; } catch { found = []; }
+
+    if (!found.length) {
+      return NextResponse.json({ ok: true, added: [], reason: "nothing on this line to card" });
+    }
+    const plan = readPlan(project);
+    const added: Graphic[] = [];
+    for (const g of found) {
+      const start = Math.round(Number(g.start) * 100) / 100;
+      const end = Math.round(Number(g.end) * 100) / 100;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end - start < 0.4) continue;
+      // never propose a second card over one that is already there
+      if (plan.graphics.some((x) => Math.abs(x.start - start) < 0.35)) continue;
+      const made = {
+        ...g,
+        id: `g${String(Date.now()).slice(-6)}${added.length}`,
+        start, end, enabled: true,
+      } as unknown as Graphic;
+      plan.graphics.push(made);
+      added.push(made);
+    }
+    plan.graphics.sort((a, b) => a.start - b.start);
+    fs.mkdirSync(path.dirname(planPath(project)), { recursive: true });
+    writeJsonAtomic(planPath(project), plan);
+    return NextResponse.json({ ok: true, added });
   }
 
   if (body.action === "add") {

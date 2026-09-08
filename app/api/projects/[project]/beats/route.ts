@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadBeats, saveBeats } from "@/lib/beats";
 import { updateReviewState } from "@/lib/reviewState";
+import { normaliseHoles } from "@/lib/holes";
 
 type Beat = { label: string; start: number; end: number; text?: string };
 
@@ -26,7 +27,8 @@ function uniqueLabel(base: string, taken: Set<string>) {
 export async function POST(req: NextRequest, { params }: { params: { project: string } }) {
   const { project } = params;
 
-  let body: { op?: unknown; label?: unknown; at?: unknown; order?: unknown };
+  let body: { op?: unknown; label?: unknown; at?: unknown; order?: unknown;
+              edits?: unknown; span?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -108,6 +110,69 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     existing.beats = order.map((l) => byLabel.get(l)!);
     saveBeats(project, existing, "moved a line");
     return NextResponse.json({ ok: true, beats: existing.beats });
+  }
+
+  /* One drag across the timeline, applied as one edit.
+   *
+   * A span pays no attention to where lines begin and end: it can clip the
+   * tail of one, swallow the next whole, and bite the head off a third. The
+   * caller resolves it against the pieces the cut is made of (resolveSpanDelete)
+   * and sends the result; this validates every part of it and writes once, so
+   * a span that is bad anywhere changes nothing -- rather than deleting two
+   * lines and then refusing the third. */
+  if (op === "cut_span") {
+    if (!Array.isArray(body.edits) || body.edits.length === 0) {
+      return NextResponse.json({ error: "edits must be a non-empty list" }, { status: 400 });
+    }
+    const byLabel = new Map(beats.map((b) => [b.label, b]));
+    const dropping = new Set<string>();
+    const holing: { beat: Beat; holes: [number, number][] }[] = [];
+
+    for (const raw of body.edits) {
+      const e = raw as { label?: unknown; drop?: unknown; holes?: unknown };
+      if (typeof e.label !== "string") {
+        return NextResponse.json({ error: "each edit needs a label" }, { status: 400 });
+      }
+      const beat = byLabel.get(e.label);
+      if (!beat) {
+        return NextResponse.json({ error: `no beat '${e.label}'` }, { status: 404 });
+      }
+      if (e.drop === true) { dropping.add(e.label); continue; }
+      const result = normaliseHoles(e.holes, beat);
+      if (!result.ok) {
+        return NextResponse.json({ error: `${e.label}: ${result.error}` }, { status: 400 });
+      }
+      holing.push({ beat, holes: result.holes });
+    }
+
+    if (dropping.size === beats.length) {
+      return NextResponse.json(
+        { error: "that would delete the whole video" }, { status: 400 });
+    }
+
+    for (const { beat, holes } of holing) {
+      if (holes.length) (beat as Beat & { holes?: unknown }).holes = holes;
+      else delete (beat as Beat & { holes?: unknown }).holes;
+    }
+    const kept = beats.filter((b) => !dropping.has(b.label));
+    existing.beats = kept;
+    saveBeats(project, existing, "cut a span out of the timeline");
+
+    // What was taken out, so the drafter can make the same cut unprompted.
+    updateReviewState(project, (st) => {
+      const log = (st as { spanCuts?: unknown[] }).spanCuts ?? [];
+      (st as { spanCuts?: unknown[] }).spanCuts = [
+        ...log,
+        {
+          at: new Date().toISOString(),
+          span: body.span ?? null,
+          dropped: [...dropping],
+          holed: holing.map((h) => ({ label: h.beat.label, holes: h.holes })),
+        },
+      ].slice(-200);
+      return st;
+    });
+    return NextResponse.json({ ok: true, beats: existing.beats, dropped: [...dropping] });
   }
 
   return NextResponse.json({ error: `unknown op '${String(op)}'` }, { status: 400 });

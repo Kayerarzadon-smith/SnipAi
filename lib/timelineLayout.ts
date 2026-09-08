@@ -140,3 +140,77 @@ export function reorderTo(
   next.splice(to, 0, label);
   return next;
 }
+
+
+/* ---- cutting a span out of the timeline --------------------------------- */
+
+/** What removing a stretch of the cut does to one beat. */
+export type SpanEdit =
+  | { label: string; drop: true }
+  | { label: string; holes: [number, number][] };
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+/**
+ * Turn "delete from 12.4s to 15.1s of the cut" into edits to the beat list.
+ *
+ * A span on the timeline is in CUT time and pays no attention to where clips
+ * begin and end, so one drag can clip the tail of one line, swallow the next
+ * whole, and bite the head off a third. Resolving it here, against the pieces
+ * the cut is actually made of, means the messy part is arithmetic that can be
+ * tested rather than something a mouse handler does by feel.
+ *
+ * The mapping has to go through PIECES, not clips: a beat with a pause trimmed
+ * out of it is two runs of film, and cut time does not run linearly across the
+ * gap between them.
+ *
+ * Everything comes back as holes, because a hole that reaches a beat's edge is
+ * already a trim of that edge (see walk_pieces), and a beat the span swallows
+ * entirely is the one case that needs saying separately.
+ */
+export function resolveSpanDelete(
+  pieces: Piece[],
+  clips: Clip[],
+  from: number,
+  to: number
+): SpanEdit[] {
+  if (!(to > from)) return [];
+  const byLabel = new Map(clips.map((c) => [c.label, c]));
+  const removed = new Map<string, [number, number][]>();
+
+  for (const p of pieces) {
+    const lo = Math.max(from, p.at);
+    const hi = Math.min(to, p.at + p.dur);
+    if (hi - lo <= 0.001) continue;                 // this piece is untouched
+    if (p.dur <= 0) continue;
+    // cut time runs linearly inside a single piece, so a fraction of the piece
+    // is the same fraction of the source it came from
+    const span = p.srcEnd - p.srcStart;
+    const s = p.srcStart + clamp01((lo - p.at) / p.dur) * span;
+    const e = p.srcStart + clamp01((hi - p.at) / p.dur) * span;
+    if (e - s <= 0.001) continue;
+    const list = removed.get(p.beatLabel) ?? [];
+    list.push([ms(s), ms(e)]);
+    removed.set(p.beatLabel, list);
+  }
+
+  const out: SpanEdit[] = [];
+  for (const [label, ranges] of removed) {
+    const clip = byLabel.get(label);
+    if (!clip) continue;
+    ranges.sort((a, b) => a[0] - b[0]);
+    // merge, or overlapping ranges double-count what survives
+    const merged: [number, number][] = [];
+    for (const r of ranges) {
+      const last = merged[merged.length - 1];
+      if (last && r[0] <= last[1] + 0.005) last[1] = Math.max(last[1], r[1]);
+      else merged.push([r[0], r[1]]);
+    }
+    const gone = merged.reduce((n, r) => n + (r[1] - r[0]), 0);
+    const had = Math.max(0, clip.end - clip.start);
+    // nothing meaningful left of the line: it is a deletion, not a trim
+    if (had - gone < 0.15) out.push({ label, drop: true });
+    else out.push({ label, holes: [...(clip.holes ?? []), ...merged] });
+  }
+  return out;
+}

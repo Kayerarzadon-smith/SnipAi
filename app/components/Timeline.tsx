@@ -37,6 +37,7 @@ export default function Timeline({
   onTrimAudio,
   onFade,
   onReorder,
+  onCutSpan,
 }: {
   clips: Clip[];
   edl?: EdlPiece[];
@@ -63,6 +64,8 @@ export default function Timeline({
   onFade: (label: string, edge: "in" | "out", seconds: number) => void;
   /** the whole beat list, in its new order */
   onReorder: (order: string[]) => void;
+  /** take a stretch of the cut out, in cut seconds */
+  onCutSpan: (from: number, to: number) => void;
 }) {
   const [zoomIx, setZoomIx] = useState(2);
   const zoomIxRef = useRef(2);
@@ -82,6 +85,9 @@ export default function Timeline({
   } | null>(null);
   /** index in the current order the clip would land BEFORE */
   const [dropAt, setDropAt] = useState<number | null>(null);
+  /** a marked stretch of the cut, in cut seconds, waiting for Delete */
+  const [span, setSpan] = useState<{ from: number; to: number } | null>(null);
+  const [marking, setMarking] = useState<{ anchor: number; moved: boolean } | null>(null);
   /* Only the visible slice of film is fetched, at one thumbnail per ~44px.
      That keeps every frame at its own aspect however far you zoom in, and
      keeps the image small however long the cut is. */
@@ -310,6 +316,52 @@ export default function Timeline({
     return () => clearTimeout(t);
   }, [stripUrlFor, scrollX, pps, total]);
 
+  /* Marking a stretch of the cut on the audio track.
+     The audio is where the dead space is visible, so that is where you point
+     at it. Drag to mark, Delete to take it out, click to clear. */
+  useEffect(() => {
+    if (!marking) return;
+    const onMove = (e: MouseEvent) => {
+      const t = cutTimeAt(e.clientX);
+      if (!marking.moved && Math.abs(t - marking.anchor) < 0.02) return;
+      if (!marking.moved) setMarking({ ...marking, moved: true });
+      setSpan({ from: Math.min(marking.anchor, t), to: Math.max(marking.anchor, t) });
+    };
+    const onUp = () => {
+      if (marking && !marking.moved) setSpan(null);     // a plain click clears
+      setMarking(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [marking, cutTimeAt]);
+
+  /* Delete takes the marked stretch out. Bound on the window rather than the
+     track so it works wherever the pointer went after the drag, and swallowed
+     unconditionally so a bare Backspace never reaches the web view, which
+     reads one as Back. */
+  useEffect(() => {
+    if (!span) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.("input, textarea, [contenteditable]")) return;
+      if (e.key !== "Delete" && e.key !== "Backspace") {
+        if (e.key === "Escape") setSpan(null);
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      if (span.to - span.from > 0.02) onCutSpan(span.from, span.to);
+      setSpan(null);
+    };
+    // capture, so this runs before the review screen's own Delete handler
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [span, onCutSpan]);
+
   /* Dragging a clip to a new place in the cut.
      The gesture starts as a scrub; six pixels of travel is what separates
      "put the playhead here" from "move this line". */
@@ -524,6 +576,9 @@ export default function Timeline({
                 <b className="mono">{fmt(t)}</b>
               </span>
             ))}
+            {span && span.to - span.from > 0.001 && (
+              <div className="tl-span ghost" style={{ left: span.from * pps, width: (span.to - span.from) * pps }} />
+            )}
             {/* where it will land, drawn in the gap it will fall into */}
             {dropAt !== null && moving?.live && (
               <span
@@ -612,7 +667,16 @@ export default function Timeline({
           </div>
 
           {/* audio track */}
-          <div className="tl-track tl-audio">
+          <div
+            className="tl-track tl-audio"
+            onMouseDown={(e) => {
+              if ((e.target as HTMLElement).closest(".tl-handle")) return;
+              e.preventDefault();
+              const t = cutTimeAt(e.clientX);
+              setMarking({ anchor: t, moved: false });
+              setSpan({ from: t, to: t });
+            }}
+          >
             {/* pinned to the viewport; the track scrolls under it */}
             <canvas
               ref={audioRef}
@@ -663,6 +727,11 @@ export default function Timeline({
               );
             })}
             {!peaks && <span className="tl-audio-empty">audio envelope loading…</span>}
+            {span && span.to - span.from > 0.001 && (
+              <div className="tl-span" style={{ left: span.from * pps, width: (span.to - span.from) * pps }}>
+                <span className="tl-span-len mono">{(span.to - span.from).toFixed(2)}s · delete</span>
+              </div>
+            )}
           </div>
 
           {(dragHead ?? playCutTime) !== null && (

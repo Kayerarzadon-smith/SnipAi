@@ -1,5 +1,6 @@
 import Cocoa
 import WebKit
+import AVFoundation
 
 // SnipAi -- native macOS shell around the local SnipAi server.
 //
@@ -128,10 +129,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        primeMicrophone()
         buildMenu()
         buildWindow()
         NSApp.activate(ignoringOtherApps: true)
         bootServerThenLoad()
+    }
+
+    /// Deal with the microphone prompt at launch, not mid-sentence.
+    ///
+    /// Two separate permissions sit in front of the voice box: macOS has to
+    /// have granted the APP microphone access, and the web view has to allow
+    /// the page's request (handled in the capture delegate below). The second
+    /// is automatic; the first shows a system dialog the first time, and it
+    /// used to land the moment someone pressed record -- which loses the
+    /// sentence they were part way through saying.
+    ///
+    /// Asked once, when undetermined. An outright refusal is respected: the
+    /// dialog never comes back, and the voice box says why.
+    func primeMicrophone() {
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined else { return }
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            NSLog("SnipAi: microphone access %@", granted ? "granted" : "refused")
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

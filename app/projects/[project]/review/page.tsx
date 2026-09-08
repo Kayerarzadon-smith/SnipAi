@@ -3,6 +3,7 @@
 import Overlay from "@/app/components/Overlay";
 import TrimWave from "@/app/components/TrimWave";
 import Timeline, { layout } from "@/app/components/Timeline";
+import { resolveSpanDelete } from "@/lib/timelineLayout";
 import GraphicsPanel from "@/app/components/GraphicsPanel";
 import VoiceInput from "@/app/components/VoiceInput";
 
@@ -919,6 +920,31 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     toast(`Restored “${undo.beat.text ?? undo.beat.label}”`);
   }
 
+  /** Take a marked stretch of the timeline out of the cut.
+   *
+   *  One drag can clip the tail of one line, swallow the next, and bite the
+   *  head off a third. resolveSpanDelete works that out against the pieces the
+   *  cut is actually made of; the server applies the lot in one write, so a
+   *  span that is bad anywhere changes nothing. */
+  async function cutSpan(from: number, to: number) {
+    if (!data || to - from <= 0.02) return;
+    const { pieces } = layout(data.beats, data.edl);
+    const edits = resolveSpanDelete(pieces, data.beats, from, to);
+    if (!edits.length) { toast("nothing under that selection"); return; }
+    pushHistory("cutting that stretch out");
+    const res = await fetch(`/api/projects/${project}/beats`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "cut_span", edits, span: { from, to } }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(body.error ?? "could not cut that"); return; }
+    setSelectedClip(null);
+    await load();
+    const dropped = (body.dropped ?? []).length;
+    toast(`Cut ${(to - from).toFixed(2)}s out${dropped ? ` — ${dropped} line${dropped > 1 ? "s" : ""} gone` : ""}`);
+    learnFromEdits();
+  }
+
   async function beatOp(payload: Record<string, unknown>, done: string) {
     pushHistory(String(payload.op ?? "that change"));
     const res = await fetch(`/api/projects/${project}/beats`, {
@@ -1276,15 +1302,12 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                 }
               }}
             />
-            {liveMode && data.beats.length > 0 && (
-              <span className="frame-tag live">
-                LIVE · beat {liveIdx + 1}/{data.beats.length} · {data.beats[liveIdx]?.label.replace(/-/g, " ")}
-              </span>
-            )}
+            {/* Nothing is drawn over the picture. Which line is playing shows
+                in the beat list, which is already highlighting it. */}
+            <span className="player-grip" />
 
             {videoSrc && (
               <>
-                {!liveMode && <span className="frame-tag">{playFile}</span>}
                 <video
                   ref={videoRef}
                   src={videoSrc}
@@ -1393,6 +1416,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             }}
             onSplit={(label, at) => beatOp({ op: "split", label, at }, "Split into two clips")}
             onReorder={(order) => beatOp({ op: "reorder", order }, "Moved that line")}
+            onCutSpan={cutSpan}
             onDetach={detachAudio}
             onTrimAudio={audioTrim}
             onFade={setFade}

@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { projectDir } from "./paths";
-import { writeJsonAtomic } from "./jsonStore";
+import { writeJsonAtomic, wouldChange } from "./jsonStore";
+import { takeSnapshot } from "./snapshots";
 import type { BeatsFile } from "./types";
 
 export function beatsPath(project: string): string {
@@ -14,8 +15,21 @@ export function loadBeats(project: string): BeatsFile | null {
   return JSON.parse(fs.readFileSync(p, "utf8")) as BeatsFile;
 }
 
-export function saveBeats(project: string, data: BeatsFile): void {
-  writeJsonAtomic(beatsPath(project), data);
+/**
+ * Write the edit.
+ *
+ * Every path that changes a beat goes through here, which makes this the one
+ * place worth putting the safety net: a copy of the previous state is taken
+ * first, on every write, with no judgement about which edits are risky. The
+ * expensive lesson was that the risky ones are never the ones you expect.
+ */
+export function saveBeats(project: string, data: BeatsFile, reason = "edit"): void {
+  const p = beatsPath(project);
+  // An edit that changes nothing is not an edit. Writing anyway would churn
+  // the file and fill the history with copies of a state nobody touched.
+  if (!wouldChange(p, data)) return;
+  takeSnapshot(project, reason);
+  writeJsonAtomic(p, data);
 }
 
 /** Update one beat's start/end in place — the same edit Kayer already makes
@@ -27,7 +41,7 @@ export function updateBeatRange(project: string, label: string, start: number, e
   if (!beat) throw new Error(`no beat '${label}' in ${project}`);
   beat.start = start;
   beat.end = end;
-  saveBeats(project, data);
+  saveBeats(project, data, `trim ${label}`);
   return data;
 }
 

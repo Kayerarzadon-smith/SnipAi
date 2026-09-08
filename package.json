@@ -6,7 +6,8 @@
     "dev": "next dev -p 4737 -H 0.0.0.0",
     "build": "next build",
     "start": "next start -p 4737 -H 0.0.0.0",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "./scripts/test"
   },
   "dependencies": {
     "next": "14.2.35",

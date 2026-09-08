@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
+import { writeJsonAtomic } from "@/lib/jsonStore";
 import path from "node:path";
 import { PIPELINE_ROOT } from "@/lib/paths";
 import { runTool, checkAvailability } from "@/lib/pipeline";
@@ -123,7 +124,7 @@ async function measureAll(jobId: string) {
     try {
       const d = JSON.parse(fs.readFileSync(outJson, "utf8"));
       d.measuredAt = new Date().toISOString();
-      fs.writeFileSync(outJson, JSON.stringify(d, null, 1));
+      writeJsonAtomic(outJson, d);
       measured.push(d);
     } catch { /* skip */ }
   }
@@ -153,7 +154,7 @@ async function measureAll(jobId: string) {
     references_analysed: measured.length,
     updated: new Date().toISOString(),
   };
-  fs.writeFileSync(STYLE, JSON.stringify(target, null, 1));
+  writeJsonAtomic(STYLE, target);
   log(`target style updated from ${measured.length} reference(s)`);
   appendLog(jobId, "PROGRESS 100");
   finishJob(jobId);

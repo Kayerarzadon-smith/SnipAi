@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
+import { writeJsonAtomic } from "@/lib/jsonStore";
 import path from "node:path";
 import { projectDir } from "@/lib/paths";
 import { loadBeats, findCutFile } from "@/lib/beats";
@@ -107,7 +108,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { project: s
     return NextResponse.json({ error: "a graphic must be on screen for at least 0.4s" }, { status: 400 });
   }
 
-  fs.writeFileSync(planPath(project), JSON.stringify(plan, null, 1));
+  writeJsonAtomic(planPath(project), plan);
   return NextResponse.json({ ok: true, graphic: g });
 }
 
@@ -190,7 +191,7 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     plan.graphics.push(made);
     plan.graphics.sort((a, b) => a.start - b.start);
     fs.mkdirSync(path.dirname(planPath(project)), { recursive: true });
-    fs.writeFileSync(planPath(project), JSON.stringify(plan, null, 1));
+    writeJsonAtomic(planPath(project), plan);
     return NextResponse.json({ ok: true, graphic: made });
   }
 
@@ -205,7 +206,7 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     if (plan.graphics.length === before) {
       return NextResponse.json({ error: `no graphic '${id}'` }, { status: 404 });
     }
-    fs.writeFileSync(planPath(project), JSON.stringify(plan, null, 1));
+    writeJsonAtomic(planPath(project), plan);
     return NextResponse.json({ ok: true });
   }
 

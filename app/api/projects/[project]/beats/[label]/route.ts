@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadBeats, updateBeatRange, saveBeats as saveBeatsFor } from "@/lib/beats";
 import { updateReviewState } from "@/lib/reviewState";
+import { normaliseHoles } from "@/lib/holes";
 
 /**
  * Adjust one beat's in/out points.
@@ -52,48 +53,13 @@ export async function PATCH(
     if (!bf) return NextResponse.json({ error: `no project '${project}'` }, { status: 404 });
     const beat = bf.beats.find((x) => x.label === label);
     if (!beat) return NextResponse.json({ error: `no beat '${label}' in ${project}` }, { status: 404 });
-    if (!Array.isArray(body.holes)) {
-      return NextResponse.json({ error: "holes must be a list of [from, to] pairs" }, { status: 400 });
-    }
-    const cleaned: [number, number][] = [];
-    for (const h of body.holes) {
-      if (!Array.isArray(h) || h.length !== 2) {
-        return NextResponse.json({ error: "each hole must be [from, to]" }, { status: 400 });
-      }
-      const [f, t] = h as [unknown, unknown];
-      if (typeof f !== "number" || typeof t !== "number" ||
-          !Number.isFinite(f) || !Number.isFinite(t)) {
-        return NextResponse.json({ error: "hole bounds must be numbers" }, { status: 400 });
-      }
-      // a hole outside the line removes nothing, and one that swallows an
-      // edge is a trim -- neither belongs here
-      if (t - f < 0.02) continue;
-      const from = Math.max(beat.start, f);
-      const to = Math.min(beat.end, t);
-      if (to - from < 0.02) continue;
-      if (from <= beat.start + 0.02 && to >= beat.end - 0.02) {
-        return NextResponse.json(
-          { error: "that hole is the whole line — delete the line instead" }, { status: 400 });
-      }
-      cleaned.push([Math.round(from * 1000) / 1000, Math.round(to * 1000) / 1000]);
-    }
-    cleaned.sort((a, b) => a[0] - b[0]);
-    // overlapping holes would double-count what is removed
-    const merged: [number, number][] = [];
-    for (const h of cleaned) {
-      const last = merged[merged.length - 1];
-      if (last && h[0] <= last[1] + 0.005) last[1] = Math.max(last[1], h[1]);
-      else merged.push([h[0], h[1]]);
-    }
-    const kept = (beat.end - beat.start) - merged.reduce((n, h) => n + (h[1] - h[0]), 0);
-    if (kept < 0.15) {
-      return NextResponse.json(
-        { error: "that would leave less than 0.15s of the line" }, { status: 400 });
-    }
+    const result = normaliseHoles(body.holes, beat);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    const merged = result.holes;
     if (merged.length) beat.holes = merged;
     else delete beat.holes;
-    saveBeatsFor(project, bf);
-    return NextResponse.json({ label, holes: beat.holes ?? [], kept: Math.round(kept * 1000) / 1000 });
+    saveBeatsFor(project, bf, `cut a hole in ${label}`);
+    return NextResponse.json({ label, holes: beat.holes ?? [], kept: result.kept });
   }
 
   // fades are their own edit: they change nothing about which frames are kept

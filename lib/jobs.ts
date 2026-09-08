@@ -37,7 +37,11 @@ function persist(): void {
     fs.mkdirSync(STATE_ROOT, { recursive: true });
     // keep the last 40 -- enough for history, not enough to grow forever
     const recent = [...jobs.values()].slice(-40);
-    fs.writeFileSync(JOBS_FILE, JSON.stringify(recent, null, 2));
+    // atomic: a half-written jobs.json read by another route is a crash, and
+    // every route re-reads this file (Next gives each one its own module)
+    const tmp = `${JOBS_FILE}.tmp-${process.pid}-${Date.now()}`;
+    fs.writeFileSync(tmp, JSON.stringify(recent, null, 2));
+    fs.renameSync(tmp, JOBS_FILE);
   } catch {
     // logging state must never take down the job it is describing
   }

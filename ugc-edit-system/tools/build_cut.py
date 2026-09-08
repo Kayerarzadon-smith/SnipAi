@@ -67,6 +67,67 @@ def tuned(key, fallback):
         return fallback
 
 
+def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.30):
+    """Split one beat into the runs of film that survive.
+
+    Two kinds of stretch come out of the middle of a line:
+
+      * a PAUSE the silence map found. It is given breathing room -- half of
+        `keep` at each end -- because cutting a detected pause flush sounds
+        clipped, and it is skipped near either edge, where taking it out would
+        eat into the words.
+
+      * a HOLE the editor highlighted and deleted. That one is taken at
+        exactly the boundaries drawn: no breathing room, and none of the
+        near-the-edge guards, because a person pointing at a stretch and
+        deleting it meant that stretch and no other.
+
+    Returns (pieces, seconds_removed, splits). The pieces butt together in the
+    order returned, so concatenating them closes every gap.
+    """
+    inner = [] if detached else [
+        (x, y, False) for x, y in sil
+        if x > s + 0.12 and y < e - 0.12 and (y - x) >= trim_min]
+    for hx, hy in holes:
+        if hy > s + 0.02 and hx < e - 0.02:
+            inner.append((max(hx, s), min(hy, e), True))
+    inner.sort()
+
+    pieces, cur, tail, removed, n = [], s, e, 0.0, 0
+    for x, y, explicit in inner:
+        if explicit:
+            co, ci = x, y
+            if ci <= cur + 0.02:
+                continue                          # already behind the playhead
+            if co <= cur + 0.02:
+                # Reaches the start of what is left: that is not a hole in the
+                # middle, it is the in-point moving. Emitting a zero-length
+                # piece here would be wrong and skipping it would silently
+                # keep footage the editor deleted.
+                removed += ci - cur
+                cur = ci
+                continue
+            if ci >= tail - 0.02:
+                # Reaches the end: the out-point moves instead, and nothing
+                # after this can survive.
+                removed += tail - co
+                tail = co
+                break
+            if ci <= co + 0.02:
+                continue
+        else:
+            co, ci = x + keep / 2, y - keep / 2
+            if co <= cur + 0.18 or ci >= tail - 0.18 or ci <= co + 0.05:
+                continue
+        pieces.append((f"{label}-{n}", round(cur, 3), round(co, 3)))
+        removed += ci - co
+        cur = ci
+        n += 1
+    if tail - cur >= 0.02:
+        pieces.append((f"{label}-{n}" if n else label, round(cur, 3), round(tail, 3)))
+    return pieces, removed, n
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -174,33 +235,11 @@ def main():
             s1, e1 = snap(s, e)
             snapped_total += (s1 - s) + (e - e1)
             s, e = s1, e1
-        inner = [] if label in detached else [
-            (x, y, False) for x, y in sil
-            if x > s + 0.12 and y < e - 0.12 and (y - x) >= a.trim_min]
-        # Stretches the editor highlighted and deleted from inside the line.
-        # They are not silence and no detector would find them, so they are
-        # merged in here and removed the same way -- the pieces either side
-        # butt together and the join closes with no gap. Marked explicit,
-        # because a hand-made cut is taken at exactly the boundaries drawn:
-        # it gets none of the breathing room a detected pause is given, and
-        # none of the near-the-edge guards that would quietly drop it.
-        for hx, hy in holes.get(label, []):
-            if hy > s + 0.02 and hx < e - 0.02:
-                inner.append((max(hx, s), min(hy, e), True))
-        inner.sort()
-        cur, removed, n = s, 0.0, 0
-        for x, y, explicit in inner:
-            if explicit:
-                co, ci = x, y
-                if co <= cur + 0.02 or ci >= e - 0.02 or ci <= co + 0.02:
-                    continue
-            else:
-                co, ci = x + a.keep / 2, y - a.keep / 2
-                if co <= cur + 0.18 or ci >= e - 0.18 or ci <= co + 0.05:
-                    continue
-            pieces.append((f"{label}-{n}", round(cur, 3), round(co, 3)))
-            removed += ci - co; cur = ci; n += 1
-        pieces.append((f"{label}-{n}" if n else label, round(cur, 3), round(e, 3)))
+        got, removed, n = walk_pieces(
+            label, s, e, sil, holes.get(label, []),
+            detached=label in detached,
+            trim_min=a.trim_min, keep=a.keep)
+        pieces.extend(got)
         report.append((label, s, e, round(e - s, 3), round(e - s - removed, 3), n))
 
     total = sum(p[2] - p[1] for p in pieces)

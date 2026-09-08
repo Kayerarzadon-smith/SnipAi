@@ -20,7 +20,9 @@ Reads reference/products.json. Never posts anything anywhere.
 import argparse, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CATALOGUE = os.path.join(ROOT, "reference", "products.json")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import data_path  # noqa: E402
+CATALOGUE = data_path("reference", "products.json")
 
 
 def norm(t):

@@ -106,6 +106,12 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [undo, setUndo] = useState<{ beat: Beat; at: number } | null>(null);
   const [gfxFor, setGfxFor] = useState<Beat | null>(null);
   const [gfxNonce, setGfxNonce] = useState(0);
+  /** the footage's own shape, so the player is never a letterbox */
+  const [shotAspect, setShotAspect] = useState<string | null>(null);
+  /** the line being spoken, and which word of it, right now */
+  const [spoken, setSpoken] = useState<{ label: string; wordIx: number } | null>(null);
+  /** auto-follow gives way the moment you scroll yourself */
+  const followRef = useRef(true);
   const [gfxOpen, setGfxOpen] = useState(false);
   const [gfxCount, setGfxCount] = useState<number | null>(null);
 
@@ -290,6 +296,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [liveIdx, setLiveIdx] = useState(0);
   const liveIdxRef = useRef(0);
   const beatsRef = useRef<Beat[]>([]);
+  /** the loaded project, for the per-frame loop -- reading state there would
+   *  make the callback stale between renders */
+  const dataRef = useRef<Detail | null>(null);
   const trimRef = useRef<{ label: string; start: number; end: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -303,6 +312,119 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       videoRef.current.currentTime = seg.start + 0.02;
       videoRef.current.play().catch(() => {});
     }
+  }
+
+  /* Carry the spoken line up under the player.
+     Playback moves through the list faster than anyone can follow by eye, so
+     the list comes to the playhead rather than the other way round. It gives
+     way the moment you scroll yourself -- following someone who is reading
+     somewhere else is worse than not following at all. */
+  useEffect(() => {
+    const stopFollowing = () => { followRef.current = false; };
+    window.addEventListener("wheel", stopFollowing, { passive: true });
+    window.addEventListener("touchmove", stopFollowing, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", stopFollowing);
+      window.removeEventListener("touchmove", stopFollowing);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!spoken || !followRef.current) return;
+    const row = document.querySelector(`[data-beat="${spoken.label}"]`) as HTMLElement | null;
+    const stage = document.querySelector(".stage") as HTMLElement | null;
+    if (!row) return;
+    // just below the player, which is where your eyes already are
+    const want = stage ? stage.getBoundingClientRect().bottom + 12 : 140;
+    const delta = row.getBoundingClientRect().top - want;
+    if (Math.abs(delta) < 6) return;                 // already there
+    window.scrollBy({ top: delta, behavior: Math.abs(delta) > 400 ? "auto" : "smooth" });
+  }, [spoken?.label]);   // on the LINE changing, not on every word
+
+  /** Cut time -> the source frame it shows. The inverse of what the timeline
+   *  does, and it has to go through the pieces: a line with a stretch taken
+   *  out of it is several runs of film, and cut time skips the gap. */
+  const cutToSource = useCallback((t: number): number | null => {
+    const d = dataRef.current;
+    if (!d) return null;
+    const { pieces } = layout(d.beats, d.edl);
+    for (const p of pieces) {
+      if (t >= p.at && t < p.at + p.dur) {
+        const f = p.dur > 0 ? (t - p.at) / p.dur : 0;
+        return p.srcStart + f * (p.srcEnd - p.srcStart);
+      }
+    }
+    return null;
+  }, []);
+
+  /** The transcript words inside one line, which are what carry the timing. */
+  const wordsOf = useCallback((b: Beat) => {
+    const all = dataRef.current?.words ?? [];
+    return all.filter((w) => w.e > b.start && w.s < b.end);
+  }, []);
+
+  /* Picking a clip on the timeline and picking its line are the same act.
+     The row lights up either way, and scrolls into view when the selection
+     came from the timeline -- so the two halves of the screen never disagree
+     about which line you are working on. */
+  useEffect(() => {
+    if (!selectedClip) return;
+    const row = document.querySelector(`[data-beat="${selectedClip}"]`);
+    if (!row) return;
+    const r = row.getBoundingClientRect();
+    if (r.top < 60 || r.bottom > window.innerHeight - 40) {
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [selectedClip]);
+
+  /* The playhead, at screen rate rather than the decoder's.
+     timeupdate fires about four times a second, so a playhead driven by it
+     steps along in visible jumps while the picture runs smoothly. Reading
+     currentTime once per frame costs nothing and is what makes the marker
+     look attached to the video. */
+  useEffect(() => {
+    let raf = 0;
+    let stop = false;
+    const tick = () => {
+      if (stop) return;
+      const v = liveMode ? rawRef.current : videoRef.current;
+      if (v && !v.seeking) {
+        if (!v.paused) {
+          if (liveMode) setRawHead(v.currentTime); else setPlayhead(v.currentTime);
+        }
+        /* Which word is being said, in SOURCE time.
+           Resolved every frame but only written to state when it changes, so
+           the highlight lands on the syllable without re-rendering the list
+           sixty times a second. */
+        const src = liveMode ? v.currentTime : cutToSource(v.currentTime);
+        if (src !== null) {
+          const beats = beatsRef.current;
+          const b = beats.find((x) => src >= x.start - 0.02 && src <= x.end + 0.02);
+          if (b) {
+            const ws = wordsOf(b);
+            let ix = -1;
+            for (let i = 0; i < ws.length; i++) {
+              if (src >= ws[i].s - 0.03 && src < ws[i].e + 0.03) { ix = i; break; }
+              if (ws[i].s > src) break;
+            }
+            setSpoken((cur) =>
+              cur && cur.label === b.label && cur.wordIx === ix ? cur : { label: b.label, wordIx: ix });
+          } else {
+            setSpoken((cur) => (cur === null ? cur : null));
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { stop = true; cancelAnimationFrame(raf); };
+  }, [liveMode]);
+
+  /** The footage's own aspect, so the player frame matches the picture
+   *  instead of letterboxing it inside a phone shape. */
+  function noteAspect(e: React.SyntheticEvent<HTMLVideoElement>) {
+    const v = e.currentTarget;
+    if (v.videoWidth && v.videoHeight) setShotAspect(`${v.videoWidth} / ${v.videoHeight}`);
   }
 
   /** The edit's history, off disk -- so it survives a reload, a restart, and
@@ -360,6 +482,57 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     stopAt.current = null;
     v.currentTime = Math.max(0, t);
     setRawHead(t);
+  }
+
+  /* Audio while you drag.
+   *
+   * A seek is silent, so dragging the playhead across a line used to show you
+   * the mouth moving with nothing coming out -- and finding the gap before a
+   * word is a thing you do by ear. There is no scrub-audio primitive in a
+   * video element, so this uses the only thing that makes sound: playing it.
+   * Dragging forward sets the rate from how fast your hand is moving and lets
+   * it run; whenever the picture drifts from the pointer, or you drag
+   * backwards, it snaps back to a silent seek.
+   *
+   * Backwards is silent and cannot not be: playbackRate will not go negative
+   * in any browser. */
+  const scrubAudio = useRef<{ at: number; t: number } | null>(null);
+  function scrubHeard(target: number) {
+    const v = rawRef.current;
+    if (!v || !data?.hasSource) return false;
+    const now = performance.now();
+    const last = scrubAudio.current;
+    scrubAudio.current = { at: now, t: target };
+    if (!last) return false;
+
+    const dt = (now - last.at) / 1000;
+    if (dt <= 0.001 || dt > 0.25) return false;       // first move, or you stopped
+    const rate = (target - last.t) / dt;
+
+    // Backwards is silent and cannot not be: playbackRate will not go negative
+    // in any browser. Stationary is silent too -- there is nothing to hear.
+    if (rate < 0.15) return false;
+
+    /* Chase the pointer, do not try to sit on it.
+     *
+     * Zoomed out, a hand moving at any normal speed is covering ten seconds of
+     * content a second, so demanding that the audio keep up exactly meant it
+     * bailed on every frame and you heard nothing at all. It plays the stretch
+     * you are passing over instead, at the fastest rate speech survives, and
+     * only jumps when it has fallen far enough behind to be the wrong part of
+     * the video. That is what scrubbing sounds like on a real deck. */
+    const drift = target - v.currentTime;
+    if (drift < -0.05 || drift > 1.2) {
+      v.currentTime = Math.max(0, target);            // too far behind, or overshot
+    }
+    v.playbackRate = Math.max(0.5, Math.min(3, rate));
+    if (v.paused) v.play().catch(() => {});
+    return true;
+  }
+  function endScrubAudio() {
+    scrubAudio.current = null;
+    const v = rawRef.current;
+    if (v) { v.pause(); v.playbackRate = 1; }
   }
 
   /** Nudge one edge. Negative on start = start earlier; positive on end =
@@ -469,6 +642,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     if (res.ok) {
       const fresh = await res.json();
       beatsRef.current = fresh.beats ?? [];
+      dataRef.current = fresh;
       setData(fresh);
       setNotFound(false);
     } else if (res.status === 404 || res.status === 400) {
@@ -485,7 +659,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       .then((d) => d && setPeaks({ rate: d.rate, peaks: d.peaks, rms: d.rms }))
       .catch(() => {});
   }, [project]);
-  useEffect(() => { beatsRef.current = data?.beats ?? []; }, [data]);
+  useEffect(() => { beatsRef.current = data?.beats ?? []; dataRef.current = data; }, [data]);
   const defaulted = useRef(false);
   useEffect(() => {
     if (data && !defaulted.current) { defaulted.current = true; if (!data.cutFile && data.hasSource && data.beats.length > 0) setLiveMode(true); }
@@ -520,6 +694,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   }
 
   function playFrom(index: number) {
+    followRef.current = true;          // asking for playback asks to follow it
     const beats = beatsRef.current;
     if (!beats.length || !rawRef.current) return;
     const i = Math.max(0, Math.min(index, beats.length - 1));
@@ -784,7 +959,11 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     if (!c) return;
     liveIdxRef.current = c.index;
     setLiveIdx(c.index);
-    scrubTo(c.start + Math.max(0, Math.min(c.dur, cutTime - c.at)));
+    const src = c.start + Math.max(0, Math.min(c.dur, cutTime - c.at));
+    setSelectedClip(c.label);           // the line under the hand is the selected line
+    // if it can be heard, let it run rather than seeking on top of it
+    if (scrubHeard(src)) { setLiveMode(true); setRawHead(src); return; }
+    scrubTo(src);
   }
 
   /** Dragging a clip edge on the timeline is the same edit as a trim; it just
@@ -1253,7 +1432,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             </span>
           </div>
 
-          <div className="player">
+          <div
+            className="player"
+            style={shotAspect ? ({ ["--shot-aspect" as string]: shotAspect } as React.CSSProperties) : undefined}
+          >
             {/* Live edit: the raw source, played beat to beat using the CURRENT
                 in/out points. Nothing is rendered, so a trim is audible the
                 moment it is made -- the timeline is instructions over the
@@ -1268,6 +1450,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               controls={liveMode}
               preload="metadata"
               style={liveMode ? undefined : { display: "none" }}
+              onLoadedMetadata={noteAspect}
               onTimeUpdate={(e) => {
                 const v = e.target as HTMLVideoElement;
                 setRawHead(v.currentTime);
@@ -1324,6 +1507,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                   onLoadedMetadata={(e) => {
                     const d = (e.target as HTMLVideoElement).duration;
                     if (Number.isFinite(d) && d > 0) setCutMediaDuration(d);
+                    noteAspect(e);
                   }}
                   onTimeUpdate={(e) => setPlayhead((e.target as HTMLVideoElement).currentTime)}
                 />
@@ -1424,6 +1608,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             onSplit={(label, at) => beatOp({ op: "split", label, at }, "Split into two clips")}
             onReorder={(order) => beatOp({ op: "reorder", order }, "Moved that line")}
             onCutSpan={cutSpan}
+            onScrubEnd={endScrubAudio}
             onGenerateGraphic={generateGraphicFor}
             generatingGraphic={gfxScanning}
             onDetach={detachAudio}
@@ -1554,15 +1739,18 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                     left Trim/Bad take/Note unreachable by keyboard and made a
                     screen reader read the whole row as one run-on label. */}
                 <div
-                  className={`beat ${statusClass}${isPlaying ? " playing" : ""}${trimBeat === b.label ? " open" : ""}`}
+                  className={`beat ${statusClass}${isPlaying ? " playing" : ""}`
+                    + (trimBeat === b.label ? " open" : "")
+                    + (selectedClip === b.label ? " selected" : "")}
+                  data-beat={b.label}
                   role="button"
                   tabIndex={0}
-                  onClick={() => seekToBeat(b.label)}
+                  onClick={() => { followRef.current = true; setSelectedClip(b.label); seekToBeat(b.label); }}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;   // let the inner buttons act
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      seekToBeat(b.label);
+                      setSelectedClip(b.label); seekToBeat(b.label);
                     }
                   }}
                 >
@@ -1571,7 +1759,18 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                   <span className="txt">
                     {/* The line as spoken is the thing being reviewed. The
                         label is a filename for build_cut.py, not a title. */}
-                    {b.text ? <b>{b.text}</b> : <b>{b.label.replace(/-/g, " ")}</b>}
+                    {spoken?.label === b.label ? (
+                      /* Only the line being spoken is split into words. Every
+                         other row stays a single node, so following the
+                         playback costs one row's worth of work, not the list's. */
+                      <b className="txt-live">
+                        {wordsOf(b).map((w, wi) => (
+                          <span key={wi} className={wi === spoken.wordIx ? "wd on" : "wd"}>
+                            {w.w}
+                          </span>
+                        ))}
+                      </b>
+                    ) : b.text ? <b>{b.text}</b> : <b>{b.label.replace(/-/g, " ")}</b>}
                     {b.holes?.length ? (
                       <span className="beat-hole mono"
                             title={`${b.holes.length} stretch${b.holes.length > 1 ? "es" : ""} cut out of the middle of this line`}>

@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
-import { CODE_ROOT, VENV_ROOT, TOOLS_ROOT, PYTHON_BIN, FFMPEG_BIN, projectDir } from "./paths";
+import { CODE_ROOT, VENV_ROOT, TOOLS_ROOT, PYTHON_BIN, FFMPEG_BIN, DATA_ROOT, projectDir } from "./paths";
 import type { PipelineAvailability } from "./types";
 import { appendLog, finishJob, failJob } from "./jobs";
 
@@ -98,6 +98,10 @@ export function runCommand(
         // which ignore the Python-level thread setting
         OMP_NUM_THREADS: process.env.OMP_NUM_THREADS ?? "2",
         MKL_NUM_THREADS: process.env.MKL_NUM_THREADS ?? "2",
+        // The tools resolve the glossary, the product list and the learned
+        // rules out of the library. Telling them where it is means they can
+        // never disagree with the server about which library is in play.
+        SNIPAI_DATA: DATA_ROOT,
       },
     });
     let stdout = "";

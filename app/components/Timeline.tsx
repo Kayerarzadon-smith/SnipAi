@@ -38,6 +38,7 @@ export default function Timeline({
   onFade,
   onReorder,
   onCutSpan,
+  onScrubEnd,
   onGenerateGraphic,
   generatingGraphic,
 }: {
@@ -68,6 +69,8 @@ export default function Timeline({
   onReorder: (order: string[]) => void;
   /** take a stretch of the cut out, in cut seconds */
   onCutSpan: (from: number, to: number) => void;
+  /** the hand let go: stop any audio the scrub was playing */
+  onScrubEnd?: () => void;
   /** read one line and put a card on it if it earns one */
   onGenerateGraphic: (label: string) => void;
   generatingGraphic: string | null;
@@ -366,6 +369,33 @@ export default function Timeline({
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [span, onCutSpan]);
+
+  /* Dragging the playhead.
+     setScrubbing(true) was set on mousedown and nothing ever followed the
+     pointer, so the playhead could be placed but not dragged. It follows the
+     hand now, and reports every position so the picture keeps up. */
+  useEffect(() => {
+    if (!scrubbing) return;
+    const onMove = (e: MouseEvent) => {
+      const t = cutTimeAt(e.clientX);
+      setDragHead(t);           // drawn from the pointer, never from the decoder
+      onScrub(t);
+      // dragging past the edge walks the view along with you
+      const el = scrollRef.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        if (e.clientX > r.right - 40) el.scrollLeft += 14;
+        else if (e.clientX < r.left + 40) el.scrollLeft -= 14;
+      }
+    };
+    const onUp = () => { setScrubbing(false); setDragHead(null); onScrubEnd?.(); };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [scrubbing, cutTimeAt, onScrub, onScrubEnd]);
 
   /* Dragging a clip to a new place in the cut.
      The gesture starts as a scrub; six pixels of travel is what separates

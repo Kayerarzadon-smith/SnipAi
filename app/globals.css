@@ -789,9 +789,10 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 
 /* Two tracks, not two panels. A 2px seam is enough to read as separate at a
    glance and keeps a cut point on the picture lined up with the sound that
-   goes with it -- which is the whole reason to look at them together. */
+   goes with it -- which is the whole reason to look at them together.
+   One pixel: the seam is a line, not a gap. */
 .tl-track { position: relative; margin: 0; }
-.tl-track + .tl-track { margin-top: 2px; }
+.tl-track + .tl-track { margin-top: 1px; }
 .tl-video { height: 84px; }
 .tl-audio { height: 118px; background: #0b0910; border-radius: 4px; }
 .tl-strip { position: absolute; top: 0; bottom: 0; height: 100%;
@@ -1023,12 +1024,16 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
    hides how much of the frame the caption rail and the chin actually eat. */
 /* half the iPhone size: still the right shape to judge framing, but it
    stops the picture pushing the timeline off the screen */
-/* Starts at half an iPhone -- big enough to judge framing, small enough that
-   the timeline still fits -- and is yours to drag from there. The size is
-   remembered per project. */
-.stage .player { width: 197px; max-width: 100%; aspect-ratio: 393 / 852;
+/* The player takes the shape of the footage.
+   It was locked to an iPhone's 393x852, so 9:16 video sat in it with a black
+   band top and bottom -- a picture you are judging framing on, letterboxed
+   inside a phone that is not the phone it will play on. The aspect now comes
+   from the video itself (set on load), and the width follows the window until
+   you drag it, so it is responsive by default and yours to override. */
+.stage .player { width: clamp(160px, 22vw, 340px); max-width: 100%;
+                 aspect-ratio: var(--shot-aspect, 9 / 16);
                  border-radius: 18px; background: #000;
-                 resize: horizontal; overflow: auto; min-width: 120px; }
+                 resize: horizontal; overflow: hidden; min-width: 120px; }
 /* the drag corner, drawn so it looks like a handle rather than a scrollbar */
 .stage .player::-webkit-resizer { background: transparent; }
 .stage .player-grip {
@@ -1039,8 +1044,10 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
     linear-gradient(135deg, transparent 70%, #fff 70%, #fff 80%, transparent 80%);
 }
 .stage .player:hover .player-grip { opacity: .9; }
+/* cover, now that the frame matches the footage: contain would still hairline
+   a band on any clip whose aspect differs slightly from the first one loaded */
 .stage .player video { width: 100%; height: 100%; max-height: none;
-                       object-fit: contain; background: #000; }
+                       object-fit: cover; background: #000; display: block; }
 .stage .player .empty { aspect-ratio: auto; height: 100%; max-height: none; }
 .phone-note { text-align: center; font-size: 10.5px; color: var(--text-faint);
               margin-top: 6px; letter-spacing: .02em; }
@@ -1277,3 +1284,23 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 }
 /* inside the fold it is a list, not a card with its own frame */
 .gfx-fold .gfx { background: none; border: none; padding: 0 0 12px; }
+
+/* The line that is selected on the timeline, and the other way round. One
+   act, two places on screen -- they must never disagree about which line you
+   are working on. Distinct from .playing, which follows the playhead. */
+.beat.selected {
+  background: var(--surface-hover, rgba(255,255,255,.05));
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.beat.selected .beat-act { opacity: 1; }
+
+/* ---- the line being spoken ----------------------------------------------
+   The word lands as it is said. Weight and colour rather than a moving box:
+   a box drawn per word is a thing sliding across the screen, and what you
+   want to see is the reading, not the marker. */
+.txt-live .wd { transition: color .09s linear, opacity .09s linear; opacity: .5; }
+.txt-live .wd.on { color: var(--accent); opacity: 1; text-shadow: 0 0 14px var(--accent-soft); }
+/* words already said stay readable; the ones still coming sit back */
+.beat.playing .txt-live .wd { opacity: .62; }
+.beat.playing .txt-live .wd.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .txt-live .wd { transition: none; } }

@@ -21,8 +21,10 @@ import argparse, json, os, re, sys
 from collections import Counter, defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TUNING = os.path.join(ROOT, "state", "tuning.json")
-PROJECTS = os.path.join(ROOT, "projects")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import data_path  # noqa: E402
+TUNING = data_path("state", "tuning.json")
+PROJECTS = data_path("projects")
 
 # which scoring knob each flag corresponds to
 FLAG_TO_PENALTY = {

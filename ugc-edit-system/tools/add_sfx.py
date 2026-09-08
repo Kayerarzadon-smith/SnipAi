@@ -25,7 +25,9 @@ reported rather than silently dropped.
 import argparse, json, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_MAP = os.path.join(ROOT, "reference", "sfx.json")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import data_path  # noqa: E402
+DEFAULT_MAP = data_path("reference", "sfx.json")
 
 
 def load_map(path):
@@ -103,7 +105,7 @@ def main():
 
     resolved, missing = [], []
     for kind, t, rel in cues:
-        p = rel if os.path.isabs(rel) else os.path.join(ROOT, "reference", rel)
+        p = rel if os.path.isabs(rel) else data_path("reference", rel)
         (resolved if os.path.exists(p) else missing).append((kind, t, p))
 
     print(f"{os.path.basename(a.cut)} -- {len(resolved)} effect(s) placed")

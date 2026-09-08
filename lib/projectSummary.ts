@@ -1,0 +1,156 @@
+import fs from "node:fs";
+import path from "node:path";
+import { listProjectNames, projectDir } from "./paths";
+import { loadBeats, findCutFile } from "./beats";
+import { loadReviewState } from "./reviewState";
+import { computeWordCutoffMetric, buildScorecard, loadTranscriptWords, computeWordBoundaryFlags } from "./scorecard";
+import type { CutStatus } from "./types";
+
+export type PipelineStage = {
+  key: string;
+  label: string;
+  weight: number;
+  done: boolean;
+};
+
+export type ProjectSummary = {
+  name: string;
+  title: string;
+  beatCount: number;
+  cutStatus: CutStatus;
+  cutFile: string | null;
+  hasRawFootage: boolean;
+  hasTranscript: boolean;
+  scorecardOverall: number | null;
+  flaggedBeatLabels: string[];
+  progressPct: number;
+  stages: PipelineStage[];
+  nextStep: string;
+  /** How much footage the edit removes. sourceSeconds comes from the last
+   * word in the transcript (no ffmpeg call needed); cutSeconds is the sum of
+   * the beats actually kept. */
+  sourceSeconds: number | null;
+  cutSeconds: number | null;
+  removedSeconds: number | null;
+  /** name + byte size of the footage already in this project, so an upload
+   * can warn before importing the same file twice under a different name. */
+  rawFiles: { name: string; size: number }[];
+};
+
+/**
+ * Progress is derived from real artifacts on disk -- each stage is a fact we
+ * can check, not an estimate. That keeps the percentage honest: it only moves
+ * when the pipeline actually produced something.
+ */
+function computeStages(opts: {
+  hasRawFootage: boolean;
+  hasTranscript: boolean;
+  beatCount: number;
+  cutFile: string | null;
+  cutStatus: CutStatus;
+}): PipelineStage[] {
+  return [
+    { key: "footage", label: "Raw footage in", weight: 15, done: opts.hasRawFootage },
+    { key: "transcript", label: "Transcribed", weight: 15, done: opts.hasTranscript },
+    { key: "beats", label: "Beats drafted", weight: 20, done: opts.beatCount > 0 },
+    { key: "cut", label: "Cut built", weight: 25, done: opts.cutFile !== null },
+    { key: "reviewed", label: "Reviewed", weight: 10, done: opts.cutStatus !== "unreviewed" },
+    { key: "approved", label: "Approved", weight: 15, done: opts.cutStatus === "approved" },
+  ];
+}
+
+function nextStepFor(stages: PipelineStage[]): string {
+  const pending = stages.find((s) => !s.done);
+  if (!pending) return "Ready to post";
+  switch (pending.key) {
+    case "footage": return "Drop in raw footage";
+    case "transcript": return "Transcribe the footage";
+    case "beats": return "Draft the beat list";
+    case "cut": return "Build the cut";
+    case "reviewed": return "Needs your review";
+    case "approved": return "Awaiting your approval";
+    default: return pending.label;
+  }
+}
+
+function titleFromName(name: string): string {
+  return name
+    .split("-")
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+export function summarizeProject(name: string): ProjectSummary | null {
+  const beats = loadBeats(name);
+  if (!beats) return null;
+  const dir = projectDir(name);
+  const state = loadReviewState(name);
+  const cutFile = findCutFile(name);
+  const rawDir = path.join(dir, "raw");
+  const rawFiles: { name: string; size: number }[] = [];
+  if (fs.existsSync(rawDir)) {
+    for (const f of fs.readdirSync(rawDir)) {
+      if (f.startsWith(".")) continue;
+      try {
+        rawFiles.push({ name: f, size: fs.statSync(path.join(rawDir, f)).size });
+      } catch {
+        // a broken symlink shouldn't take out the dashboard
+      }
+    }
+  }
+  const hasRawFootage = rawFiles.length > 0;
+  const transcriptWords = loadTranscriptWords(name);
+
+  const flaggedBeatLabels = transcriptWords
+    ? computeWordBoundaryFlags(transcriptWords, beats.beats).map((f) => f.beatLabel)
+    : [];
+
+  const metrics = [computeWordCutoffMetric(name, beats.beats)];
+  const scorecard = buildScorecard(metrics);
+
+  // what the edit actually removes
+  let sourceSeconds: number | null = null;
+  if (transcriptWords && transcriptWords.length) {
+    sourceSeconds = Math.max(...transcriptWords.map((w) => w.e));
+  }
+  const cutSeconds = beats.beats.length
+    ? beats.beats.reduce((sum, b) => sum + Math.max(0, b.end - b.start), 0)
+    : null;
+  const removedSeconds =
+    sourceSeconds !== null && cutSeconds !== null ? Math.max(0, sourceSeconds - cutSeconds) : null;
+
+  const stages = computeStages({
+    hasRawFootage,
+    hasTranscript: transcriptWords !== null,
+    beatCount: beats.beats.length,
+    cutFile,
+    cutStatus: state.cutStatus,
+  });
+  const progressPct = stages.reduce((sum, s) => sum + (s.done ? s.weight : 0), 0);
+
+  return {
+    name,
+    title: titleFromName(name),
+    beatCount: beats.beats.length,
+    cutStatus: state.cutStatus,
+    cutFile,
+    hasRawFootage,
+    hasTranscript: transcriptWords !== null,
+    scorecardOverall: scorecard.overall,
+    flaggedBeatLabels: Array.from(new Set(flaggedBeatLabels)),
+    progressPct,
+    stages,
+    nextStep: nextStepFor(stages),
+    sourceSeconds: sourceSeconds === null ? null : Math.round(sourceSeconds * 10) / 10,
+    cutSeconds: cutSeconds === null ? null : Math.round(cutSeconds * 10) / 10,
+    removedSeconds: removedSeconds === null ? null : Math.round(removedSeconds * 10) / 10,
+    rawFiles,
+  };
+}
+
+export function summarizeAllProjects(): ProjectSummary[] {
+  return listProjectNames()
+    .map(summarizeProject)
+    .filter((p): p is ProjectSummary => p !== null);
+}

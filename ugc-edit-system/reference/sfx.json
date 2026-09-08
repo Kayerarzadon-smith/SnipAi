@@ -1,0 +1,8 @@
+{
+  "_note": "Map an event to a sound file (paths relative to reference/). The PLACEHOLDER files are generated tones for testing the mix -- swap them for real effects from your own library.",
+  "events": {
+    "cut": "sfx/PLACEHOLDER-whoosh.wav",
+    "card": "sfx/PLACEHOLDER-pop.wav",
+    "hook": "sfx/PLACEHOLDER-impact.wav"
+  }
+}

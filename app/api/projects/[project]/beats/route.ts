@@ -1,0 +1,118 @@
+import { NextRequest, NextResponse } from "next/server";
+import { loadBeats, saveBeats } from "@/lib/beats";
+import { updateReviewState } from "@/lib/reviewState";
+
+type Beat = { label: string; start: number; end: number; text?: string };
+
+const MIN_DUR = 0.15;
+
+function uniqueLabel(base: string, taken: Set<string>) {
+  const clean = base.replace(/[^a-z0-9-]/gi, "").toLowerCase() || "beat";
+  if (!taken.has(clean)) return clean;
+  for (let i = 2; ; i++) {
+    const c = `${clean}-${i}`;
+    if (!taken.has(c)) return c;
+  }
+}
+
+/**
+ * Structural edits to the beat list: remove a line, split one in two, or
+ * change the order. Trimming a single beat's edges stays on
+ * beats/[label] — this is for edits that change what clips exist.
+ *
+ * beats.json is what build_cut.py reads, so nothing is written until the
+ * whole resulting list is valid.
+ */
+export async function POST(req: NextRequest, { params }: { params: { project: string } }) {
+  const { project } = params;
+
+  let body: { op?: unknown; label?: unknown; at?: unknown; order?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
+  }
+
+  let existing;
+  try {
+    existing = loadBeats(project);
+  } catch {
+    return NextResponse.json({ error: "invalid project name" }, { status: 400 });
+  }
+  if (!existing) return NextResponse.json({ error: `no project '${project}'` }, { status: 404 });
+
+  const beats: Beat[] = existing.beats;
+  const op = body.op;
+
+  if (op === "delete") {
+    if (typeof body.label !== "string") {
+      return NextResponse.json({ error: "label is required" }, { status: 400 });
+    }
+    const gone = beats.find((b) => b.label === body.label);
+    if (!gone) {
+      return NextResponse.json({ error: `no beat '${body.label}'` }, { status: 404 });
+    }
+    if (beats.length <= 1) {
+      return NextResponse.json({ error: "a cut needs at least one beat" }, { status: 400 });
+    }
+    existing.beats = beats.filter((b) => b.label !== body.label);
+    saveBeats(project, existing);
+    // dropping a line is a judgement about the take; worth remembering
+    updateReviewState(project, (st) => {
+      (st.deletedBeats ??= []).push({
+        label: gone.label, text: gone.text, start: gone.start, end: gone.end,
+        at: new Date().toISOString(),
+      });
+    });
+    return NextResponse.json({ ok: true, removed: gone, beats: existing.beats });
+  }
+
+  if (op === "split") {
+    if (typeof body.label !== "string" || typeof body.at !== "number" || !Number.isFinite(body.at)) {
+      return NextResponse.json({ error: "label and a numeric 'at' are required" }, { status: 400 });
+    }
+    const i = beats.findIndex((b) => b.label === body.label);
+    if (i < 0) return NextResponse.json({ error: `no beat '${body.label}'` }, { status: 404 });
+    const b = beats[i];
+    const at = body.at;
+    if (at - b.start < MIN_DUR || b.end - at < MIN_DUR) {
+      return NextResponse.json(
+        { error: `split too close to an edge — each half must be at least ${MIN_DUR}s` },
+        { status: 400 }
+      );
+    }
+    const taken = new Set(beats.map((x) => x.label));
+    const left: Beat = { ...b, end: round(at) };
+    const right: Beat = {
+      ...b,
+      label: uniqueLabel(`${b.label}-b`, taken),
+      start: round(at),
+    };
+    existing.beats = [...beats.slice(0, i), left, right, ...beats.slice(i + 1)];
+    saveBeats(project, existing);
+    return NextResponse.json({ ok: true, beats: existing.beats });
+  }
+
+  if (op === "reorder") {
+    if (!Array.isArray(body.order) || body.order.some((l) => typeof l !== "string")) {
+      return NextResponse.json({ error: "order must be an array of labels" }, { status: 400 });
+    }
+    const order = body.order as string[];
+    const byLabel = new Map(beats.map((b) => [b.label, b]));
+    if (order.length !== beats.length || order.some((l) => !byLabel.has(l))) {
+      return NextResponse.json(
+        { error: "order must list every existing beat exactly once" },
+        { status: 400 }
+      );
+    }
+    existing.beats = order.map((l) => byLabel.get(l)!);
+    saveBeats(project, existing);
+    return NextResponse.json({ ok: true, beats: existing.beats });
+  }
+
+  return NextResponse.json({ error: `unknown op '${String(op)}'` }, { status: 400 });
+}
+
+function round(n: number) {
+  return Math.round(n * 1000) / 1000;
+}

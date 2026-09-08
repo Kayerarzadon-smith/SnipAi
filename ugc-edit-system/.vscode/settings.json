@@ -1,0 +1,19 @@
+{
+  "files.exclude": {
+    "**/work/clips": true,
+    "**/work/previews": true,
+    "**/.transcode-cache": true,
+    "**/hyperframes-legacy/node_modules": true
+  },
+  "search.exclude": {
+    "**/work": true,
+    "**/node_modules": true,
+    "**/*.mp4": true,
+    "**/*.MOV": true
+  },
+  "files.associations": {
+    "*.ass": "plaintext"
+  },
+  "python.defaultInterpreterPath": ".venv/bin/python",
+  "python.terminal.activateEnvironment": true
+}

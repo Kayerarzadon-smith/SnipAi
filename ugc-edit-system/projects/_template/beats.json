@@ -1,0 +1,22 @@
+{
+  "source": "raw/REPLACE-WITH-SOURCE-FILENAME.mov",
+  "notes": "One beat per line of the script. start/end are seconds into the source. Each beat must be ONE complete recitation - the LAST clean attempt. Verify every in-point with tools/scan_takes.py before building; the transcript hides restarts.",
+  "beats": [
+    { "label": "hook-1",        "start": 0.00, "end": 0.00 },
+    { "label": "hook-2",        "start": 0.00, "end": 0.00 },
+    { "label": "hook-3",        "start": 0.00, "end": 0.00 },
+    { "label": "product-intro", "start": 0.00, "end": 0.00 },
+    { "label": "application",   "start": 0.00, "end": 0.00 },
+    { "label": "benefit-1",     "start": 0.00, "end": 0.00 },
+    { "label": "benefit-2",     "start": 0.00, "end": 0.00 },
+    { "label": "benefit-3",     "start": 0.00, "end": 0.00 },
+    { "label": "how-long",      "start": 0.00, "end": 0.00 },
+    { "label": "people-notice", "start": 0.00, "end": 0.00 },
+    { "label": "before",        "start": 0.00, "end": 0.00 },
+    { "label": "after",         "start": 0.00, "end": 0.00 },
+    { "label": "commitment",    "start": 0.00, "end": 0.00 },
+    { "label": "scarcity",      "start": 0.00, "end": 0.00 },
+    { "label": "sale",          "start": 0.00, "end": 0.00 },
+    { "label": "cta",           "start": 0.00, "end": 0.00 }
+  ]
+}

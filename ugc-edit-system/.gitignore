@@ -1,0 +1,18 @@
+# media -- far too big for git, and the raw file is the one thing never edited
+*.mp4
+*.MOV
+*.mov
+*.wav
+
+# per-project scratch
+projects/*/work/clips/
+projects/*/work/previews/
+projects/*/work/extract.sh
+projects/*/work/concat.txt
+.transcode-cache/
+.DS_Store
+
+# python
+.venv/
+__pycache__/
+node_modules/

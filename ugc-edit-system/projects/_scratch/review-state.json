@@ -1,0 +1,64 @@
+{
+  "project": "_scratch",
+  "cutStatus": "unreviewed",
+  "updatedAt": "2026-09-08T04:23:59.489Z",
+  "timelineMarkers": [],
+  "beatDiagnoses": {},
+  "takePicks": {},
+  "candidateCache": {},
+  "deletedBeats": [
+    {
+      "label": "need-egf-3",
+      "text": "you need EGF.",
+      "start": 97.48,
+      "end": 98.6,
+      "at": "2026-09-07T19:09:24.111Z"
+    }
+  ],
+  "trimEdits": [
+    {
+      "beatLabel": "between-eyes-looks",
+      "startDelta": 0,
+      "endDelta": 0.15,
+      "at": "2026-09-07T20:42:11.416Z"
+    },
+    {
+      "beatLabel": "between-eyes-looks",
+      "startDelta": 0,
+      "endDelta": 0.1,
+      "at": "2026-09-07T20:43:53.415Z"
+    }
+  ],
+  "checks": {
+    "cutFile": "_scratch-v1.mp4",
+    "computedAt": "2026-09-07T20:54:00.103Z",
+    "metrics": [
+      {
+        "key": "repeats",
+        "label": "Repeated phrases",
+        "value": 0,
+        "note": "verify_cut.py: FAIL — 16 repeated phrase(s)"
+      },
+      {
+        "key": "pacing",
+        "label": "Pacing vs. house style",
+        "value": 13,
+        "note": "compare_to_reference.py: 2 metric(s) out of tolerance (worst 87% off)"
+      }
+    ]
+  },
+  "cutRegions": [
+    {
+      "beatLabel": "between-eyes-looks",
+      "from": 79.691,
+      "to": 80.29,
+      "seconds": 0.599,
+      "words": [
+        "your",
+        "eyes"
+      ],
+      "silenceRatio": 0.26,
+      "at": "2026-09-08T04:23:59.489Z"
+    }
+  ]
+}

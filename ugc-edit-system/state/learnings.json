@@ -1,0 +1,34 @@
+[
+ {
+  "id": "seed-expressive-delivery",
+  "category": "take-selection",
+  "text": "Prefer expressive, energetic delivery over a perfectly clean pause",
+  "active": true,
+  "source": "seed",
+  "createdAt": "2026-09-04T00:00:00.000Z"
+ },
+ {
+  "id": "seed-no-stitching",
+  "category": "cutting-rules",
+  "text": "Never stitch two attempts at the same sentence \u2014 split the beat or drop it instead",
+  "active": true,
+  "source": "seed",
+  "createdAt": "2026-09-04T00:00:00.000Z"
+ },
+ {
+  "id": "seed-pacing-reference",
+  "category": "pacing",
+  "text": "Match reference delivery speed; flag reads that run slower than house style",
+  "active": true,
+  "source": "seed",
+  "createdAt": "2026-09-04T00:00:00.000Z"
+ },
+ {
+  "id": "pref-1788562686954-886pdn",
+  "category": "take-selection",
+  "text": "Even with a false start on the take, I'd rather keep the energy up than pick the technically safest option",
+  "active": true,
+  "source": "captured",
+  "createdAt": "2026-09-04T22:58:06.954Z"
+ }
+]

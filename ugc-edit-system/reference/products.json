@@ -1,0 +1,123 @@
+{
+  "_note": "Your product catalogue. SnipAi transcribes every word you say, so when a video mentions one of these it can attach the right link automatically instead of you hunting for it. `aliases` is how the product actually comes out of your mouth and how Whisper mishears it -- on your own footage Whisper wrote 'Metacube' and 'entity plus' for MediCube and NAD+, so those belong here too.",
+  "affiliate": {
+    "amazonTag": "",
+    "_amazonTagHelp": "Your Amazon Associates tracking ID, e.g. yourname-20. Appended to any amazon.com link as ?tag=..."
+  },
+  "products": [
+    {
+      "id": "medicube-nad-egf-serum",
+      "name": "Medicube NAD+ EGF Firming Serum",
+      "brand": "Medicube",
+      "aliases": [
+        "egf",
+        "egf firming serum",
+        "egf serum",
+        "entity plus",
+        "firming serum",
+        "medi cube nad",
+        "medicube nad",
+        "meta cube",
+        "metacube",
+        "nad plus",
+        "nad plus egf",
+        "nad+"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      },
+      "notes": "Whisper hears 'Metacube' on your footage \u2014 kept as an alias."
+    },
+    {
+      "id": "medicube-zero-pore-pads",
+      "name": "Medicube Zero Pore Pads",
+      "brand": "Medicube",
+      "aliases": [
+        "zero pore pad",
+        "zero pore pads",
+        "pore pads"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      }
+    },
+    {
+      "id": "medicube-collagen-cream",
+      "name": "Medicube Triple Collagen Cream",
+      "brand": "Medicube",
+      "aliases": [
+        "triple collagen",
+        "collagen cream"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      }
+    },
+    {
+      "id": "cosrx-bakuchiol-serum",
+      "name": "COSRX Blue Peptide Bakuchiol Plumping Serum",
+      "brand": "COSRX",
+      "aliases": [
+        "cosrx",
+        "blue peptide",
+        "bakuchiol serum",
+        "plumping serum"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      }
+    },
+    {
+      "id": "asterwood-copper-peptides",
+      "name": "Asterwood Copper Peptides",
+      "brand": "Asterwood",
+      "aliases": [
+        "asterwood",
+        "copper peptide",
+        "copper peptides"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      }
+    },
+    {
+      "id": "laka-lip-mask",
+      "name": "Laka Lip Mask",
+      "brand": "Laka",
+      "aliases": [
+        "laka",
+        "lip mask"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      }
+    },
+    {
+      "id": "cymbiotika-glutathione",
+      "name": "Cymbiotika Liposomal Glutathione",
+      "brand": "Cymbiotika",
+      "aliases": [
+        "cymbiotika",
+        "liposomal glutathione",
+        "glutathione"
+      ],
+      "links": {
+        "tiktokShop": "",
+        "amazon": "",
+        "other": ""
+      }
+    }
+  ]
+}

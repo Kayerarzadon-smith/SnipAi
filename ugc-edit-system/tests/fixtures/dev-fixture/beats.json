@@ -1,0 +1,18 @@
+{
+  "source": "raw/DEV-FIXTURE-NOT-REAL-FOOTAGE.mp4",
+  "notes": "Synthetic dev fixture, hand-written for SnipAi app development -- NOT a real project. Exercises the take-candidate scorer end to end without needing real audio: one beat with a clean, confident winner (collagen-benefit) and one beat with no confident winner, mirroring the real medicube-egf-serum project's beat 7 (nad-benefit). Excluded from the dashboard by the leading underscore, same convention as _template.",
+  "beats": [
+    {
+      "label": "collagen-benefit",
+      "start": 10,
+      "end": 14.2,
+      "text": "The collagen extract is going to firm, hydrate, and give your skin that bounce."
+    },
+    {
+      "label": "nad-benefit",
+      "start": 35.5,
+      "end": 38.9,
+      "text": "to start rebuilding themselves faster."
+    }
+  ]
+}

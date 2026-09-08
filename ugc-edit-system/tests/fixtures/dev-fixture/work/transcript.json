@@ -1,0 +1,84 @@
+[
+ {
+  "start": 0.00, "end": 1.10, "text": " The collagen is gonna",
+  "words": [
+   {"w": " The", "s": 0.00, "e": 0.14},
+   {"w": " collagen", "s": 0.14, "e": 0.55},
+   {"w": " is", "s": 0.55, "e": 0.68},
+   {"w": " gonna", "s": 0.68, "e": 1.10}
+  ]
+ },
+ {
+  "start": 3.10, "end": 7.40, "text": " The collagen extract is going to firm hydrate and give your skin",
+  "words": [
+   {"w": " The", "s": 3.10, "e": 3.22},
+   {"w": " collagen", "s": 3.22, "e": 3.60},
+   {"w": " extract", "s": 3.60, "e": 3.95},
+   {"w": " is", "s": 3.95, "e": 4.05},
+   {"w": " going", "s": 4.05, "e": 4.20},
+   {"w": " to", "s": 4.20, "e": 4.30},
+   {"w": " firm", "s": 6.60, "e": 6.90},
+   {"w": " hydrate", "s": 6.90, "e": 7.10},
+   {"w": " and", "s": 7.10, "e": 7.15},
+   {"w": " give", "s": 7.15, "e": 7.22},
+   {"w": " your", "s": 7.22, "e": 7.30},
+   {"w": " skin", "s": 7.30, "e": 7.40}
+  ]
+ },
+ {
+  "start": 10.00, "end": 14.23, "text": " The collagen extract is going to firm, hydrate, and give your skin that bounce.",
+  "words": [
+   {"w": " The", "s": 10.00, "e": 10.12},
+   {"w": " collagen", "s": 10.12, "e": 10.50},
+   {"w": " extract", "s": 10.50, "e": 10.85},
+   {"w": " is", "s": 10.85, "e": 10.95},
+   {"w": " going", "s": 10.95, "e": 11.10},
+   {"w": " to", "s": 11.10, "e": 11.20},
+   {"w": " firm,", "s": 11.20, "e": 11.55},
+   {"w": " hydrate,", "s": 11.60, "e": 12.00},
+   {"w": " and", "s": 12.00, "e": 12.10},
+   {"w": " give", "s": 12.10, "e": 12.25},
+   {"w": " your", "s": 12.25, "e": 12.40},
+   {"w": " skin", "s": 12.40, "e": 12.70},
+   {"w": " that", "s": 12.75, "e": 12.95},
+   {"w": " bounce.", "s": 12.95, "e": 14.23}
+  ]
+ },
+ {
+  "start": 20.00, "end": 21.20, "text": " NAD plus is gonna",
+  "words": [
+   {"w": " NAD", "s": 20.00, "e": 20.20},
+   {"w": " plus", "s": 20.20, "e": 20.45},
+   {"w": " is", "s": 20.45, "e": 20.60},
+   {"w": " gonna", "s": 20.60, "e": 21.20}
+  ]
+ },
+ {
+  "start": 23.00, "end": 33.20, "text": " NAD plus is going to recharge your cells and give them the energy",
+  "words": [
+   {"w": " NAD", "s": 23.00, "e": 23.20},
+   {"w": " plus", "s": 23.20, "e": 23.45},
+   {"w": " is", "s": 23.45, "e": 23.60},
+   {"w": " going", "s": 23.60, "e": 23.80},
+   {"w": " to", "s": 23.80, "e": 23.95},
+   {"w": " recharge", "s": 23.95, "e": 24.60},
+   {"w": " your", "s": 24.60, "e": 24.80},
+   {"w": " cells", "s": 24.80, "e": 25.00},
+   {"w": " and", "s": 31.00, "e": 31.20},
+   {"w": " give", "s": 31.20, "e": 31.40},
+   {"w": " them", "s": 31.40, "e": 31.60},
+   {"w": " the", "s": 31.60, "e": 31.75},
+   {"w": " energy", "s": 31.75, "e": 33.20}
+  ]
+ },
+ {
+  "start": 35.50, "end": 38.90, "text": " to start rebuilding themselves faster.",
+  "words": [
+   {"w": " to", "s": 35.50, "e": 35.65},
+   {"w": " start", "s": 35.65, "e": 36.10},
+   {"w": " rebuilding", "s": 36.10, "e": 37.20},
+   {"w": " themselves", "s": 37.20, "e": 38.10},
+   {"w": " faster.", "s": 38.10, "e": 38.90}
+  ]
+ }
+]

@@ -1,0 +1,78 @@
+{
+  "project": "_dev-fixture",
+  "cutStatus": "unreviewed",
+  "updatedAt": "2026-09-04T22:57:34.859Z",
+  "timelineMarkers": [],
+  "beatDiagnoses": {
+    "nad-benefit": {
+      "checks": [
+        "Wrong take"
+      ],
+      "note": "",
+      "answeredAt": "2026-09-04T22:56:56.426Z"
+    }
+  },
+  "takePicks": {
+    "nad-benefit": {
+      "chosenId": "take-B",
+      "pickedAt": "2026-09-04T22:57:34.859Z"
+    }
+  },
+  "candidateCache": {
+    "nad-benefit": {
+      "region": {
+        "start": 27.5,
+        "end": 46.9
+      },
+      "label": "nad-benefit",
+      "candidates": [
+        {
+          "id": "take-A",
+          "start": 23,
+          "end": 33.2,
+          "text": "NAD plus is going to recharge your cells and give them the energy",
+          "confidence": 0.4,
+          "flags": [
+            "dead_air_6.0s",
+            "incomplete_sentence"
+          ],
+          "why": [
+            {
+              "ok": false,
+              "label": "Sentence does not end on a full stop -- looks cut off or abandoned"
+            },
+            {
+              "ok": false,
+              "label": "6.0s dead-air gap inside this take"
+            }
+          ]
+        },
+        {
+          "id": "take-B",
+          "start": 35.5,
+          "end": 38.9,
+          "text": "to start rebuilding themselves faster.",
+          "confidence": 0.65,
+          "flags": [
+            "false_start"
+          ],
+          "why": [
+            {
+              "ok": true,
+              "label": "Complete idea, no repeated phrase"
+            },
+            {
+              "ok": false,
+              "label": "Short / restarted quickly -- looks like a false start"
+            },
+            {
+              "ok": true,
+              "label": "No clipped word at either edge"
+            }
+          ]
+        }
+      ],
+      "recommendedId": "take-B"
+    }
+  }
+}

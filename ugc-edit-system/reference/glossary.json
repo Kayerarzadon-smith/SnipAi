@@ -1,0 +1,144 @@
+{
+ "_note": "Terms that get a definition card when spoken. IMPORTANT: every definition here was drafted by the assistant and none has been checked against a source. They are claims about ingredients that would appear on a public product video, so each carries verified:false until Kayer confirms the wording. The app will not burn an unverified card in without an explicit override.",
+ "terms": [
+  {
+   "term": "Bakuchiol",
+   "aliases": [
+    "bakuchiol",
+    "bakuchial"
+   ],
+   "definition": "A plant-derived retinol alternative \u2014 smooths texture without the irritation",
+   "verified": false
+  },
+  {
+   "term": "Barrier",
+   "aliases": [
+    "skin barrier",
+    "moisture barrier"
+   ],
+   "definition": "The skin's outer layer -- when it is damaged, skin stings and dries out",
+   "verified": false
+  },
+  {
+   "term": "Ceramides",
+   "aliases": [
+    "ceramide",
+    "ceramides"
+   ],
+   "definition": "Lipids that make up the skin barrier and hold moisture in",
+   "verified": false
+  },
+  {
+   "term": "Collagen",
+   "aliases": [
+    "collagen",
+    "collagen extract"
+   ],
+   "definition": "The protein that keeps skin firm and bouncy \u2014 production drops with age",
+   "verified": false
+  },
+  {
+   "term": "Copper peptides",
+   "aliases": [
+    "copper peptide",
+    "copper peptides",
+    "ghk cu"
+   ],
+   "definition": "Peptides bound to copper, used in skincare for firmness and repair",
+   "verified": false
+  },
+  {
+   "term": "EGF",
+   "aliases": [
+    "egf",
+    "e g f",
+    "epidermal growth factor"
+   ],
+   "definition": "Epidermal Growth Factor \u2014 signals skin cells to rebuild and repair faster",
+   "verified": false
+  },
+  {
+   "term": "Fine lines",
+   "aliases": [
+    "fine lines",
+    "fine line"
+   ],
+   "definition": "Early surface creases, usually where skin folds most often",
+   "verified": false
+  },
+  {
+   "term": "Glutathione",
+   "aliases": [
+    "glutathione",
+    "liposomal glutathione"
+   ],
+   "definition": "An antioxidant the body makes; taken as a supplement for oxidative stress",
+   "verified": false
+  },
+  {
+   "term": "Hyaluronic Acid",
+   "aliases": [
+    "hyaluronic acid",
+    "hyaluronic"
+   ],
+   "definition": "Holds up to 1000x its weight in water \u2014 this is what plumps the skin",
+   "verified": false
+  },
+  {
+   "term": "Hyaluronic acid",
+   "aliases": [
+    "hyaluronic acid",
+    "hyaluronic",
+    "ha serum"
+   ],
+   "definition": "A humectant that holds water in the skin to plump and hydrate",
+   "verified": false
+  },
+  {
+   "term": "NAD+",
+   "aliases": [
+    "nad plus",
+    "nad+",
+    "n a d plus"
+   ],
+   "definition": "A coenzyme that recharges cells and powers their repair cycle",
+   "verified": false
+  },
+  {
+   "term": "Niacinamide",
+   "aliases": [
+    "niacinamide",
+    "niacinamid"
+   ],
+   "definition": "Vitamin B3 \u2014 calms redness, tightens pores, evens tone",
+   "verified": false
+  },
+  {
+   "term": "Peptides",
+   "aliases": [
+    "peptide",
+    "peptides"
+   ],
+   "definition": "Short chains of amino acids that tell skin to produce more collagen",
+   "verified": false
+  },
+  {
+   "term": "Retinol",
+   "aliases": [
+    "retinol",
+    "retinoid"
+   ],
+   "definition": "Vitamin A derivative \u2014 speeds cell turnover, the gold standard for fine lines",
+   "verified": false
+  },
+  {
+   "term": "Squalane",
+   "aliases": [
+    "squalane",
+    "squalene"
+   ],
+   "definition": "A lightweight moisturising oil that mimics the skin's own sebum",
+   "verified": false
+  }
+ ]
+}

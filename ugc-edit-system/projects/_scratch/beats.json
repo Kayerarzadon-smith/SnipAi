@@ -1,0 +1,222 @@
+{
+  "source": "raw/IMG_9817.MOV",
+  "notes": "DRAFT written by tools/draft_beats.py -- one beat per line, each the best-scoring attempt. Beats marked needs_review scored below the confidence bar and want a human call before building.",
+  "beats": [
+    {
+      "label": "between-eyes-looks",
+      "start": 78.62,
+      "end": 81.23,
+      "text": "If between your eyes looks like this,",
+      "holes": [
+        [
+          79.691,
+          80.29
+        ]
+      ]
+    },
+    {
+      "label": "need-egf",
+      "start": 81.74,
+      "end": 82.58,
+      "text": "you need EGF."
+    },
+    {
+      "label": "smile-lines-look",
+      "start": 88.3,
+      "end": 90.42,
+      "text": "your smile lines look like this,"
+    },
+    {
+      "label": "need-egf-2",
+      "start": 91.02,
+      "end": 92.06,
+      "text": "you need EGF."
+    },
+    {
+      "label": "under-eyes-looks",
+      "start": 94.64,
+      "end": 96.92,
+      "text": "And if under your eyes looks like this,"
+    },
+    {
+      "label": "need-egf-3",
+      "start": 97.48,
+      "end": 98.6,
+      "text": "you need EGF."
+    },
+    {
+      "label": "thing-good-thing",
+      "start": 109.34,
+      "end": 111.12,
+      "text": "thing, good thing."
+    },
+    {
+      "label": "good-thing-theres",
+      "start": 137.12,
+      "end": 141.12,
+      "text": "good thing there's a serum that exists by Metacube that has NAD plus and EGF."
+    },
+    {
+      "label": "just-drop-here",
+      "start": 151.24,
+      "end": 153.44,
+      "text": "Just drop it here,"
+    },
+    {
+      "label": "egf-going-improve",
+      "start": 160.8,
+      "end": 164.02,
+      "text": "The EGF is going to improve the elasticity of your face."
+    },
+    {
+      "label": "well-entity-plus",
+      "start": 171.94,
+      "end": 175.36,
+      "text": "well, the entity plus is going to power up your cells"
+    },
+    {
+      "label": "speed-up-skin",
+      "start": 179.78,
+      "end": 182.66,
+      "text": "and speed up the skin cell renewal process."
+    },
+    {
+      "label": "ive-been-ive",
+      "start": 210.16,
+      "end": 211.8,
+      "text": "I've been, I've"
+    },
+    {
+      "label": "ive-been-using",
+      "start": 222.48,
+      "end": 227.44,
+      "text": "I've been using this stuff for like five months now and oh my gosh, I swear my life on this."
+    },
+    {
+      "label": "been-using-stuff",
+      "start": 243.36,
+      "end": 257.38,
+      "text": "been using this stuff for like five months now and oh my gosh I will"
+    },
+    {
+      "label": "literally-five-months",
+      "start": 262.76,
+      "end": 264.94,
+      "text": "This is literally me five months ago"
+    },
+    {
+      "label": "can-definitely-tell",
+      "start": 289.98,
+      "end": 294.64,
+      "text": "can definitely tell my skin texture is terrible and you can definitely see the fine lines."
+    },
+    {
+      "label": "can-definitely",
+      "start": 305.46,
+      "end": 307.16,
+      "text": "you can definitely and"
+    },
+    {
+      "label": "can-can-also",
+      "start": 310.24,
+      "end": 313.68,
+      "text": "you can and you can also see the appearance of fine lines."
+    },
+    {
+      "label": "swear-swear",
+      "start": 325.46,
+      "end": 327.02,
+      "text": "swear, I swear this,"
+    },
+    {
+      "label": "swear-stuff",
+      "start": 330.16,
+      "end": 331.24,
+      "text": "I swear this stuff is,"
+    },
+    {
+      "label": "when-not-gonna",
+      "start": 339.04,
+      "end": 348.66,
+      "text": "when you Not gonna lie, using this as may, not gonna lie, not gonna lie, this stuff is may, not,"
+    },
+    {
+      "label": "not-gonna-lie",
+      "start": 350.68,
+      "end": 353.02,
+      "text": "not gonna lie, this stuff has made me look five years younger."
+    },
+    {
+      "label": "not-gonna-lie-2",
+      "start": 382.76,
+      "end": 391.26,
+      "text": "not gonna lie I personally think that this stuff makes me look five years younger and"
+    },
+    {
+      "label": "im-not-only",
+      "start": 399.42,
+      "end": 400.62,
+      "text": "I'm not the only one."
+    },
+    {
+      "label": "im-not-only-2",
+      "start": 408.24,
+      "end": 412.76,
+      "text": "And I'm not the only one, there's literally tens of thousands of people in the comments."
+    },
+    {
+      "label": "swear-by-swear",
+      "start": 419.44,
+      "end": 423.36,
+      "text": "That swear by the, that swear by this and"
+    },
+    {
+      "label": "thats-swear-by",
+      "start": 427.94,
+      "end": 438.28,
+      "text": "That's swear by this and they're glowing up because of it."
+    },
+    {
+      "label": "medicube-dropped-not",
+      "start": 450.56,
+      "end": 454.6,
+      "text": "MediCube dropped this not too long ago and they've already sold over."
+    },
+    {
+      "label": "medicube-dropped-not-2",
+      "start": 456.48,
+      "end": 462.46,
+      "text": "MediCube dropped this not too long ago and they've sold hundreds of thousands of these bottles and they have a hard time keeping this in stock."
+    },
+    {
+      "label": "good-news-just",
+      "start": 478.68,
+      "end": 481.6,
+      "text": "the good news is that just check they're having a sale right now"
+    },
+    {
+      "label": "doesnt-doesnt-happen",
+      "start": 488.18,
+      "end": 496.32,
+      "text": "this doesn't this doesn't happen all the time this does this does not have this does not happen all the time so i'll get you this so"
+    },
+    {
+      "label": "ill-get-sale",
+      "start": 506.26,
+      "end": 507.8,
+      "text": "So I'll get you that sale link."
+    },
+    {
+      "label": "do-do-yours",
+      "start": 510.52,
+      "end": 513.42,
+      "text": "But do, but do yours, but do yours."
+    },
+    {
+      "label": "just-do-yourself",
+      "start": 516.5,
+      "end": 525.4,
+      "text": "But just do yourself a favor. Do not, but just do yourself, but just do yourself a favor. Do not sleep on this because these will sell out in the next day or two."
+    }
+  ]
+}

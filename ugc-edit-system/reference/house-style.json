@@ -1,0 +1,17 @@
+{
+  "measured_from": ["1-raw/Reference Unedited.mp4", "2-finished/Reference Edited.mp4"],
+  "how": "tools/align_reference.py -- regenerate with /match-reference when you add a new reference pair",
+  "raw_duration": 332.8,
+  "duration": 67.47,
+  "segments": 34,
+  "seconds_per_cut": 1.98,
+  "segment_seconds": { "min": 0.42, "median": 1.95, "max": 4.02 },
+  "words_per_second": 4.48,
+  "joins_trimming_pause_within_a_take": 20,
+  "joins_jumping_to_another_take": 13,
+  "captions": false,
+  "graphic_overlays": false,
+  "music_bed": true,
+  "gap_loudness_db": [-26, -16],
+  "tolerance": { "duration_pct": 20, "median_segment_pct": 40 }
+}

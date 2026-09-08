@@ -1,0 +1,4 @@
+silence_start: 4.00
+silence_end: 6.55 | silence_duration: 2.55
+silence_start: 25.00
+silence_end: 31.00 | silence_duration: 6.00

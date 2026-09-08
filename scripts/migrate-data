@@ -1,0 +1,98 @@
+#!/bin/bash
+# Move SnipAi's library out of the code repo.
+#
+# Footage and edits belong to you, not to the app. Once the app is a signed
+# bundle its own directory is read-only, so the library has to live somewhere
+# of its own -- and somewhere you can reach it in Finder without going through
+# the app.
+#
+# This COPIES and VERIFIES. It never deletes anything. When it says the copy
+# is good, the originals are still there and you delete them yourself.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+
+SRC="$PWD/ugc-edit-system"
+DEST="${SNIPAI_DATA:-$HOME/Movies/SnipAi}"
+
+BOLD=$'\033[1m'; DIM=$'\033[2m'; OK=$'\033[32m'; WARN=$'\033[33m'; ERR=$'\033[31m'; OFF=$'\033[0m'
+step() { printf "\n%s==> %s%s\n" "$BOLD" "$1" "$OFF"; }
+good() { printf "  %s%s%s\n" "$OK" "$1" "$OFF"; }
+warn() { printf "  %s%s%s\n" "$WARN" "$1" "$OFF"; }
+bad()  { printf "  %s%s%s\n\n" "$ERR" "$1" "$OFF"; exit 1; }
+note() { printf "  %s%s%s\n" "$DIM" "$1" "$OFF"; }
+
+# What is the person's, as opposed to what is the app's. tools/, .venv/ and the
+# docs stay with the code -- they are shipped, not owned.
+PARTS=(projects state reference .trash)
+
+step "Checking"
+[ -d "$SRC/projects" ] || bad "no library at $SRC/projects — nothing to migrate"
+if [ -e "$DEST/projects" ]; then
+  bad "$DEST/projects already exists. Refusing to write over a library that is already there."
+fi
+
+need=0
+for p in "${PARTS[@]}"; do
+  [ -e "$SRC/$p" ] || continue
+  sz=$(du -sk "$SRC/$p" 2>/dev/null | cut -f1)
+  need=$((need + sz))
+  printf "  %-12s %s\n" "$p" "$(du -sh "$SRC/$p" | cut -f1)"
+done
+free=$(df -k "$(dirname "$DEST")" | tail -1 | awk '{print $4}')
+printf "\n  need %sMB, free %sMB\n" "$((need / 1024))" "$((free / 1024))"
+# a copy needs room for a second copy, plus headroom to keep working
+[ "$free" -gt "$((need + 1048576))" ] || bad "not enough room — free up space first, this needs the size again plus 1GB"
+
+step "Copying to $DEST"
+mkdir -p "$DEST" || bad "could not create $DEST"
+for p in "${PARTS[@]}"; do
+  [ -e "$SRC/$p" ] || continue
+  printf "  %s ... " "$p"
+  # -a keeps timestamps and permissions; the trash expiry reads a stamp from
+  # the folder NAME so it survives either way, but mtimes are worth keeping
+  if cp -a "$SRC/$p" "$DEST/$p"; then printf "%sdone%s\n" "$OK" "$OFF"
+  else bad "copy of $p failed — nothing was removed, the original is untouched"; fi
+done
+
+step "Verifying"
+fail=0
+for p in "${PARTS[@]}"; do
+  [ -e "$SRC/$p" ] || continue
+  a=$(cd "$SRC/$p" && find . -type f | wc -l | tr -d ' ')
+  b=$(cd "$DEST/$p" && find . -type f | wc -l | tr -d ' ')
+  # bytes as well as count: a truncated copy has the same number of files
+  abytes=$(cd "$SRC/$p" && find . -type f -exec stat -f%z {} + 2>/dev/null | awk '{n+=$1} END {print n+0}')
+  bbytes=$(cd "$DEST/$p" && find . -type f -exec stat -f%z {} + 2>/dev/null | awk '{n+=$1} END {print n+0}')
+  if [ "$a" = "$b" ] && [ "$abytes" = "$bbytes" ]; then
+    printf "  %-12s %s files, %s bytes  %sok%s\n" "$p" "$a" "$abytes" "$OK" "$OFF"
+  else
+    printf "  %-12s %sMISMATCH%s  files %s/%s  bytes %s/%s\n" "$p" "$ERR" "$OFF" "$a" "$b" "$abytes" "$bbytes"
+    fail=1
+  fi
+done
+
+step "Checksumming the edits"
+# The footage is large and never written by the app; the JSON is small and is
+# the part that would actually hurt to lose. Check every byte of it.
+csum() { find "$1" -type f \( -name '*.json' -o -name '*.md' -o -name '*.txt' \) \
+           -not -path '*/work/clips/*' | sed "s|^$1/||" | sort | \
+         while read -r f; do printf '%s ' "$f"; shasum -a 256 "$1/$f" | cut -d' ' -f1; done; }
+if diff <(csum "$SRC/projects") <(csum "$DEST/projects") > /dev/null; then
+  good "every beats.json, review-state.json and transcript matches byte for byte"
+else
+  printf "  %sthe edit files do not match%s\n" "$ERR" "$OFF"; fail=1
+fi
+
+if [ "$fail" != 0 ]; then
+  printf "\n%s%sVerification failed. Nothing was deleted — your library is still at:%s\n" "$BOLD" "$ERR" "$OFF"
+  printf "  %s\n\n" "$SRC"
+  exit 1
+fi
+
+step "Done"
+good "your library is now at $DEST"
+note "the app finds it there automatically — no configuration needed"
+printf "\n  %sThe originals are still in place.%s Use the app for a bit; when you are\n" "$BOLD" "$OFF"
+printf "  happy nothing is missing, reclaim the space with:\n\n"
+printf "    rm -rf %s\n\n" "$(printf '%q ' "$SRC/projects" "$SRC/.trash" | sed 's/ $//')"
+printf "  %s(state/ and reference/ are small — leaving them costs nothing.)%s\n\n" "$DIM" "$OFF"

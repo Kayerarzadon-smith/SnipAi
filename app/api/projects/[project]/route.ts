@@ -10,7 +10,7 @@ import {
   parseCompareToReferenceOutput,
 } from "@/lib/scorecard";
 import { runTool, checkAvailability } from "@/lib/pipeline";
-import { projectDir, PIPELINE_ROOT } from "@/lib/paths";
+import { projectDir, TRASH_ROOT, DATA_ROOT } from "@/lib/paths";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -221,7 +221,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { project: 
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const trashDir = path.join(PIPELINE_ROOT, ".trash");
+  const trashDir = TRASH_ROOT;
   fs.mkdirSync(trashDir, { recursive: true });
   const dest = path.join(trashDir, `${project}-${stamp}`);
   fs.renameSync(dir, dest);
@@ -239,7 +239,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { project: 
 
   return NextResponse.json({
     ok: true,
-    movedTo: path.relative(PIPELINE_ROOT, dest),
+    movedTo: path.relative(DATA_ROOT, dest),
     bytes,
   });
 }

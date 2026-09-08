@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import { PIPELINE_ROOT } from "@/lib/paths";
+import { REFERENCE_ROOT } from "@/lib/paths";
 import { writeJsonAtomic } from "@/lib/jsonStore";
 
-const CATALOGUE = path.join(PIPELINE_ROOT, "reference", "products.json");
+const CATALOGUE = path.join(REFERENCE_ROOT, "products.json");
 
 type Catalogue = {
   affiliate?: { amazonTag?: string };

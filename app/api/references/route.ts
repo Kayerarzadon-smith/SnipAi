@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import { writeJsonAtomic } from "@/lib/jsonStore";
 import path from "node:path";
-import { PIPELINE_ROOT } from "@/lib/paths";
+import { REFERENCE_ROOT } from "@/lib/paths";
 import { runTool, checkAvailability } from "@/lib/pipeline";
 import { createJob, failJob, runningJob, appendLog, finishJob } from "@/lib/jobs";
 
-const REF_DIR = path.join(PIPELINE_ROOT, "reference", "inspiration");
-const STYLE = path.join(PIPELINE_ROOT, "reference", "house-style.json");
+const REF_DIR = path.join(REFERENCE_ROOT, "inspiration");
+const STYLE = path.join(REFERENCE_ROOT, "house-style.json");
 const VIDEO = /\.(mp4|mov|m4v|webm)$/i;
 
 type Measured = {

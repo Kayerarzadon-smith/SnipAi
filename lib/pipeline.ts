@@ -1,14 +1,14 @@
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
-import { PIPELINE_ROOT, TOOLS_ROOT, projectDir } from "./paths";
+import { CODE_ROOT, VENV_ROOT, TOOLS_ROOT, projectDir } from "./paths";
 import type { PipelineAvailability } from "./types";
 import { appendLog, finishJob, failJob } from "./jobs";
 
 function pythonBin(): string {
   // CLAUDE.md: ffmpeg/whisper live in ugc-edit-system/.venv when it's been
   // set up. Prefer the venv's python3 if present, else fall back to PATH.
-  return path.join(PIPELINE_ROOT, ".venv", "bin", "python3");
+  return path.join(VENV_ROOT, "bin", "python3");
 }
 
 function commandExists(cmd: string, args: string[]): boolean {
@@ -36,7 +36,7 @@ export function checkAvailability(): PipelineAvailability {
   const py = commandExists(venvPy, ["--version"]) ? venvPy : commandExists("python3", ["--version"]) ? "python3" : null;
 
   const ffmpegOk =
-    commandExists(path.join(PIPELINE_ROOT, ".venv", "bin", "ffmpeg"), ["-version"]) ||
+    commandExists(path.join(VENV_ROOT, "bin", "ffmpeg"), ["-version"]) ||
     commandExists("ffmpeg", ["-version"]);
 
   let whisperOk = false;
@@ -56,11 +56,13 @@ export function resolvedPython(): string {
 }
 
 export function resolvedFfmpeg(): string {
-  const venvFfmpeg = path.join(PIPELINE_ROOT, ".venv", "bin", "ffmpeg");
+  const venvFfmpeg = path.join(VENV_ROOT, "bin", "ffmpeg");
   return commandExists(venvFfmpeg, ["-version"]) ? venvFfmpeg : "ffmpeg";
 }
 
-export type ToolRunResult = { ok: boolean; stdout: string; stderr: string; code: number | null };
+export type ToolRunResult = { ok: boolean; stdout: string; stderr: string; code: number | null;
+                              /** killed for going quiet or past the cap, not by its own exit */
+                              timedOut?: boolean };
 
 /** Run an arbitrary command and capture output. Never throws on a nonzero
  * exit (verify_cut.py exits 1 on a real, expected FAIL) — callers decide
@@ -69,20 +71,25 @@ export type ToolRunResult = { ok: boolean; stdout: string; stderr: string; code:
 export function runCommand(
   cmd: string,
   args: string[],
-  opts: { cwd?: string; timeoutMs?: number; onLine?: (line: string) => void } = {}
+  opts: { cwd?: string; timeoutMs?: number; idleMs?: number;
+          onLine?: (line: string) => void } = {}
 ): Promise<ToolRunResult> {
   return new Promise((resolve) => {
     // CLAUDE.md: ffmpeg is NOT installed system-wide on this Mac -- it lives
     // at .venv/bin/ffmpeg. transcribe/silence_map/verify_cut all shell out to
     // a bare `ffmpeg`, so without the venv on PATH they fail silently and
     // their output parses as "nothing to report".
-    const venvBin = path.join(PIPELINE_ROOT, ".venv", "bin");
+    const venvBin = path.join(VENV_ROOT, "bin");
     // Run at low priority. Whisper and ffmpeg will otherwise take every core
     // on a 4-core machine and make the whole Mac unresponsive -- this is not
     // hypothetical, it locked Kayer's machine hard enough to need a reboot.
     const child = spawn("nice", ["-n", "10", cmd, ...args], {
-      cwd: opts.cwd ?? PIPELINE_ROOT,
-      timeout: opts.timeoutMs ?? 10 * 60 * 1000,
+      cwd: opts.cwd ?? CODE_ROOT,
+      // Its own process group, so a kill reaches the whole tree. extract.sh
+      // spawns an ffmpeg per clip: killing the script alone leaves a 4K
+      // encode running with nobody watching it, and the script's children
+      // hold the output pipes open so we would not even learn it had died.
+      detached: true,
       env: {
         ...process.env,
         PATH: `${venvBin}:${process.env.PATH ?? ""}`,
@@ -94,19 +101,63 @@ export function runCommand(
     });
     let stdout = "";
     let stderr = "";
+
+    /* Wall-clock timeouts are wrong for this work.
+     *
+     * A ten-minute ceiling killed a real build at 601 seconds -- 35 clips of
+     * 60 extracted, then nothing, and a "see log" message with an empty log,
+     * because a killed process leaves no error behind. Extraction and
+     * transcription are honestly slow on 4K: how long they SHOULD take is a
+     * function of the footage, so it is not a number that can be picked.
+     *
+     * What can be judged is whether anything is still happening. Every one of
+     * these tools writes continuously -- a shell trace per clip, a progress
+     * line per segment -- so silence, not duration, is what stuck looks like.
+     * The absolute cap stays only as a backstop against a process that chats
+     * forever without finishing. */
+    const idleMs = opts.idleMs ?? 5 * 60 * 1000;
+    const hardMs = opts.timeoutMs ?? 6 * 60 * 60 * 1000;
+    let killedBy: "silence" | "cap" | null = null;
+    let idleTimer: NodeJS.Timeout;
+
+    const stopTimers = () => { clearTimeout(idleTimer); clearTimeout(hardTimer); };
+    /** the group, not just the leader -- see `detached` above */
+    const killTree = () => {
+      try { if (child.pid) process.kill(-child.pid, "SIGKILL"); }
+      catch { child.kill("SIGKILL"); }        // already gone, or no group
+    };
+    const beat = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { killedBy = "silence"; killTree(); }, idleMs);
+    };
+    const hardTimer = setTimeout(() => { killedBy = "cap"; killTree(); }, hardMs);
+
     const pipe = (chunk: Buffer) => {
       const text = chunk.toString();
+      beat();                                   // it is alive
       if (opts.onLine) {
         for (const line of text.split("\n")) if (line.trim()) opts.onLine(line);
       }
       return text;
     };
+    beat();
     child.stdout.on("data", (d: Buffer) => (stdout += pipe(d)));
     child.stderr.on("data", (d: Buffer) => (stderr += pipe(d)));
     child.on("error", (err) => {
+      stopTimers();
       resolve({ ok: false, stdout, stderr: stderr + `\n${err.message}`, code: null });
     });
     child.on("close", (code) => {
+      stopTimers();
+      if (killedBy) {
+        // say what happened: a killed process cannot explain itself
+        const why = killedBy === "silence"
+          ? `stopped responding — nothing written for ${Math.round(idleMs / 60000)} minutes, so it was killed`
+          : `ran past the ${Math.round(hardMs / 3600000)} hour ceiling and was killed`;
+        opts.onLine?.(why);
+        resolve({ ok: false, stdout, stderr: `${stderr}\n${why}`, code: null, timedOut: true });
+        return;
+      }
       resolve({ ok: code === 0, stdout, stderr, code });
     });
   });
@@ -238,7 +289,7 @@ export async function runRenderGraphicsJob(jobId: string, project: string, cutFi
  *  other heavy work. */
 export async function runSourceProxyJob(jobId: string, project: string): Promise<void> {
   const log = (line: string) => appendLog(jobId, line);
-  const res = await runTool("make_source_proxy.py", [`projects/${project}`], { onLine: log });
+  const res = await runTool("make_source_proxy.py", [projectDir(project)], { onLine: log });
   if (!res.ok) { failJob(jobId, "make_source_proxy.py failed — see log"); return; }
   finishJob(jobId);
 }
@@ -253,7 +304,7 @@ export async function runDraftBeatsJob(jobId: string, project: string): Promise<
     return;
   }
   log("scoring every take and picking the winners...");
-  const res = await runTool("draft_beats.py", [`projects/${project}`, "--force"], { onLine: log });
+  const res = await runTool("draft_beats.py", [projectDir(project), "--force"], { onLine: log });
   if (!res.ok) {
     failJob(jobId, "draft_beats.py failed — see log");
     return;
@@ -364,7 +415,7 @@ async function buildCut(
     return null;
   }
 
-  const projRel = `projects/${project}`;
+  const projAbs = projectDir(project);
   const workDir = path.join(projectDir(project), "work");
 
   // build_cut snaps beat edges against the strict silence map; generate it if
@@ -382,7 +433,7 @@ async function buildCut(
 
   log("building edit list (build_cut.py)...");
   const build = await runTool("build_cut.py",
-    opts.proxy ? ["--project", projRel, "--proxy"] : ["--project", projRel],
+    opts.proxy ? ["--project", projAbs, "--proxy"] : ["--project", projAbs],
     { onLine: log });
   if (!build.ok) {
     log(`build failed: ${"build_cut.py failed — see log"}`);
@@ -401,7 +452,7 @@ async function buildCut(
     .split("\n").filter((l) => l.startsWith("ffmpeg")).length;
   let doneClips = 0;
   log(`extracting ${totalClips} clips...`);
-  const extract = await runCommand("bash", ["-x", path.relative(PIPELINE_ROOT, extractSh)], {
+  const extract = await runCommand("bash", ["-x", extractSh], {
     onLine: (line) => {
       if (line.startsWith("+ ffmpeg")) {
         doneClips += 1;
@@ -415,20 +466,22 @@ async function buildCut(
     },
   });
   if (!extract.ok) {
-    log(`build failed: ${"extract.sh failed — see log"}`);
+    log(extract.timedOut
+      ? `build failed: extraction was killed after clip ${doneClips} of ${totalClips}`
+      : `build failed: extracting clip ${doneClips + 1} of ${totalClips} failed — see log`);
     return null;
   }
 
   const version = nextCutVersion(project);
   const cutFileName = `${project}-v${version}.mp4`;
-  const cutRelPath = `${projRel}/cuts/${cutFileName}`;
+  const cutRelPath = path.join(projAbs, "cuts", cutFileName);
   fs.mkdirSync(path.join(projectDir(project), "cuts"), { recursive: true });
 
   log("PROGRESS 94");
   log(`stitching final cut (${cutFileName})...`);
   const concat = await runCommand(
     resolvedFfmpeg(),
-    ["-y", "-f", "concat", "-safe", "0", "-i", `${projRel}/work/concat.txt`, "-c", "copy", cutRelPath],
+    ["-y", "-f", "concat", "-safe", "0", "-i", path.join(projAbs, "work", "concat.txt"), "-c", "copy", cutRelPath],
     { onLine: log }
   );
   if (!concat.ok) {
@@ -468,12 +521,12 @@ async function stepTranscribe(project: string, log: (l: string) => void): Promis
 }
 
 async function stepDraftBeats(project: string, log: (l: string) => void): Promise<boolean> {
-  const r = await runTool("draft_beats.py", [`projects/${project}`, "--force"], { onLine: log });
+  const r = await runTool("draft_beats.py", [projectDir(project), "--force"], { onLine: log });
   return r.ok;
 }
 
 async function stepSourceProxy(project: string, log: (l: string) => void): Promise<boolean> {
-  const r = await runTool("make_source_proxy.py", [`projects/${project}`], { onLine: log });
+  const r = await runTool("make_source_proxy.py", [projectDir(project)], { onLine: log });
   return r.ok;
 }
 
@@ -501,7 +554,7 @@ export async function runChecksAndCache(
   }
 
   log("comparing against house style (compare_to_reference.py)...");
-  const cmp = await runTool("compare_to_reference.py", ["--project", `projects/${project}`], { onLine: log });
+  const cmp = await runTool("compare_to_reference.py", ["--project", projectDir(project)], { onLine: log });
   const pacing = parseCompareToReferenceOutput(cmp.stdout);
 
   updateReviewState(project, (s) => {

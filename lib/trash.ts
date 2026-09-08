@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { PIPELINE_ROOT } from "./paths";
+import { TRASH_ROOT, PROJECTS_ROOT } from "./paths";
 
-export const TRASH_DIR = path.join(PIPELINE_ROOT, ".trash");
+export const TRASH_DIR = TRASH_ROOT;
 export const RETAIN_DAYS = 5;
 
 /**
@@ -115,7 +115,7 @@ export function restoreFromTrash(id: string): { ok: true; project: string } | { 
   const src = path.join(TRASH_DIR, id);
   if (!fs.existsSync(src)) return { ok: false, error: "that isn't in the trash any more" };
   const project = id.replace(/-\d{4}-\d{2}-\d{2}T[\d-]+$/, "");
-  const dest = path.join(PIPELINE_ROOT, "projects", project);
+  const dest = path.join(PROJECTS_ROOT, project);
   if (fs.existsSync(dest)) {
     return { ok: false, error: `a project called '${project}' already exists` };
   }

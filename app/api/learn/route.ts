@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import { PIPELINE_ROOT } from "@/lib/paths";
+import { STATE_ROOT } from "@/lib/paths";
 import { runTool, checkAvailability } from "@/lib/pipeline";
 
-const TUNING = path.join(PIPELINE_ROOT, "state", "tuning.json");
+const TUNING = path.join(STATE_ROOT, "tuning.json");
 
 function readTuning(): Record<string, unknown> {
   try {

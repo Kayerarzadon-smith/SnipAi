@@ -14,10 +14,30 @@ import os from "node:os";
 
 export const REPO_ROOT = process.cwd();
 
-/* ---- code: the Python tools and their venv, shipped with the app -------- */
-export const CODE_ROOT = path.join(REPO_ROOT, "ugc-edit-system");
+/* ---- code: the Python tools and their runtime, shipped with the app -----
+ *
+ * Inside an .app these sit in Contents/Resources and the launcher says where;
+ * in a checkout they sit beside the repo and nothing needs to be set. The
+ * three variables are the whole contract between the bundle and the server.
+ */
+export const CODE_ROOT = process.env.SNIPAI_CODE?.trim()
+  ? path.resolve(process.env.SNIPAI_CODE.trim())
+  : path.join(REPO_ROOT, "ugc-edit-system");
 export const TOOLS_ROOT = path.join(CODE_ROOT, "tools");
 export const VENV_ROOT = path.join(CODE_ROOT, ".venv");
+
+/** The interpreter that runs tools/*.py. A bundled build ships a relocatable
+ *  CPython instead of a venv, because a venv's python is a symlink to a
+ *  framework that is not on anybody else's Mac. */
+export const PYTHON_BIN = process.env.SNIPAI_PYTHON?.trim()
+  ? path.resolve(process.env.SNIPAI_PYTHON.trim())
+  : path.join(VENV_ROOT, "bin", "python3");
+
+/** ffmpeg is not on the PATH of a GUI-launched app, and is not installed
+ *  system-wide on this machine either -- it is always an explicit path. */
+export const FFMPEG_BIN = process.env.SNIPAI_FFMPEG?.trim()
+  ? path.resolve(process.env.SNIPAI_FFMPEG.trim())
+  : path.join(VENV_ROOT, "bin", "ffmpeg");
 
 /* ---- data: footage, edits, learned rules -------------------------------- */
 

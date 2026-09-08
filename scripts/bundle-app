@@ -1,0 +1,118 @@
+#!/bin/bash
+# Assemble SnipAi.app so it runs on a Mac that has none of this installed.
+#
+# Everything the app needs goes inside Contents/Resources: the Node runtime,
+# the Next server, a relocatable CPython with the pipeline's dependencies, and
+# ffmpeg. Nothing is read from ~/Projects/SnipAi, so the bundle can be dragged
+# to /Applications, renamed, or handed to someone else.
+#
+# The person's library is NOT in here. That lives in ~/Movies/SnipAi, because
+# a signed bundle is read-only and because the footage is theirs.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+ROOT="$PWD"
+
+BOLD=$'\033[1m'; DIM=$'\033[2m'; OK=$'\033[32m'; ERR=$'\033[31m'; OFF=$'\033[0m'
+step() { printf "\n%s==> %s%s\n" "$BOLD" "$1" "$OFF"; }
+good() { printf "  %s%s%s\n" "$OK" "$1" "$OFF"; }
+bad()  { printf "  %s%s%s\n\n" "$ERR" "$1" "$OFF"; exit 1; }
+note() { printf "  %s%s%s\n" "$DIM" "$1" "$OFF"; }
+
+APP="$ROOT/SnipAi.app"
+RES="$APP/Contents/Resources"
+PYVER="3.11"
+# Pinned: an app is only reproducible if its runtime is. Bump deliberately.
+PY_RELEASE="20260901"
+PY_FULL="3.11.16"
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+  arm64)  PY_TRIPLE="aarch64-apple-darwin" ;;
+  x86_64) PY_TRIPLE="x86_64-apple-darwin" ;;
+  *) bad "unknown architecture: $ARCH" ;;
+esac
+
+step "Checking the pieces"
+NODE_BIN="$(command -v node)" || bad "node not found"
+printf "  node      %s (%s)\n" "$($NODE_BIN -v)" "$NODE_BIN"
+printf "  arch      %s\n" "$ARCH"
+[ -f "$ROOT/ugc-edit-system/requirements.txt" ] || bad "no requirements.txt — cannot pin the pipeline's dependencies"
+
+step "Building the server"
+# standalone output: only the modules the server actually imports
+npm run build || bad "next build failed"
+[ -d "$ROOT/.next/standalone" ] || bad "no .next/standalone — is output:'standalone' still set in next.config.js?"
+good "server built ($(du -sh "$ROOT/.next/standalone" | cut -f1))"
+
+step "Fetching a relocatable CPython $PY_FULL"
+CACHE="$ROOT/.build-cache"
+mkdir -p "$CACHE"
+TARBALL="$CACHE/cpython-$PY_FULL-$PY_TRIPLE.tar.gz"
+if [ -f "$TARBALL" ]; then
+  note "already downloaded"
+else
+  URL="https://github.com/astral-sh/python-build-standalone/releases/download/$PY_RELEASE/cpython-$PY_FULL+$PY_RELEASE-$PY_TRIPLE-install_only_stripped.tar.gz"
+  curl -fL --progress-bar -o "$TARBALL.part" "$URL" || bad "download failed: $URL"
+  mv "$TARBALL.part" "$TARBALL"
+fi
+# A venv's python is a symlink into /Library/Frameworks. This one links only
+# against system frameworks, which is what makes it survive the move.
+PYBUILD="$CACHE/python-$PY_FULL-$ARCH"
+if [ ! -x "$PYBUILD/bin/python3" ]; then
+  rm -rf "$PYBUILD" "$CACHE/python"
+  tar xzf "$TARBALL" -C "$CACHE" || bad "could not unpack the runtime"
+  mv "$CACHE/python" "$PYBUILD"
+  "$PYBUILD/bin/python3" -m pip install --quiet --upgrade pip || bad "pip upgrade failed"
+  "$PYBUILD/bin/python3" -m pip install --quiet -r "$ROOT/ugc-edit-system/requirements.txt" \
+    || bad "installing the pipeline's dependencies failed"
+fi
+good "runtime ready ($("$PYBUILD/bin/python3" -V))"
+
+step "Assembling the bundle"
+rm -rf "$RES/server" "$RES/pipeline" "$RES/node"
+mkdir -p "$RES/server" "$RES/pipeline/bin" "$APP/Contents/MacOS"
+
+cp "$NODE_BIN" "$RES/node"
+
+# the server: standalone tree, plus the static assets it does not inline
+cp -a "$ROOT/.next/standalone/." "$RES/server/"
+mkdir -p "$RES/server/.next"
+cp -a "$ROOT/.next/static" "$RES/server/.next/static"
+[ -d "$ROOT/public" ] && cp -a "$ROOT/public" "$RES/server/public"
+
+# the pipeline: the tools, and a python that can run them anywhere
+cp -a "$ROOT/ugc-edit-system/tools" "$RES/pipeline/tools"
+cp -a "$PYBUILD" "$RES/pipeline/python"
+
+# ffmpeg ships inside imageio_ffmpeg under a versioned name; give it a stable
+# path so the server does not have to go looking through site-packages
+FF="$(find "$RES/pipeline/python/lib/python$PYVER/site-packages/imageio_ffmpeg/binaries" -name 'ffmpeg-*' -type f | head -1)"
+[ -n "$FF" ] || bad "no ffmpeg inside the bundled runtime"
+cp "$FF" "$RES/pipeline/bin/ffmpeg"
+chmod +x "$RES/pipeline/bin/ffmpeg"
+
+# nothing here should be writable at runtime, and the caches would be stale
+find "$RES/pipeline/python" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null
+rm -rf "$RES/pipeline/python/lib/python$PYVER/test" 2>/dev/null
+
+step "Building the launcher"
+if [ -f "$ROOT/native/main.swift" ]; then
+  swiftc -O -o "$RES/../MacOS/SnipAi.new" "$ROOT/native/main.swift" 2>&1 | sed 's/^/  /'
+  # swiftc can fail while a shell chain still reports success -- check the file
+  if [ ! -x "$APP/Contents/MacOS/SnipAi.new" ]; then
+    rm -f "$APP/Contents/MacOS/SnipAi.new"
+    bad "swiftc failed — the old launcher is untouched"
+  fi
+  mv "$APP/Contents/MacOS/SnipAi.new" "$APP/Contents/MacOS/SnipAi"
+  good "launcher compiled"
+else
+  note "no native/main.swift — keeping the launcher that is there"
+fi
+
+step "Done"
+printf "  %-10s %s\n" "node"     "$(du -sh "$RES/node" | cut -f1)"
+printf "  %-10s %s\n" "server"   "$(du -sh "$RES/server" | cut -f1)"
+printf "  %-10s %s\n" "pipeline" "$(du -sh "$RES/pipeline" | cut -f1)"
+printf "  %-10s %s\n" "TOTAL"    "$(du -sh "$APP" | cut -f1)"
+printf "\n  %sUnsigned.%s Runs here; Gatekeeper will stop it on another Mac until\n" "$BOLD" "$OFF"
+printf "  it is signed and notarised.\n\n"

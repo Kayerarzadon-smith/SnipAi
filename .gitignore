@@ -19,3 +19,4 @@ native/SnipAiNative
 native/wksnap
 ugc-edit-system/state/jobs.json
 ugc-edit-system/projects/*/.snapshots/
+.build-cache/

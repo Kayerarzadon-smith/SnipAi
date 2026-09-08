@@ -1,14 +1,14 @@
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
-import { CODE_ROOT, VENV_ROOT, TOOLS_ROOT, projectDir } from "./paths";
+import { CODE_ROOT, VENV_ROOT, TOOLS_ROOT, PYTHON_BIN, FFMPEG_BIN, projectDir } from "./paths";
 import type { PipelineAvailability } from "./types";
 import { appendLog, finishJob, failJob } from "./jobs";
 
 function pythonBin(): string {
   // CLAUDE.md: ffmpeg/whisper live in ugc-edit-system/.venv when it's been
   // set up. Prefer the venv's python3 if present, else fall back to PATH.
-  return path.join(VENV_ROOT, "bin", "python3");
+  return PYTHON_BIN;
 }
 
 function commandExists(cmd: string, args: string[]): boolean {
@@ -36,7 +36,7 @@ export function checkAvailability(): PipelineAvailability {
   const py = commandExists(venvPy, ["--version"]) ? venvPy : commandExists("python3", ["--version"]) ? "python3" : null;
 
   const ffmpegOk =
-    commandExists(path.join(VENV_ROOT, "bin", "ffmpeg"), ["-version"]) ||
+    commandExists(FFMPEG_BIN, ["-version"]) ||
     commandExists("ffmpeg", ["-version"]);
 
   let whisperOk = false;
@@ -56,8 +56,7 @@ export function resolvedPython(): string {
 }
 
 export function resolvedFfmpeg(): string {
-  const venvFfmpeg = path.join(VENV_ROOT, "bin", "ffmpeg");
-  return commandExists(venvFfmpeg, ["-version"]) ? venvFfmpeg : "ffmpeg";
+  return commandExists(FFMPEG_BIN, ["-version"]) ? FFMPEG_BIN : "ffmpeg";
 }
 
 export type ToolRunResult = { ok: boolean; stdout: string; stderr: string; code: number | null;
@@ -79,7 +78,9 @@ export function runCommand(
     // at .venv/bin/ffmpeg. transcribe/silence_map/verify_cut all shell out to
     // a bare `ffmpeg`, so without the venv on PATH they fail silently and
     // their output parses as "nothing to report".
-    const venvBin = path.join(VENV_ROOT, "bin");
+    // the tools shell out to a bare `ffmpeg`, so its directory has to be on
+    // PATH whether it came from a venv or from inside a bundled runtime
+    const venvBin = path.dirname(FFMPEG_BIN);
     // Run at low priority. Whisper and ffmpeg will otherwise take every core
     // on a 4-core machine and make the whole Mac unresponsive -- this is not
     // hypothetical, it locked Kayer's machine hard enough to need a reboot.

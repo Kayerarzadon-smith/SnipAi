@@ -1,0 +1,9 @@
+# What the pipeline needs. Two direct dependencies; everything else in the
+# venv (ctranslate2, onnxruntime, av, numpy, tokenizers) arrives underneath
+# faster-whisper.
+#
+# Pinned, because this list is now part of what gets shipped inside the app
+# bundle: an unpinned install would put a different transcriber in front of
+# a person than the one the edits were tuned against.
+faster-whisper==1.2.1
+imageio-ffmpeg==0.6.0

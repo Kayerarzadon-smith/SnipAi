@@ -11,6 +11,51 @@ import WebKit
 let kPort = 4737
 let kURLString = "http://localhost:\(kPort)/dashboard"
 let kHealthURL = "http://localhost:\(kPort)/api/projects"
+
+/// Everything the app runs lives beside it in Contents/Resources.
+///
+/// This used to be a hardcoded ~/Projects/SnipAi, which meant the app was not
+/// really an app: rename that folder and it died, and on anyone else's Mac it
+/// had never worked at all. Resources is wherever the bundle is, so the app
+/// can be dragged to /Applications or handed to someone.
+///
+/// A checkout with no bundled Resources falls back to running the repo it
+/// sits in, so `swiftc native/main.swift` still gives a working dev launcher.
+struct Layout {
+    let node: String
+    let server: String        // server.js
+    let code: String          // dir holding tools/
+    let python: String
+    let ffmpeg: String
+    let buildIDPath: String
+    let bundled: Bool
+
+    static func resolve() -> Layout {
+        let res0 = Bundle.main.resourcePath ?? "(nil)"
+        NSLog("SnipAi: resourcePath=%@ node=%@", res0,
+              FileManager.default.isExecutableFile(atPath: res0 + "/node") ? "yes" : "no")
+        if let res = Bundle.main.resourcePath,
+           FileManager.default.isExecutableFile(atPath: res + "/node") {
+            return Layout(
+                node: res + "/node",
+                server: res + "/server/server.js",
+                code: res + "/pipeline",
+                python: res + "/pipeline/python/bin/python3",
+                ffmpeg: res + "/pipeline/bin/ffmpeg",
+                buildIDPath: res + "/server/.next/BUILD_ID",
+                bundled: true)
+        }
+        // dev: the repo this binary was compiled from
+        let repo = NSString(string: "~/Projects/SnipAi").expandingTildeInPath
+        return Layout(
+            node: "", server: "", code: repo + "/ugc-edit-system",
+            python: repo + "/ugc-edit-system/.venv/bin/python3",
+            ffmpeg: repo + "/ugc-edit-system/.venv/bin/ffmpeg",
+            buildIDPath: repo + "/.next/BUILD_ID",
+            bundled: false)
+    }
+}
+let kLayout = Layout.resolve()
 let kProjectDir = NSString(string: "~/Projects/SnipAi").expandingTildeInPath
 
 func serverIsUp(timeout: TimeInterval = 1.5) -> Bool {
@@ -40,8 +85,7 @@ func serverIsUp(timeout: TimeInterval = 1.5) -> Bool {
 /// payload, so comparing that against .next/BUILD_ID says whether the running
 /// server is current.
 func serverMatchesDiskBuild(timeout: TimeInterval = 2.0) -> Bool {
-    let idPath = (kProjectDir as NSString).appendingPathComponent(".next/BUILD_ID")
-    guard let diskId = try? String(contentsOfFile: idPath, encoding: .utf8)
+    guard let diskId = try? String(contentsOfFile: kLayout.buildIDPath, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines),
           !diskId.isEmpty,
           let url = URL(string: kURLString) else { return true }   // can't tell: don't churn
@@ -235,11 +279,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
                 Thread.sleep(forTimeInterval: 1.2)
             }
             self.weStartedServer = true
+            NSLog("SnipAi: no server up — starting one (bundled=%@)", kLayout.bundled ? "yes" : "no")
             DispatchQueue.main.async { self.statusLabel.stringValue = "Starting SnipAi…" }
-            // Never builds -- a prebuilt .next is expected. Building from a
-            // GUI-launched process has been observed to hang.
-            shell("cd \(kProjectDir) && nohup npm start >> .snipai.log 2>&1 &", wait: false)
+            self.startServer()
             DispatchQueue.main.async { self.startPolling() }
+        }
+    }
+
+    /// Start the Node server the bundle carries.
+    ///
+    /// Spawned directly rather than through a login shell: a bundled app must
+    /// not depend on the user having node, npm, or a particular PATH. The four
+    /// SNIPAI_ variables are the whole contract with the server -- where its
+    /// tools, interpreter, ffmpeg and library are.
+    func startServer() {
+        guard kLayout.bundled else {
+            // dev fallback: run the repo the way it has always been run
+            shell("cd \(kProjectDir) && nohup npm start >> .snipai.log 2>&1 &", wait: false)
+            return
+        }
+        let logDir = NSString(string: "~/Library/Logs/SnipAi").expandingTildeInPath
+        try? FileManager.default.createDirectory(atPath: logDir,
+                                                withIntermediateDirectories: true)
+        let logPath = logDir + "/server.log"
+        if !FileManager.default.fileExists(atPath: logPath) {
+            FileManager.default.createFile(atPath: logPath, contents: nil)
+        }
+        let handle = FileHandle(forWritingAtPath: logPath)
+        handle?.seekToEndOfFile()
+
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: kLayout.node)
+        p.arguments = [kLayout.server]
+        // server.js resolves .next and public relative to its own directory
+        p.currentDirectoryURL = URL(fileURLWithPath: (kLayout.server as NSString).deletingLastPathComponent)
+        var env = ProcessInfo.processInfo.environment
+        env["PORT"] = String(kPort)
+        env["HOSTNAME"] = "127.0.0.1"          // never the whole network
+        env["NODE_ENV"] = "production"
+        env["SNIPAI_CODE"] = kLayout.code
+        env["SNIPAI_PYTHON"] = kLayout.python
+        env["SNIPAI_FFMPEG"] = kLayout.ffmpeg
+        p.environment = env
+        if let handle = handle {
+            p.standardOutput = handle
+            p.standardError = handle
+        }
+        NSLog("SnipAi: launching %@ %@", kLayout.node, kLayout.server)
+        do { try p.run(); NSLog("SnipAi: server pid %d", p.processIdentifier) } catch {
+            NSLog("SnipAi: could not start the server: \(error)")
         }
     }
 

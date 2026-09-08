@@ -28,6 +28,12 @@ export type Snapshot = {
   takenAt: string;
   reason: string;
   bytes: number;
+  /** What this version IS, not what the edit was called. Two trims of the
+   *  same line a second apart carry the same reason and the same clock time;
+   *  without this you cannot tell which one you are going back to, which is
+   *  the only question the list exists to answer. */
+  beats: number;
+  duration: number;
 };
 
 export function snapshotDir(project: string): string {
@@ -41,16 +47,23 @@ function stamp(at: Date): string {
   return at.toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
 }
 
-/** Filesystem-safe, and short enough to read in a list. */
+/**
+ * Filesystem-safe, and short enough to read in a list.
+ *
+ * Spaces become underscores rather than hyphens so that hyphens in the reason
+ * survive: beat labels are full of them, and "cut a hole in need-egf" read
+ * back as "cut a hole in need egf" is a different sentence about a beat that
+ * does not exist.
+ */
 function slug(reason: string): string {
   return (reason || "edit")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40) || "edit";
+    .replace(/[^a-z0-9-]+/g, "_")
+    .replace(/^[_-]+|[_-]+$/g, "")
+    .slice(0, 48) || "edit";
 }
 
-const NAME_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3})__([a-z0-9-]+)\.json$/;
+const NAME_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3})__([a-z0-9_-]+)\.json$/;
 
 function parseName(name: string): { takenAt: string; reason: string } | null {
   const m = NAME_RE.exec(name);
@@ -62,7 +75,7 @@ function parseName(name: string): { takenAt: string; reason: string } | null {
   );
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;
-  return { takenAt: new Date(t).toISOString(), reason: m[2].replace(/-/g, " ") };
+  return { takenAt: new Date(t).toISOString(), reason: m[2].replace(/_/g, " ") };
 }
 
 /**
@@ -101,8 +114,29 @@ export function takeSnapshot(project: string, reason: string): string | null {
   }
 }
 
+type Summary = { beats: number; duration: number };
+
+/** How long the edit in this file runs, holes taken out. */
+function summarise(body: string): Summary {
+  try {
+    const parsed = JSON.parse(body) as {
+      beats?: { start: number; end: number; holes?: [number, number][] }[];
+    };
+    const beats = parsed.beats ?? [];
+    let dur = 0;
+    for (const b of beats) {
+      dur += Math.max(0, b.end - b.start);
+      for (const [f, t] of b.holes ?? []) dur -= Math.max(0, Math.min(t, b.end) - Math.max(f, b.start));
+    }
+    return { beats: beats.length, duration: Math.round(dur * 10) / 10 };
+  } catch {
+    return { beats: 0, duration: 0 };
+  }
+}
+
 /** Newest first. Anything that isn't a snapshot name is ignored rather than
- *  guessed at. */
+ *  guessed at. Each file is read to summarise it -- they are a few KB and
+ *  capped at KEEP, so this stays in the low milliseconds. */
 export function list(project: string): Snapshot[] {
   const dir = snapshotDir(project);
   if (!fs.existsSync(dir)) return [];
@@ -110,9 +144,14 @@ export function list(project: string): Snapshot[] {
   for (const name of fs.readdirSync(dir)) {
     const parsed = parseName(name);
     if (!parsed) continue;
+    const full = path.join(dir, name);
     let bytes = 0;
-    try { bytes = fs.statSync(path.join(dir, name)).size; } catch { continue; }
-    out.push({ id: name, takenAt: parsed.takenAt, reason: parsed.reason, bytes });
+    let sum: Summary = { beats: 0, duration: 0 };
+    try {
+      bytes = fs.statSync(full).size;
+      sum = summarise(fs.readFileSync(full, "utf8"));
+    } catch { continue; }
+    out.push({ id: name, takenAt: parsed.takenAt, reason: parsed.reason, bytes, ...sum });
   }
   return out.sort((a, b) => (a.id < b.id ? 1 : -1));
 }

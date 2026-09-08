@@ -1,7 +1,7 @@
 {
  "_note": "Learned parameters. Every value here started as a guess and is corrected by what Kayer actually approves. tools/learn_from_edits.py proposes changes with the evidence behind them; nothing changes without being applied deliberately. The scorer and build_cut read this file.",
  "version": 1,
- "updated": "2026-09-07T21:23:59",
+ "updated": "2026-09-08T07:47:03",
  "scoring": {
   "penalty_internal_repeat": 0.55,
   "penalty_superseded": 0.35,
@@ -15,13 +15,13 @@
  "cutting": {
   "split_gap": 0.5,
   "snap_lead": 0.01,
-  "snap_tail": 0.527
+  "snap_tail": 0.645
  },
  "thresholds": {
   "min_confidence": 0.7
  },
  "evidence": {
   "overrides_seen": 0,
-  "last_analysis": "2026-09-07T21:23:59"
+  "last_analysis": "2026-09-08T07:47:03"
  }
 }

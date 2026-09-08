@@ -38,6 +38,14 @@ describe("project snapshots", () => {
     assert.equal(list(P).length, before);
   });
 
+  test("a version says what it IS, so two same-named ones can be told apart", () => {
+    // the panel's whole job is answering "which one do I want" -- reason and
+    // clock time are identical for two quick trims of the same line
+    const top = list(P)[0];
+    assert.equal(top.beats, 1);
+    assert.ok(top.duration > 0, "a version with no duration tells you nothing");
+  });
+
   test("newest first", () => {
     saveBeats(P, beats(3), "again");
     const all = list(P);
@@ -69,5 +77,27 @@ describe("project snapshots", () => {
 
   test("a project with no beats.json yields no snapshot, and no throw", () => {
     assert.equal(takeSnapshot("_test_does_not_exist", "x"), null);
+  });
+});
+
+/* The panel calls these two through the API. What matters is that the list is
+   in the order it's shown and that a restore is itself recoverable -- both
+   already covered above -- plus that the reason text stays readable, since it
+   is the only thing telling you which version you are going back to. */
+describe("history is readable", () => {
+  test("a reason survives the round trip through the file name", () => {
+    const P2 = "_test_reasons";
+    const d2 = path.join(PROJECTS_ROOT, P2);
+    fs.rmSync(d2, { recursive: true, force: true });
+    fs.mkdirSync(d2, { recursive: true });
+    fs.writeFileSync(path.join(d2, "beats.json"), JSON.stringify(beats(1)));
+    try {
+      saveBeats(P2, beats(2), "cut a hole in need-egf");
+      saveBeats(P2, beats(3), "trim between-eyes-looks");
+      assert.deepEqual(list(P2).map((s) => s.reason),
+                       ["trim between-eyes-looks", "cut a hole in need-egf"]);
+    } finally {
+      fs.rmSync(d2, { recursive: true, force: true });
+    }
   });
 });

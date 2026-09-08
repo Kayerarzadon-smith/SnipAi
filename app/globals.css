@@ -1178,3 +1178,18 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
    constant however long the cut is */
 .tl-audio-canvas { position: absolute; top: 0; height: 100%; width: auto; }
 .snip-video canvas { width: 100%; height: 100%; display: block; background: #000; }
+
+/* ---- version history -----------------------------------------------------
+   A list, not cards: these are moments in one timeline, and boxing each one
+   would suggest they are separate things. */
+.ver { display: grid; grid-template-columns: 68px 1fr auto; gap: 14px;
+       align-items: center; padding: 11px 0; border-top: 1px solid var(--border-soft); }
+.ver:first-child { border-top: none; }
+.ver-when { font-size: 11.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.ver-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ver-reason { font-size: 13px; color: var(--text); }
+.ver-state { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.ver-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+           color: var(--accent); background: var(--accent-soft);
+           padding: 2px 7px; border-radius: 999px; margin-left: 8px; }
+.ver-note { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }

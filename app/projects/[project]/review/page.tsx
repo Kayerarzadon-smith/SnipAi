@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 import type { WordBoundaryFlag } from "@/lib/scorecard";
 import type { Job } from "@/lib/jobs";
+import type { Snapshot } from "@/lib/snapshots";
 
 type Detail = {
   project: string;
@@ -88,6 +89,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [notFound, setNotFound] = useState(false);
   const [playhead, setPlayhead] = useState(0);
   const [trimBeat, setTrimBeat] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [versions, setVersions] = useState<Snapshot[] | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
   const [trim, setTrim] = useState<{ start: number; end: number } | null>(null);
   const [trimSaving, setTrimSaving] = useState(false);
   const [peaks, setPeaks] = useState<{ rate: number; peaks: number[]; rms?: number[] } | null>(null);
@@ -296,6 +300,35 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       videoRef.current.currentTime = seg.start + 0.02;
       videoRef.current.play().catch(() => {});
     }
+  }
+
+  /** The edit's history, off disk -- so it survives a reload, a restart, and
+   *  an edit made from anywhere other than this screen. */
+  async function openHistory() {
+    setHistoryOpen(true);
+    setVersions(null);
+    try {
+      const r = await fetch(`/api/projects/${project}/snapshots`);
+      setVersions(r.ok ? (await r.json()).snapshots : []);
+    } catch {
+      setVersions([]);
+    }
+  }
+
+  async function restoreSnapshot(id: string) {
+    setRestoring(id);
+    const r = await fetch(`/api/projects/${project}/snapshots`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setRestoring(null);
+    if (!r.ok) { toast((await r.json().catch(() => ({}))).error ?? "could not restore that"); return; }
+    setVersions((await r.json()).snapshots);
+    // the open trim now points at a beat that may have moved under it
+    setTrimBeat(null); setTrim(null); setSelection(null);
+    await load();
+    setHistoryOpen(false);
+    toast("Put back — and this is undoable too");
   }
 
   function openTrim(b: Beat) {
@@ -1077,6 +1110,13 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
           )}
           <div className="verdict">
             <button
+              className="btn btn-ghost"
+              title="Every version of this edit, and a way back to any of them"
+              onClick={openHistory}
+            >
+              History
+            </button>
+            <button
               className="btn btn-primary"
               disabled={!data.cutFile}
               title={data.cutFile ? undefined : "build a cut before approving it"}
@@ -1631,6 +1671,69 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             })}
           </div>
         </div>
+
+      {/* VERSION HISTORY */}
+      {historyOpen && (
+        <Overlay onClose={() => setHistoryOpen(false)}>
+          <div className="modal" style={{ maxWidth: 560 }}>
+            <div className="modal-head">
+              <div>
+                <h3>Version history</h3>
+                <p>
+                  A copy is kept every time the edit changes. Undo only reaches back
+                  as far as this page has been open — this reaches back further.
+                </p>
+              </div>
+              <button className="modal-close" onClick={() => setHistoryOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {versions === null && <div className="empty-state">Reading the history…</div>}
+              {versions?.length === 0 && (
+                <div className="empty-state">
+                  <b>Nothing to go back to yet.</b><br />
+                  A version is kept from your next edit onwards.
+                </div>
+              )}
+              {versions?.map((snap, i) => (
+                <div className="ver" key={snap.id}>
+                  <span className="ver-when mono" title={snap.takenAt}>
+                    {new Date(snap.takenAt).toLocaleTimeString([], {
+                      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+                    })}
+                  </span>
+                  <span className="ver-what">
+                    <span className="ver-reason">
+                      {snap.reason}
+                      {i === 0 && <span className="ver-tag">most recent</span>}
+                    </span>
+                    {/* what the edit WAS at this point -- the thing that tells
+                        two same-named versions apart */}
+                    <span className="ver-state mono">
+                      {snap.beats} beats · {fmtTime(snap.duration)}
+                    </span>
+                  </span>
+                  <button
+                    className="ui-btn ui-btn-sm"
+                    disabled={restoring !== null}
+                    title="Put the edit back to how it was before this change"
+                    onClick={() => restoreSnapshot(snap.id)}
+                  >
+                    {restoring === snap.id ? "Putting back…" : "Put back"}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {!!versions?.length && (
+              <div className="modal-foot">
+                <span className="ver-note">
+                  Putting one back keeps a copy of where you are now, so this is
+                  never a one-way door.
+                </span>
+              </div>
+            )}
+          </div>
+        </Overlay>
+      )}
 
       {gfxFor && (
         <Overlay onClose={() => setGfxFor(null)}>

@@ -77,7 +77,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [data, setData] = useState<Detail | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [level2Open, setLevel2Open] = useState(false);
-  const [diagnosisBeat, setDiagnosisBeat] = useState<Beat | null>(null);
   const [takePickerBeat, setTakePickerBeat] = useState<Beat | null>(null);
   const [candidates, setCandidates] = useState<CandidateTakesResult | null>(null);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
@@ -710,11 +709,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       body: JSON.stringify({ kind: "level1", status }),
     });
     await load();
-    toast(
-      status === "approved" ? "Approved — ready to post" :
-      status === "needs_fixes" ? "Marked as needing fixes" :
-      "Sent back to re-cut"
-    );
+    // only two verdicts are reachable now: the third was a hand-back to
+    // somebody who does not exist
+    toast(status === "approved" ? "Approved — ready to post" : "Sent back to re-cut");
   }
 
   async function startBuild() { startStep("build"); }
@@ -1036,23 +1033,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     }
   }
 
-  async function submitDiagnosis(checks: string[], note: string) {
-    if (!diagnosisBeat) return;
-    await fetch(`/api/projects/${project}/review-action`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "level3_diagnosis", beatLabel: diagnosisBeat.label, checks, note }),
-    });
-    await load();
-    if (checks.includes("Wrong take")) {
-      const beat = diagnosisBeat;
-      setDiagnosisBeat(null);
-      openTakePicker(beat);
-    } else {
-      toast("Saved");
-      setDiagnosisBeat(null);
-    }
-  }
 
   async function saveLearning() {
     if (!learnText.trim()) { setLearnAfterBeat(null); setLearnText(""); return; }
@@ -1149,12 +1129,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               onClick={() => setLevel1("approved")}
             >
               Approve
-            </button>
-            <button
-              className="btn btn-ghost"
-              onClick={() => { setLevel2Open(true); setLevel1("needs_fixes"); }}
-            >
-              Needs fixes
             </button>
             <button className="btn btn-critical" onClick={() => setLevel1("trashed")}>Trash</button>
           </div>
@@ -1442,13 +1416,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
         )}
 
 
-        {data.reviewState.cutStatus !== "unreviewed" && (
-          <div className="flag-note info" style={{ marginTop: 12 }}>
-            <DotIcon />
-            <div>Current status: <b>{data.reviewState.cutStatus.replace("_", " ")}</b></div>
-          </div>
-        )}
-
         {level2Open && (
           <div className="timeline-wrap">
             <div className="eyebrow" style={{ marginBottom: 4 }}>
@@ -1517,7 +1484,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
 
       <div className="beats">
           <div className="beats-head">
-            <h2>Beats — as cut</h2>
+            <h2>Lines</h2>
             <span className="eyebrow">
               {data.hasTranscript
                 ? `${data.beats.length - flaggedCount} clean · ${flaggedCount} needs a call`
@@ -1533,7 +1500,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
           <div>
             {data.beats.map((b, i) => {
               const flagged = flaggedLabels.has(b.label);
-              const diagnosed = !!data.reviewState.beatDiagnoses[b.label];
               const statusClass = !data.hasTranscript ? "unscored" : flagged ? "flag" : "ok";
               const seg = data.cutTimeline?.find((t) => t.label === b.label);
               const isPlaying = liveMode ? i === liveIdx : (!!seg && playhead >= seg.start && playhead < seg.end);
@@ -1546,12 +1512,12 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                   className={`beat ${statusClass}${isPlaying ? " playing" : ""}${trimBeat === b.label ? " open" : ""}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => (liveMode || seg ? seekToBeat(b.label) : setDiagnosisBeat(b))}
+                  onClick={() => seekToBeat(b.label)}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;   // let the inner buttons act
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      if (liveMode || seg) seekToBeat(b.label); else setDiagnosisBeat(b);
+                      seekToBeat(b.label);
                     }
                   }}
                 >
@@ -1561,7 +1527,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                     {/* The line as spoken is the thing being reviewed. The
                         label is a filename for build_cut.py, not a title. */}
                     {b.text ? <b>{b.text}</b> : <b>{b.label.replace(/-/g, " ")}</b>}
-                    {diagnosed ? " (noted)" : ""}
                     {b.holes?.length ? (
                       <span className="beat-hole mono"
                             title={`${b.holes.length} stretch${b.holes.length > 1 ? "es" : ""} cut out of the middle of this line`}>
@@ -1604,13 +1569,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                       aria-label={`Delete ${b.text ?? b.label}`}
                       onClick={(e) => { e.stopPropagation(); deleteBeat(b); }}
                     >Delete</button>
-                    <button
-                      type="button"
-                      className="beat-act"
-                      title="Tell SnipAi what was wrong"
-                      aria-label={`Note on ${b.label.replace(/-/g, " ")}`}
-                      onClick={(e) => { e.stopPropagation(); setDiagnosisBeat(b); }}
-                    >Note</button>
                     <span className="status">
                       {statusClass === "flag" ? <FlagIcon /> : statusClass === "ok" ? <CheckIcon /> : <DotIcon />}
                     </span>
@@ -1776,14 +1734,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       )}
 
       {/* LEVEL 3 modal */}
-      {diagnosisBeat && (
-        <DiagnosisModal
-          beat={diagnosisBeat}
-          flag={data.wordBoundaryFlags.find((f) => f.beatLabel === diagnosisBeat.label) ?? null}
-          onClose={() => setDiagnosisBeat(null)}
-          onSubmit={submitDiagnosis}
-        />
-      )}
 
       {/* TAKE PICKER modal */}
       {takePickerBeat && (
@@ -1883,77 +1833,6 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   );
 }
 
-function DiagnosisModal({
-  beat,
-  flag,
-  onClose,
-  onSubmit,
-}: {
-  beat: Beat;
-  flag: WordBoundaryFlag | null;
-  onClose: () => void;
-  onSubmit: (checks: string[], note: string) => void;
-}) {
-  const [checks, setChecks] = useState<string[]>([]);
-  const [note, setNote] = useState("");
-
-  function toggle(c: string) {
-    setChecks((cs) => (cs.includes(c) ? cs.filter((x) => x !== c) : [...cs, c]));
-  }
-
-  return (
-    <Overlay onClose={onClose}>
-      <div className="modal">
-        <div className="modal-head">
-          <div>
-            <h3>What&apos;s wrong with this line?</h3>
-            <p>{beat.text ?? beat.label.replace(/-/g, " ")}</p>
-          </div>
-          <button className="modal-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          {flag ? (
-            <div className="flag-note">
-              <FlagIcon />
-              <div><b>AI detected a potential problem.</b> This beat&apos;s {flag.edge} sits {flag.distanceSec.toFixed(2)}s inside the word &quot;{flag.nearWord}&quot;. Did it sound cut off?</div>
-            </div>
-          ) : (
-            <div className="flag-note info">
-              <DotIcon />
-              <div>No automatic flag on this beat — tell SnipAi what you&apos;re seeing.</div>
-            </div>
-          )}
-
-          <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
-            <div className="eyebrow" style={{ marginBottom: 4 }}>Select all that apply</div>
-            {DIAGNOSIS_CHECKS.map((c) => (
-              <label className="check-row" key={c}>
-                <input type="checkbox" checked={checks.includes(c)} onChange={() => toggle(c)} />
-                {c}
-              </label>
-            ))}
-            <textarea className="textline" placeholder="Or just say it in your own words…" value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-        </div>
-        <div className="modal-foot">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button
-            className="btn btn-primary"
-            disabled={checks.length === 0 && !note.trim()}
-            onClick={() => onSubmit(checks, note)}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </Overlay>
-  );
-}
-
-/** Pick what kind of graphic goes on a line, and write its copy.
- *  Defaults are seeded from the line itself so the common case is two clicks. */
-/** Words that mean "put text on screen", which is what SnipAi can actually
- *  render. Anything else spoken here is asking for footage it cannot make. */
 const RENDERABLE = /\b(card|caption|text|title|label|word|number|stat|percent|define|definition|call ?out|lower third|subtitle)\b/i;
 
 function GraphicPicker({

@@ -2,6 +2,7 @@
 # Everything that guards the cutting maths. No frameworks: Node 24 strips the
 # types and runs the tests itself, Python uses unittest from the stdlib.
 set -uo pipefail
+# PIPESTATUS below needs bash; the shebang already says so
 cd "$(dirname "$0")/.." || exit 1
 
 BOLD=$'\033[1m'; OK=$'\033[32m'; ERR=$'\033[31m'; DIM=$'\033[2m'; OFF=$'\033[0m'
@@ -12,11 +13,14 @@ if npx tsc --noEmit -p tsconfig.json; then printf "  %sclean%s\n" "$OK" "$OFF"
 else printf "  %sfailed%s\n" "$ERR" "$OFF"; fail=1; fi
 
 printf "\n%s== app ==%s\n" "$BOLD" "$OFF"
-if node --import ./tests/register.mts --test "tests/"*.test.mts 2>&1 \
-     | grep -vE "MODULE_TYPELESS_PACKAGE_JSON|Reparsing as ES module|To eliminate this warning|trace-warnings"; then :
-else fail=1; fi
-# grep eats the exit code; ask node again, quietly
-node --import ./tests/register.mts --test "tests/"*.test.mts >/dev/null 2>&1 || fail=1
+# The node warning about a type-less package.json is noise on every file, but
+# filtering it through a pipe hands grep's exit status to the shell instead of
+# node's -- which is how this runner once cried failure over a green suite.
+# PIPESTATUS keeps the answer that matters. Running the suite twice to recover
+# it, as this used to, also ran every slow test twice.
+node --import ./tests/register.mts --test "tests/"*.test.mts 2>&1 \
+  | grep -vE "MODULE_TYPELESS_PACKAGE_JSON|Reparsing as ES module|To eliminate this warning|trace-warnings"
+[ "${PIPESTATUS[0]}" = 0 ] || fail=1
 
 printf "\n%s== pipeline ==%s\n" "$BOLD" "$OFF"
 VENV=ugc-edit-system/.venv/bin/python

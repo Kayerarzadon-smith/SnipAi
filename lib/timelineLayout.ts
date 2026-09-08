@@ -112,3 +112,31 @@ export function layout(
 
   return { placed, pieces, total: at };
 }
+
+
+/**
+ * The order after dragging one clip into a gap.
+ *
+ * `dropAt` is the index the clip would land BEFORE, counted in the CURRENT
+ * order -- which is the fiddly part: once the clip is lifted out, every gap
+ * after it shifts down by one. Dropping a clip into either gap touching where
+ * it already sits is a no-op, and has to be, or a stray six-pixel wobble
+ * rewrites the beat list and burns a snapshot.
+ *
+ * Returns null when nothing would change.
+ */
+export function reorderTo(
+  order: string[],
+  label: string,
+  dropAt: number
+): string[] | null {
+  const from = order.indexOf(label);
+  if (from < 0) return null;
+  if (dropAt < 0 || dropAt > order.length) return null;
+  const to = dropAt > from ? dropAt - 1 : dropAt;
+  if (to === from) return null;
+  const next = order.slice();
+  next.splice(from, 1);
+  next.splice(to, 0, label);
+  return next;
+}

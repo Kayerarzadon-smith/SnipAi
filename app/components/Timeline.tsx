@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type { Clip, EdlPiece, Piece, Placed } from "@/lib/timelineLayout";
 import type { Clip, EdlPiece, Piece, Placed } from "@/lib/timelineLayout";
-import { layout, baseLabel } from "@/lib/timelineLayout";
+import { layout, baseLabel, reorderTo } from "@/lib/timelineLayout";
 export { layout };
 
 const ZOOMS = [10, 16, 25, 40, 64, 100, 160, 260];   // pixels per second
@@ -36,6 +36,7 @@ export default function Timeline({
   onDetach,
   onTrimAudio,
   onFade,
+  onReorder,
 }: {
   clips: Clip[];
   edl?: EdlPiece[];
@@ -60,6 +61,8 @@ export default function Timeline({
   onDetach: (label: string, range: { start: number; end: number } | null) => void;
   onTrimAudio: (label: string, edge: "start" | "end", sourceTime: number) => void;
   onFade: (label: string, edge: "in" | "out", seconds: number) => void;
+  /** the whole beat list, in its new order */
+  onReorder: (order: string[]) => void;
 }) {
   const [zoomIx, setZoomIx] = useState(2);
   const zoomIxRef = useRef(2);
@@ -70,6 +73,15 @@ export default function Timeline({
   const [drag, setDrag] = useState<{ label: string; edge: "start" | "end"; track: "video" | "audio" } | null>(null);
   const [fading, setFading] = useState<{ label: string; edge: "in" | "out" } | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
+  /* Moving a clip and scrubbing start from the same gesture: a press on a clip
+     is a scrub until the pointer travels far enough to mean something else.
+     Deciding by distance rather than by a modifier key means neither has to be
+     discovered. */
+  const [moving, setMoving] = useState<{
+    label: string; fromX: number; at: number; dur: number; dx: number; live: boolean;
+  } | null>(null);
+  /** index in the current order the clip would land BEFORE */
+  const [dropAt, setDropAt] = useState<number | null>(null);
   /* Only the visible slice of film is fetched, at one thumbnail per ~44px.
      That keeps every frame at its own aspect however far you zoom in, and
      keeps the image small however long the cut is. */
@@ -298,6 +310,43 @@ export default function Timeline({
     return () => clearTimeout(t);
   }, [stripUrlFor, scrollX, pps, total]);
 
+  /* Dragging a clip to a new place in the cut.
+     The gesture starts as a scrub; six pixels of travel is what separates
+     "put the playhead here" from "move this line". */
+  useEffect(() => {
+    if (!moving) return;
+    const MOVE_THRESHOLD = 6;
+    const onMove = (e: MouseEvent) => {
+      const dx = e.clientX - moving.fromX;
+      const live = moving.live || Math.abs(dx) > MOVE_THRESHOLD;
+      if (!live) return;
+      if (!moving.live) setScrubbing(false);        // it was never a scrub
+      // where would it land? the gap nearest the pointer
+      const t = cutTimeAt(e.clientX);
+      let at = placed.length;
+      for (let i = 0; i < placed.length; i++) {
+        if (t < placed[i].at + placed[i].dur / 2) { at = i; break; }
+      }
+      setMoving({ ...moving, dx, live: true });
+      setDropAt(at);
+    };
+    const onUp = () => {
+      if (moving.live && dropAt !== null) {
+        const next = reorderTo(placed.map((c) => c.label), moving.label, dropAt);
+        if (next) onReorder(next);
+      }
+      setMoving(null);
+      setDropAt(null);
+      setScrubbing(false);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [moving, dropAt, placed, cutTimeAt, onReorder]);
+
   // keep the playhead in view while it runs
   useEffect(() => {
     if (scrubbing) return;          // never fight the hand that's dragging
@@ -475,6 +524,17 @@ export default function Timeline({
                 <b className="mono">{fmt(t)}</b>
               </span>
             ))}
+            {/* where it will land, drawn in the gap it will fall into */}
+            {dropAt !== null && moving?.live && (
+              <span
+                className="tl-drop"
+                style={{
+                  left: (dropAt >= placed.length
+                    ? placed[placed.length - 1].at + placed[placed.length - 1].dur
+                    : placed[dropAt].at) * pps,
+                }}
+              />
+            )}
           </div>
 
           {/* video track */}
@@ -495,13 +555,22 @@ export default function Timeline({
             {placed.filter((c) => onScreen(c.at, c.dur)).map((c) => (
               <div
                 key={c.label}
-                className={`tl-clip${c.label === selected ? " selected" : ""}`}
-                style={{ left: c.at * pps, width: Math.max(2, c.dur * pps) }}
+                className={`tl-clip${c.label === selected ? " selected" : ""}`
+                  + (moving?.live && moving.label === c.label ? " moving" : "")}
+                style={{
+                  left: c.at * pps,
+                  width: Math.max(2, c.dur * pps),
+                  // the clip follows the hand, so the drag is something you watch
+                  transform: moving?.live && moving.label === c.label
+                    ? `translateX(${moving.dx}px)` : undefined,
+                }}
                 onMouseDown={(e) => {
                   if ((e.target as HTMLElement).closest(".tl-handle")) return;
                   e.preventDefault();
                   onSelect(c.label);
                   setScrubbing(true);
+                  setMoving({ label: c.label, fromX: e.clientX, at: c.at, dur: c.dur,
+                              dx: 0, live: false });
                   const t = cutTimeAt(e.clientX);
                   setDragHead(t);
                   onScrub(t);

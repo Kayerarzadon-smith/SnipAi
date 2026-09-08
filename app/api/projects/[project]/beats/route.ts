@@ -106,7 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
       );
     }
     existing.beats = order.map((l) => byLabel.get(l)!);
-    saveBeats(project, existing);
+    saveBeats(project, existing, "moved a line");
     return NextResponse.json({ ok: true, beats: existing.beats });
   }
 

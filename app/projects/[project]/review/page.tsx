@@ -1392,6 +1392,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               setSelectedClip(null);
             }}
             onSplit={(label, at) => beatOp({ op: "split", label, at }, "Split into two clips")}
+            onReorder={(order) => beatOp({ op: "reorder", order }, "Moved that line")}
             onDetach={detachAudio}
             onTrimAudio={audioTrim}
             onFade={setFade}

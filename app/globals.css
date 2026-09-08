@@ -1193,3 +1193,23 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
            color: var(--accent); background: var(--accent-soft);
            padding: 2px 7px; border-radius: 999px; margin-left: 8px; }
 .ver-note { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+
+/* ---- moving a clip -------------------------------------------------------
+   The clip is lifted rather than ghosted: you are carrying this one, and the
+   gap it will drop into is marked on the track it will drop into. */
+.tl-clip.moving {
+  z-index: 30; opacity: .9; cursor: grabbing;
+  box-shadow: 0 10px 26px -8px rgba(0,0,0,.75);
+  outline: 1px solid var(--accent);
+}
+.tl-drop {
+  position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
+  background: var(--accent); z-index: 29; pointer-events: none;
+  box-shadow: 0 0 8px var(--accent);
+}
+.tl-drop::before, .tl-drop::after {
+  content: ""; position: absolute; left: -3px; width: 8px; height: 8px;
+  background: var(--accent); border-radius: 2px;
+}
+.tl-drop::before { top: -3px; }
+.tl-drop::after  { bottom: -3px; }

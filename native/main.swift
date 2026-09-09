@@ -164,8 +164,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         }
     }
 
+    /// Closing the window is not quitting.
+    ///
+    /// This returned true, so the red button ended the process -- the app
+    /// vanished from the running list, the server it owns was killed, and
+    /// there was no prompt and no way back. On a Mac the close button closes
+    /// a window; Quit is Quit. It matters more here than it usually would,
+    /// because an edit made just before the close is saved to disk and its
+    /// render is still queued behind it.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
+    }
+
+    /// Clicking the Dock icon brings the window back.
+    ///
+    /// With the app still running after a close, this is the way most people
+    /// will reopen it -- and without it, the icon does nothing at all, which
+    /// is worse than quitting. Window > SnipAi is the other way, for anyone
+    /// who does not go to the Dock.
+    func applicationShouldHandleReopen(_ sender: NSApplication,
+                                       hasVisibleWindows: Bool) -> Bool {
+        showMainWindow()
         return true
+    }
+
+    @objc func showMainWindow() {
+        guard let w = window else { return }
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -186,6 +212,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
             defer: false
         )
         window.title = "SnipAi"
+        // Closing an NSWindow deallocates it by default, and reopening a
+        // deallocated window is a crash, not an empty window. Nothing noticed
+        // while closing quit the app outright.
+        window.isReleasedWhenClosed = false
         // NOT .fullSizeContentView / titlebarAppearsTransparent: those let the
         // WKWebView cover the titlebar, which swallows drags and makes the
         // window impossible to move.
@@ -267,6 +297,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         appMenu.addItem(withTitle: "Quit SnipAi", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
 
+        // File exists for one command, and it is the one that was missing:
+        // a close that is a close. Import lives on the page, not up here --
+        // a menu item that only works on one screen is worse than no item.
+        let fileMenuItem = NSMenuItem()
+        mainMenu.addItem(fileMenuItem)
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenuItem.submenu = fileMenu
+
         let viewMenuItem = NSMenuItem()
         mainMenu.addItem(viewMenuItem)
         let viewMenu = NSMenu(title: "View")
@@ -292,6 +331,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenuItem.submenu = editMenu
+
+        // Window, with an explicit way back. macOS fills a windows menu with
+        // the windows that are OPEN, which is no help at all to someone whose
+        // only window is the one they just closed -- so "SnipAi" is a real
+        // item pointing at the window, not the list AppKit maintains.
+        let windowMenuItem = NSMenuItem()
+        mainMenu.addItem(windowMenuItem)
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(NSMenuItem.separator())
+        let back = NSMenuItem(title: "SnipAi", action: #selector(showMainWindow), keyEquivalent: "0")
+        back.target = self
+        windowMenu.addItem(back)
+        windowMenuItem.submenu = windowMenu
+        NSApp.windowsMenu = windowMenu
 
         NSApp.mainMenu = mainMenu
     }

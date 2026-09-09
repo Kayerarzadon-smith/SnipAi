@@ -228,3 +228,67 @@ class SplitSilenceRows(unittest.TestCase):
         from build_cut import merge_touching
         rows = [(1.0, 2.0), (3.0, 4.0), (5.5, 6.0)]
         self.assertEqual(merge_touching(rows), rows)
+
+
+class WordsAreNotClipped(unittest.TestCase):
+    """A cut may not start or end in the middle of a word.
+
+    QA reported cuts landing inside words and called it critical. Measuring
+    the audio, 31 of 35 were the transcript being early -- Whisper starts
+    words 200-400ms before the sound, so the cut landed exactly on the speech
+    and the discarded fragment was silence at -65 to -77 dB. Four were real,
+    discarding 21-92ms at -23 to -44 dB: soft trailing consonants, the "s" of
+    "this", the "ce" of "face". The silence map cannot see those, so nothing
+    moved the edge off them.
+    """
+
+    def test_a_boundary_inside_a_word_is_pushed_off_it(self):
+        from build_cut import off_word
+        words = [(10.0, 10.4)]
+        self.assertEqual(off_word(10.2, words, forward=True), 10.4)
+        self.assertEqual(off_word(10.2, words, forward=False), 10.0)
+
+    def test_a_boundary_clear_of_every_word_is_left_alone(self):
+        from build_cut import off_word
+        words = [(10.0, 10.4)]
+        self.assertEqual(off_word(11.0, words, forward=True), 11.0)
+        self.assertEqual(off_word(9.0, words, forward=False), 9.0)
+
+    def test_a_long_span_is_a_word_plus_a_pause_and_is_ignored(self):
+        """Whisper folds a pause into the preceding word. Protecting an
+        11-second "word" would protect the pause we are trying to remove."""
+        from build_cut import off_word
+        words = [(10.0, 21.5)]
+        self.assertEqual(off_word(15.0, words, forward=True), 15.0)
+
+    def test_a_pause_trim_does_not_clip_the_word_before_it(self):
+        # silence 4.0-6.0, but a word runs 3.9-4.2 across the start of it
+        pieces, removed, _ = walk_pieces(
+            "l", 0.0, 10.0, [(4.0, 6.0)], [], trim_min=0.22, keep=0.30,
+            words=[(3.9, 4.2)])
+        first_end = pieces[0][2]
+        self.assertGreaterEqual(first_end, 4.2,
+                                "the cut began inside the word ending at 4.2")
+
+    def test_a_pause_trim_does_not_clip_the_word_after_it(self):
+        pieces, _, _ = walk_pieces(
+            "l", 0.0, 10.0, [(4.0, 6.0)], [], trim_min=0.22, keep=0.30,
+            words=[(5.9, 6.3)])
+        resume = pieces[1][1]
+        self.assertLessEqual(resume, 5.9,
+                             "the film resumed inside the word starting at 5.9")
+
+    def test_protecting_words_never_makes_the_line_shorter(self):
+        plain, _, _ = walk_pieces("l", 0.0, 10.0, [(4.0, 6.0)], [], trim_min=0.22, keep=0.30)
+        guarded, _, _ = walk_pieces("l", 0.0, 10.0, [(4.0, 6.0)], [], trim_min=0.22,
+                                    keep=0.30, words=[(3.9, 4.2), (5.9, 6.3)])
+        self.assertGreaterEqual(total(guarded), total(plain))
+
+    def test_a_trim_that_shrinks_below_the_floor_is_dropped(self):
+        """Pushed off words at both ends, a small pause can stop being worth
+        cutting. It must then not be cut at all, rather than cut to nothing."""
+        pieces, removed, n = walk_pieces(
+            "l", 0.0, 10.0, [(4.0, 4.6)], [], trim_min=0.35, keep=0.30,
+            words=[(3.9, 4.3), (4.4, 4.8)])
+        self.assertEqual(n, 0)
+        self.assertEqual(round(removed, 3), 0.0)

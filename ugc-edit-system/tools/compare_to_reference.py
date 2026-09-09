@@ -30,6 +30,7 @@ def main():
 
     ref = json.load(open(a.style))
     proj = a.project.rstrip("/")
+
     edl = json.load(open(os.path.join(proj, "work", "edl.json")))
 
 
@@ -59,14 +60,40 @@ def main():
         except Exception:
             wps = None
 
+    # Read the house style defensively.
+    #
+    # It is composed by two different writers -- measure_finished.py and the
+    # Settings screen's reference route -- and the route builds it by
+    # spreading whatever was there before. On a FRESH library there is no
+    # "before", so it wrote a style with no `tolerance` at all, and
+    #
+    #     ref["tolerance"]["duration_pct"]
+    #
+    # raised KeyError on every build from then on. The render still finished,
+    # the job still said done at 100%, and the traceback ended up displayed as
+    # the job's current stage. A missing number is not a reason to take down
+    # the step that reports on it.
+    tol = ref.get("tolerance") or {}
+    seg = ref.get("segment_seconds") or {}
+
+    def cmp_row(name, mine, theirs, unit="", tol_pct=None):
+        return (name, mine, theirs if isinstance(theirs, (int, float)) else None, unit, tol_pct)
+
     rows = [
-        ("total length",     total,                       ref["duration"],                    "s",  ref["tolerance"]["duration_pct"]),
-        ("cuts",             float(len(edl)),             float(ref["segments"]),             "",   None),
-        ("beats",            float(len(beats)),           None,                               "",   None),
-        ("median beat",      statistics.median(durs),     ref["segment_seconds"]["median"],   "s",  ref["tolerance"]["median_segment_pct"]),
-        ("longest beat",     durs[-1],                    ref["segment_seconds"]["max"],      "s",  None),
-        ("seconds per cut",  total / max(len(edl), 1),    ref["seconds_per_cut"],             "s",  None),
+        cmp_row("total length",    total,                    ref.get("duration"),  "s", tol.get("duration_pct")),
+        cmp_row("cuts",            float(len(edl)),          ref.get("segments"),  ""),
+        cmp_row("beats",           float(len(beats)),        None,                 ""),
+        cmp_row("median beat",     statistics.median(durs),  seg.get("median"),    "s", tol.get("median_segment_pct")),
+        cmp_row("longest beat",    durs[-1],                 seg.get("max"),       "s"),
+        cmp_row("seconds per cut", total / max(len(edl), 1), ref.get("seconds_per_cut"), "s"),
     ]
+
+    missing = [n for n, _, t, _, _ in rows if t is None and n != "beats"]
+    if len(missing) >= 4:
+        print("The house style has almost nothing measured in it yet.")
+        print("Settings -> Style references: add a raw take and your finished")
+        print("edit of it, and this will have something to compare against.")
+        return 0
     if wps is not None and ref.get("words_per_second"):
         rows.append(("words per second", wps, ref["words_per_second"], "", 15))
 
@@ -83,7 +110,13 @@ def main():
         print(f"  {name:16s} {mine:9.2f}{unit} {t:>10s}{mark}")
 
     print()
-    if not flags:
+    judged = [n for n, _, t, _, tp in rows if t is not None and tp]
+    if not flags and not judged:
+        # Nothing to judge by. Saying "in line with the reference" here would
+        # be a pass awarded for the absence of a standard.
+        print("No tolerances in the house style, so nothing here is a verdict --")
+        print("these are just the two sets of numbers side by side.")
+    elif not flags:
         print("In line with the reference.")
     else:
         for name, mine, theirs, off in flags:

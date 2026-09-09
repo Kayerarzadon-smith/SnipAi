@@ -168,6 +168,20 @@ async function measureAll(jobId: string) {
     },
     references_analysed: measured.length,
     updated: new Date().toISOString(),
+    /* Always present, even on a fresh library.
+     *
+     * This object is built by spreading `prev`, so every key not listed here
+     * survives only if a house style already existed. On a first run `prev` is
+     * {} -- and the style went out with no `tolerance`, which
+     * compare_to_reference.py reads as ref["tolerance"]["duration_pct"]. That
+     * KeyError then ended every build from that moment on: the render still
+     * finished, the job still said 100%, and the traceback was displayed to
+     * the user as the job's current stage.
+     *
+     * Same defaults measure_finished.py writes, so the two writers of this
+     * one file agree on its shape. */
+    tolerance: (prev.tolerance as Record<string, number> | undefined)
+      ?? { duration_pct: 20, median_segment_pct: 40 },
   };
   writeJsonAtomic(STYLE, target);
   log(`target style updated from ${measured.length} reference(s)`);

@@ -21,6 +21,14 @@ from _paths import data_path  # noqa: E402
 HEAD_MAX, TAIL_MAX, MARGIN = 0.07, 0.20, 0.04
 
 
+# Over this, a "word" is a word with a pause folded into it (CLAUDE.md), and
+# its stated end means nothing.
+LONG_WORD = 0.8
+# How far an edge may be pushed out to avoid clipping a word. A fifth of a
+# second is a consonant; more than that and something else is wrong.
+WORD_RESCUE = 0.2
+
+
 def merge_touching(ranges, gap=0.02):
     """One silence reported as several rows is still one silence.
 
@@ -109,7 +117,36 @@ def tuned(key, fallback):
         return fallback
 
 
-def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.30):
+def off_word(t, words, forward):
+    """Move a boundary off the middle of a word.
+
+    A pause-trim boundary is placed from the silence map, which does not know
+    where words are -- so a trim starting a few tens of milliseconds inside a
+    soft consonant clips it. Pushed away from the speech: a cut's start moves
+    later, a cut's end moves earlier, so the word survives whole.
+    """
+    for ws, we in words:
+        if we - ws >= LONG_WORD:
+            continue
+        if not (ws < t < we):
+            continue
+        moved = we if forward else ws
+        # Capped, for the same reason the snap-level rescue is capped:
+        # uncapped, this bought three fewer clipped consonants -- 165ms of
+        # audio -- at the price of FOUR SECONDS of extra runtime, because
+        # every boundary grazing a word gave the whole word back. A fifth of
+        # a second covers a consonant. Past that the boundary is not grazing
+        # a word, it is in the middle of one, and giving up the whole trim is
+        # the wrong answer to that.
+        # rounded: 10.4 - 10.2 is 0.20000000000000107 in binary, and a bare
+        # <= against the cap rejects the exact case the cap is meant to allow
+        if round(abs(moved - t), 6) <= WORD_RESCUE:
+            return moved
+    return t
+
+
+def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.30,
+                words=()):
     """Split one beat into the runs of film that survive.
 
     Two kinds of stretch come out of the middle of a line:
@@ -182,6 +219,16 @@ def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.3
                 continue
         else:
             co, ci = x + keep / 2, y - keep / 2
+            # The cut must not begin or end inside a word. `co` is where the
+            # removal STARTS, so if it lands in a word the removal has to
+            # start after that word finishes; `ci` is where the film RESUMES,
+            # so it has to resume before the next word begins. Both moves
+            # shrink the cut -- getting these the wrong way round grows it and
+            # eats the word, which is what the tests below caught.
+            co = off_word(co, words, forward=True)
+            ci = off_word(ci, words, forward=False)
+            if ci - co < trim_min:
+                continue                          # nothing left worth cutting
             if co <= cur + 0.18:
                 continue                          # too near the first word
             if ci >= tail - 0.18:
@@ -303,6 +350,26 @@ def main():
         for x, y in snap_sil:
             if x < e <= y:                       # out-point sits inside silence
                 e = max(x + a.snap_tail, s + 0.05)
+
+        # Do not stop in the middle of a word.
+        #
+        # Snapping only moves an edge that sits inside DETECTED silence. An
+        # out-point that lands on a soft trailing consonant -- the "s" of
+        # "this", the "ce" of "face" -- is not inside silence, so nothing
+        # moved it, and the render clipped the end of the word. Measured on
+        # img-9817: four such edges discarded 21-92ms of audible sound at
+        # -23 to -44 dB, against 31 others where the discarded fragment was
+        # true silence and the cut was right.
+        #
+        # Only ever pushed OUTWARD, only for a word short enough to be a word
+        # rather than a word plus a swallowed pause, and only by a little.
+        for ws, we in words:
+            if we - ws >= LONG_WORD:
+                continue                          # word + pause, not a word
+            if ws < e < we and we - e <= WORD_RESCUE:
+                e = we
+            if ws < s < we and s - ws <= WORD_RESCUE:
+                s = ws
         return round(s, 3), round(e, 3)
 
     pieces, report = [], []
@@ -316,7 +383,7 @@ def main():
         got, removed, n = walk_pieces(
             label, s, e, sil, holes.get(label, []),
             detached=label in detached,
-            trim_min=a.trim_min, keep=a.keep)
+            trim_min=a.trim_min, keep=a.keep, words=words)
         pieces.extend(got)
         report.append((label, s, e, round(e - s, 3), round(e - s - removed, 3), n))
 

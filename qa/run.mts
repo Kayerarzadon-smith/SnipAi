@@ -4,14 +4,18 @@ import { Report } from "./report.mts";
 import * as timeline from "./gauntlet/timeline.mts";
 import * as adversarial from "./gauntlet/adversarial.mts";
 import * as persistence from "./gauntlet/persistence.mts";
+import * as scorecard from "./gauntlet/scorecard.mts";
 
 const budget = Number(process.env.QA_BUDGET ?? 120);
 const rep = new Report();
 const t0 = Date.now();
 
+await (async () => {
 timeline.run(rep, budget);
 adversarial.run(rep, budget);
 persistence.run(rep, budget);
+await scorecard.run(rep);
+})();
 
 const c = rep.counts;
 console.log(`\nscenarios ${rep.results.length}   pass ${c.pass}   fail ${c.fail}   blocked ${c.blocked}   skipped ${c.skipped}   (${((Date.now()-t0)/1000).toFixed(1)}s)`);

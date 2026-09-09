@@ -294,6 +294,50 @@ zero for both projects after the fix.
 
 ---
 
+## BUG-010 — the word-level highlight never renders · P2 · OPEN
+
+**Category** 014 beat/word row
+**Status** confirmed, root cause not isolated, **not fixed**
+
+He asked for the spoken word to animate in real time under the player, and
+`DOCKET.md` lists it delivered: *"The lines carousel with playback, word lit
+as spoken."* The **line**-level half works. The **word**-level half does not
+render at all.
+
+**Reproduction** Open a project's review screen, click a line with transcript
+words in it (`good-thing-theres` has 15), let it play.
+
+**Expected** the line splits into `<span class="wd">` per word, one carrying
+`wd on`, moving as the words are spoken.
+**Actual** zero `.txt-live` and zero `.wd` elements exist at any point, in
+either player mode, playing or paused.
+
+**Verified six ways**
+- `.wd` count sampled every 300ms through playback: 0, every sample
+- the same in "Rendered file" mode: 0
+- paused with the playhead squarely inside a 15-word beat: 0
+- DOM attribute diff over 1.8s of playback: the ONLY thing that changes is the
+  timeline playhead's `left`
+- the line-level `.beat.playing` class tracks correctly the whole time
+- React fiber walked at runtime: **no hook holds a `{label, wordIx}` object**,
+  so `spoken` is null
+
+**What is NOT the cause** (each checked): the transcript is present (723
+words, 15 in that beat); `beatsRef` is populated (ArrowDown selection works
+off it); `liveMode` is true; the rAF loop is running (the playhead it drives
+moves 256→303px over 1.8s); the player element is the one actually playing;
+the render condition and the setter both survive minification intact.
+
+**Why it is not fixed here** the line-level highlight is driven by `liveIdx`
+and works. Guessing at the `spoken` path risks breaking the half that works,
+for a cosmetic feature, at the end of a pass that changed the render. It wants
+its own session with a breakpoint in the rAF loop.
+
+This is the pattern `DOCKET.md` was written for: asked for, built as far as
+code that looks right, wired to nothing, and nobody keeping score.
+
+---
+
 ## Instrument errors I made, and caught
 
 Recorded because a QA pass that manufactures defects is worse than one that
@@ -322,4 +366,7 @@ one frame per piece and fails beyond it.
 
 | # | What | Severity | Why not |
 |---|------|----------|---------|
+| BUG-010 | the word-level highlight never renders | P2 | Confirmed, root cause not isolated. Wants a breakpoint in the rAF loop; guessing risks the line-level highlight that works. |
 | — | proxy is 0.10s shorter than its source (40.07 vs 40.17) | P3 | Last partial frame. Seeks near the very end clamp. Not chased. |
+| — | the auto pipeline's review render is 720p and nothing on screen says so | P3 | Deliberate (minutes, not tens of minutes). But pressing Build gives full 4K and the two are not distinguished in the UI — worth a label. |
+| S10..S15 | six items on `audits/LEDGER.md` | P2-P3 | Pre-existing board, untouched by this pass except S1 and S7. |

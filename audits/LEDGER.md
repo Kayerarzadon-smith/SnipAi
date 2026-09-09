@@ -25,7 +25,7 @@ These are corrupting output or losing data today.
 
 | ID | Where | Status |
 |----|-------|--------|
-| S1 | `api/projects/[project]/pipeline/route.ts:136` — undo strips holes, fades, detached audio | open |
+| S1 | `api/projects/[project]/pipeline/route.ts:136` — undo strips holes, fades, detached audio | wontfix |
 | S2 | `lib/jobs.ts:184` — `failJob` never persists | open |
 | C1 | `Timeline.tsx:266` — the in-point drag runs away and collapses the clip | open |
 | C2 | `review/page.tsx:1017` — every trim after the first is unundoable | open |
@@ -41,16 +41,16 @@ the clamp that stops it recurring is a pipeline change.
 
 | ID | Where | Defect | Status | Test |
 |----|-------|--------|--------|------|
-| S1 | `pipeline/route.ts:136` | Beat rebuilt from a 4-field whitelist; undo drops `holes`, `audioStart`/`audioEnd`, `fadeIn`/`fadeOut` | open | `tests/regressions/S1-*.test.mts` |
+| S1 | `pipeline/route.ts:136` | Beat rebuilt from a 4-field whitelist; undo drops `holes`, `audioStart`/`audioEnd`, `fadeIn`/`fadeOut` | **wontfix 2026-09-09** — merging from disk on undo would make every cut permanent. The live loss needs GET to drop a field; it does not (6 fields pinned round-tripping in `tests/undo-round-trip.test.mts`) | `tests/regressions/S1-*.test.mts` (kept red on purpose) |
 | S2 | `lib/jobs.ts:184` | `failJob` is the one mutator that doesn't `persist()`; failed builds stay "running" everywhere else and then 409 the next build | open | `tests/regressions/S2-*.test.mts` |
 | S3 | `projects/route.ts:68` | Upload buffered whole, twice, no size cap; a 1.4GB original OOMs and the catch then deletes the new project dir. Same at `references/route.ts:60` | open | no — needs a large-file harness |
 | S4 | `lib/pipeline.ts:149`, `lib/jobs.ts:164` | Unbounded stdout accumulation over a 6-hour cap, and unbounded `job.log` re-serialised every 2s | open | no |
 | S5 | `peaks/route.ts:39`, `beats/[label]/candidates/route.ts:26` | CWD-relative `projects/<name>` where every other caller passes an absolute path; take picker 422s after migration | open | yes, not yet written |
 | S6 | `lib/pipeline.ts:32` | `spawnSync` + `import faster_whisper` on the request path of eight GETs, 60s cache | open | no |
-| S7 | `beats/route.ts:87` | Split spreads holes and detached audio onto both halves; the line renders twice | open | `tests/regressions/S7-*.test.mts` |
+| S7 | `beats/route.ts:87` | Split spreads holes and detached audio onto both halves; the line renders twice | **fixed 2026-09-09** — `lib/splitBeat.ts` divides instead of copying | `tests/regressions/S7-*.test.mts` (now green) + `tests/undo-round-trip.test.mts` |
 | S8 | `beats/[label]/route.ts:136` | Trim never re-runs `normaliseHoles`; a hole can end up covering the whole beat | open | yes, not yet written |
 | S9 | `projects/[project]/route.ts:148` | `cutTimeline` strips any `-<digits>`; real beats `hook-1`/`hook-2` collapse into one | open | yes, not yet written |
-| S10 | `candidates/route.ts:20` | `updateReviewState(p, () => {})` is a full read-modify-write, so a GET rewrites `review-state.json` and can lose a concurrent write | open | yes, not yet written |
+| S10 | `candidates/route.ts:20` | `updateReviewState(p, () => {})` is a full read-modify-write, so a GET rewrites `review-state.json` and can lose a concurrent write | **fixed 2026-09-09** — the reads are reads, a no-op update does not write, and an unreadable file is kept aside instead of replaced by defaults (it was destroying every take pick) | `tests/review-state-integrity.test.mts` |
 | S11 | `filmstrip/route.ts:59` | Cache key omits the cut file; scrub v2, see v1's frames | open | yes, not yet written |
 | S12 | `filmstrip/route.ts:32` | `count` never NaN-checked; `NaN` reaches argv and the cache key | open | yes, not yet written |
 | S13 | `references/route.ts:143` | `measured.map((_, i) => files[i])` indexes the input array by output position; wrong files credited in `house-style.json` | open | yes, not yet written |

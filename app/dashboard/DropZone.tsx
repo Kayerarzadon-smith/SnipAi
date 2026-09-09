@@ -70,7 +70,13 @@ function upload(
       resolve({ ok, body });
     };
     xhr.onload = () => done(xhr.status >= 200 && xhr.status < 300, `import failed (${xhr.status})`);
-    xhr.onerror = () => done(false, "the connection dropped mid-import");
+    // XHR gives no reason for a network-level failure, so this must not claim
+    // one. It used to say the connection dropped, which was the message a
+    // FULL DISK produced: the server answered ENOSPC while the browser was
+    // still sending, and the early close looks like a dropped connection from
+    // here. The server refuses on space before the upload starts now, so that
+    // case arrives as a sentence; what is left is genuinely unknown.
+    xhr.onerror = () => done(false, "the import stopped before it finished");
     xhr.onabort = () => done(false, "import cancelled");
     xhr.send(file);
   });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import { projectDir, assertValidProjectName } from "@/lib/paths";
+import { projectDir, assertValidProjectName, PROJECTS_ROOT } from "@/lib/paths";
 import { VIDEO_EXT, VIDEO_EXT_LIST } from "@/lib/videoFiles";
 import { saveBeats } from "@/lib/beats";
 import { summarizeAllProjects } from "@/lib/projectSummary";
@@ -89,6 +89,34 @@ export async function POST(req: NextRequest) {
   }
   if (declaredSize === 0 && !isRaw) {
     return NextResponse.json({ error: `${originalName} is empty` }, { status: 400 });
+  }
+
+  /* Refuse a file the disk cannot hold BEFORE it is sent, not during.
+     Running out of space part-way through writes an ENOSPC to the stream,
+     the server answers while the browser is still uploading, and the browser
+     reports the early close as a network fault -- so "the connection dropped
+     mid-import" for a full disk. It reproduced on 1.5GB and not on 300MB,
+     because the smaller one finished sending before the answer came back.
+     Content-Length is exactly what is about to arrive. */
+  if (declaredSize > 0) {
+    try {
+      fs.mkdirSync(PROJECTS_ROOT, { recursive: true });
+      const vfs = fs.statfsSync(PROJECTS_ROOT);
+      const free = Number(vfs.bavail) * Number(vfs.bsize);
+      // Leave room for the transcript, the silence maps and the proxy, which
+      // land right after this and are what the import is for.
+      const headroom = 256 * 1024 * 1024;
+      if (free < declaredSize + headroom) {
+        const gb = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GB`;
+        return NextResponse.json(
+          { error: `not enough room for ${originalName}: it needs ${gb(declaredSize)} and there is ${gb(free)} free` },
+          { status: 507 }
+        );
+      }
+    } catch {
+      // statfs is not available everywhere; the write error below still
+      // catches it, just later and less clearly
+    }
   }
 
   assertValidProjectName(name);

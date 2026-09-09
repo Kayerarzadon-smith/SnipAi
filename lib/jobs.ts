@@ -83,9 +83,18 @@ function refresh(): void {
     if (!fs.existsSync(JOBS_FILE)) return;
     const saved = JSON.parse(fs.readFileSync(JOBS_FILE, "utf8")) as Job[];
     for (const job of saved) {
-      const mine = jobs.get(job.id);
-      // never let a stale file resurrect a job this process has since finished
-      if (mine && mine.status !== "running") continue;
+      /* If this process already knows the job, this process's copy is the
+         newer one -- always. appendLog writes the file through at most once
+         every two seconds, so the copy on disk lags by up to two seconds of
+         output, and reading it over the top rolled a running job's log and
+         its stage BACKWARDS. The review screen calls getJob about once a
+         second, and getJob refreshes, so a live job was losing lines the
+         whole time it ran. Found by a test that wrote eight lines and then
+         asked for them back.
+
+         The file exists for jobs this process has never seen: a build that
+         was running when the server restarted. Those are adopted. */
+      if (jobs.has(job.id)) continue;
       jobs.set(job.id, job);
     }
   } catch {
@@ -149,6 +158,21 @@ let lastPersist = 0;
 /** Tools report progress as "PROGRESS <n>"; anything else is just log. */
 const PROGRESS_RE = /^PROGRESS\s+(\d{1,3})\s*$/;
 
+/* A crash is not a caption.
+ *
+ * `stage` is the last line the tool printed, shown on the card and the review
+ * screen as what the machine is doing. When a Python tool raised, the last
+ * line it printed was the exception -- so a build ended showing
+ * "KeyError: 'tolerance'" as its stage while status said done and progress
+ * said 100. QA found the traceback sitting in stage on 11 of 16 jobs.
+ *
+ * The traceback still goes to the log, which is where a crash is diagnosed.
+ * It just stops being the sentence in front of the person using the app.
+ */
+const TRACEBACK_START = /^Traceback \(most recent call last\)/;
+const TRACEBACK_BODY = /^(\s+File "|\s+\S|\s*[~^]+\s*$|\w*(Error|Exception|Interrupt):)/;
+const tracing = new Set<string>();
+
 export function appendLog(id: string, line: string): void {
   const job = jobs.get(id);
   if (!job) return;
@@ -160,7 +184,16 @@ export function appendLog(id: string, line: string): void {
     persist();               // progress is the whole point; write it through
     return;
   }
-  job.stage = line.trim().slice(0, 120) || job.stage;
+  if (TRACEBACK_START.test(line)) {
+    tracing.add(id);
+    job.stage = "a step reported an error — the log below has it";
+  } else if (tracing.has(id) && !TRACEBACK_BODY.test(line)) {
+    // back to ordinary output
+    tracing.delete(id);
+  }
+  if (!tracing.has(id) && !TRACEBACK_START.test(line)) {
+    job.stage = line.trim().slice(0, 120) || job.stage;
+  }
   job.log.push(line);
   // throttled: a chatty ffmpeg would otherwise write the file hundreds of
   // times a second

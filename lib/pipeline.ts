@@ -129,11 +129,21 @@ export function runCommand(
      * distinguish working from hung, which is the actual defect". So a quarter
      * of the way into the window the log says so, and keeps saying so, which
      * turns silence into information instead of an absence of it. */
-    // A quarter of the window, capped at 20s so a long job says something
-    // reasonably soon, and floored well under idleMs so the warning ALWAYS
-    // lands before the kill -- a watchdog that dies without having spoken is
-    // the thing being fixed.
-    const warnMs = Math.max(500, Math.min(20_000, Math.round(idleMs / 4)));
+    /* Half the window, not a quarter of it capped at 20 seconds.
+     *
+     * The cap made a five-minute window warn after twenty, so "still working
+     * -- nothing reported for 20s. If it stays quiet for another 280s it will
+     * be stopped" appeared during ordinary transcription and ordinary
+     * rendering, which routinely go quiet for longer than that. QA logged it
+     * from three separate builds. A warning that fires when nothing is wrong
+     * teaches you to ignore the one that matters.
+     *
+     * Half the window still leaves the whole second half as notice, and the
+     * floor keeps the guarantee that made this exist at all: the warning
+     * always lands before the kill, because a watchdog that dies without
+     * having spoken is the original defect.
+     */
+    const warnMs = Math.max(500, Math.round(idleMs / 2));
     let killedBy: "silence" | "cap" | null = null;
     let idleTimer: NodeJS.Timeout;
     let warnTimer: NodeJS.Timeout;
@@ -621,6 +631,12 @@ export async function runChecksAndCache(
 
   log("comparing against house style (compare_to_reference.py)...");
   const cmp = await runTool("compare_to_reference.py", ["--project", projectDir(project)], { onLine: log });
+  // A step that crashed is not a step that ran. This exit code was ignored,
+  // so a build whose comparison raised still finished "done" at 100% with the
+  // traceback showing as its stage, and the pacing metric quietly absent.
+  if (!cmp.ok) {
+    log("the house-style comparison did not finish, so pacing is not scored for this cut");
+  }
   const pacing = parseCompareToReferenceOutput(cmp.stdout);
 
   updateReviewState(project, (s) => {

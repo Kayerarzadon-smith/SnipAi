@@ -104,6 +104,26 @@ describe("a quiet job is narrated, not just killed", () => {
     assert.match(warned[0], /will be stopped/, "the warning has to say what happens next");
   });
 
+  /* QA saw "nothing reported for 20s ... another 280s" during ordinary
+     transcription and ordinary rendering, both of which routinely go quiet
+     for longer than twenty seconds. A warning that fires when nothing is
+     wrong teaches you to ignore the one that matters, so it waits until half
+     the window is gone -- and no longer, because the point is to speak before
+     the kill, not after. */
+  test("the first warning lands around halfway, not immediately", async () => {
+    const lines: string[] = [];
+    const idleMs = 2000;
+    await runCommand("bash", ["-c", "echo starting; sleep 30"],
+                     { idleMs, onLine: (l) => lines.push(l) });
+    const first = lines.find((l) => /still working/.test(l));
+    assert.ok(first, `expected a warning, got:\n${lines.join("\n")}`);
+    const quiet = Number(/nothing reported for (\d+)s/.exec(first!)?.[1]);
+    const left = Number(/another (\d+)s/.exec(first!)?.[1]);
+    assert.ok(quiet >= 1, `warned after ${quiet}s of a ${idleMs / 1000}s window — too eager`);
+    assert.ok(quiet < idleMs / 1000, `warned after the kill window closed (${quiet}s)`);
+    assert.ok(left >= 1, "a warning with no time left on it is not a warning");
+  });
+
   test("a job that keeps talking is never warned about", async () => {
     const lines: string[] = [];
     const r = await runCommand("bash",

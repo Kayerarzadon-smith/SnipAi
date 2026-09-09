@@ -31,11 +31,8 @@ Two things about the product shape you need to hold in your head:
 ```
 1  Open the app                   →  the Queue (a list of projects)
 2  Drop a video file in           →  a project is created, work starts by itself
-3  Wait                           →  four phases run, with a progress bar:
-                                       Transcribing…                  0–45%
-                                       Choosing the takes…           45–56%
-                                       Shrinking for smooth playback 56–74%
-                                       Snipping…                     74–100%
+3  Wait                           →  a progress bar, and a caption saying what
+                                      the machine is doing right now
 4  Click Open on the project      →  the Review screen
 5  Watch it, fix what's wrong     →  trim edges, cut out stretches, delete lines,
                                       reorder, split. Every edit re-renders itself
@@ -43,6 +40,23 @@ Two things about the product shape you need to hold in your head:
 ```
 
 **Step 3 is the whole product.** Steps 5–6 are for correcting what it got wrong.
+
+**About that caption.** An earlier version of this document listed four phases
+against fixed percentage bands. There are no fixed bands, and there is no
+fixed set of four — that was wrong, and a tester who checks against it will
+file a bug that is not there. What actually happens: the caption is derived
+from the line the running tool has just printed, matched against a table of
+phases in `app/dashboard/LiveProgress.tsx`. Each phase has two or three
+phrasings that mean the same thing and it rotates between them, so a
+nine-minute job does not sit on one frozen word and read as a hang — which
+means "Snipping…", "Cutting the clips…" and "Pulling the pieces" are the same
+phase, not three. The percentage comes separately, from the tool itself, and
+is not tied to the caption.
+
+Worth reporting about the caption: **"Working…"**. That is the fallback shown
+when the log line matches no phase at all, and every occurrence is a gap in
+that table. Also worth reporting: any caption that is clearly machine output
+rather than a sentence — a file path, a traceback, an ffmpeg command line.
 
 ---
 
@@ -270,7 +284,15 @@ Before any change to the edit, a copy is filed. **60 versions** are kept. **Hist
 If an action wouldn't change anything, the app says so instead of claiming success — *"that stretch is already cut out"*, *"that line is already there"*, *"there was nothing to undo"*. **Nothing is written, no version is burned, and no undo step is added.** This is correct.
 
 ### A job that goes quiet warns before it's stopped
-A step with nothing to report for a while says *"still working — nothing reported for 45s. If it stays quiet for another 255s it will be stopped."* It is stopped after 5 minutes of true silence.
+A step with nothing to report says so once half its patience is gone, and
+keeps saying so: *"still working — nothing reported for 150s. If it stays
+quiet for another 150s it will be stopped."* It is stopped after 5 minutes of
+true silence, so the first warning arrives at 150 seconds. (An earlier version
+of this document said 45s/255s, and the app said 20s/280s. Neither was right:
+20 seconds of quiet is normal during transcription and rendering, so the
+warning fired constantly on healthy jobs. It is half the window now, and the
+numbers in the sentence are computed, not fixed — a step given a shorter
+patience warns proportionally sooner.)
 
 ### Only one heavy job at a time
 Transcription and rendering each want the whole machine. A second request is refused with a message naming what's already running.

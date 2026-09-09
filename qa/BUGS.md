@@ -232,6 +232,68 @@ that changes nothing no longer writes.
 
 ---
 
+## BUG-009 — one pause reported as two rows is never trimmed · P1 · fixed
+
+**Category** 021 export, 006 timeline
+**Found** by verifying the freshly-built `img-9823` — 3.48s of dead air.
+
+`silencedetect` splits a long pause wherever the level twitches above the
+threshold for a frame. The map had `449.948–450.635` and `450.635–454.219`:
+the same silence, in two rows that touch exactly. `walk_pieces` trimmed the
+first, resumed at its end, then rejected the second by the "too near the
+resume point" guard (`co <= cur + 0.18`) — and 3.5 seconds of silence the map
+had found and reported correctly went into the cut.
+
+**Fix** rows that touch or overlap (≤0.02s) are merged into one silence,
+in `load_silence` and again inside `walk_pieces`, which is the function that
+must not be fooled. 0.02s only: a real breath between words is wider, and
+merging across one would let the trim eat a word.
+
+**A regression I caused and caught.** Merging was applied to BOTH maps at
+first, including the strict −50dB map used for edge snapping. Its small gaps
+are the soft consonants the snapping comment warns about, so merging across
+one moved the in-point past the first word — it cut " This" off the front of
+`literally` in img-9823. The strict map is now never merged. Caught by the
+word-loss check, which is the reason that check exists.
+
+**Proved** on scratch copies of both real projects:
+
+| | img-9817 | img-9823 |
+|---|---|---|
+| length | 110.31s → **97.80s** | 182.67s → **177.30s** |
+| longest silent stretch | 7.06s → **0.00s** | 3.48s → **0.00s** |
+| spoken words lost | **0** | **0** |
+
+**Regression** `ugc-edit-system/tests/test_pieces.py::SplitSilenceRows`, 5 cases.
+
+---
+
+## Not a defect — "19 missing words", retracted after measuring
+
+`qa/verify_words.py` reported 19 words missing from img-9817, 18 of them the
+first word of a beat. That is the signature of a clipped head, so it looked
+like a serious find. It is not one.
+
+Measured in the extracted audio:
+
+| window | mean | max |
+|---|---|---|
+| " Not" 350.640–350.884, the part not rendered | **−71.9 dB** | −51.8 dB |
+| 350.884–351.128, from the snap point | **−19.1 dB** | −4.2 dB |
+| " And" 398.920–399.336, not rendered | **−70.5 dB** | −37.1 dB |
+| 399.336–399.752, from the snap point | **−17.0 dB** | −4.0 dB |
+
+The unrendered part of each word is silence. Whisper starts words early; the
+silence map is right; `snap()` is doing exactly what CLAUDE.md says it should.
+Nothing is clipped.
+
+The tool now says so, and the absolute count is labelled an upper bound. The
+mode that matters is `--against`, which compares two builds on identical
+footing — it is what caught the real " This" regression above, and it reads
+zero for both projects after the fix.
+
+---
+
 ## Instrument errors I made, and caught
 
 Recorded because a QA pass that manufactures defects is worse than one that
@@ -243,7 +305,7 @@ misses them, and all three of these looked like findings.
 2. **Treated the transcript's top-level list as words.** It is a list of
    segments with nested `words`. Produced "34 of 34 beats are entirely
    silent", which was nonsense — corrected, every beat is 74%+ speech.
-3. **`-ss` before `-i` is a keyframe seek.** Measured silence in the wrong
+3. **`-ss` before `-i` is a keyframe seek.** (Made twice.) Measured silence in the wrong
    part of a 4K source and drew the wrong conclusion from it.
 
 ## Not a defect, after measuring

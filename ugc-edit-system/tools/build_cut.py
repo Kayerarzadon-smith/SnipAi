@@ -21,14 +21,51 @@ from _paths import data_path  # noqa: E402
 HEAD_MAX, TAIL_MAX, MARGIN = 0.07, 0.20, 0.04
 
 
-def load_silence(path):
+def merge_touching(ranges, gap=0.02):
+    """One silence reported as several rows is still one silence.
+
+    silencedetect splits a long pause wherever the level twitches over the
+    threshold for a frame, so a four-second gap arrives as
+    449.948-450.635 and 450.635-454.219 -- two rows that touch exactly.
+    walk_pieces trims the first, resumes at its end, and then rejects the
+    second for starting too close to where it just resumed. Result: 3.5
+    seconds of dead air in the middle of the cut, from a pause the map had
+    found and reported correctly.
+
+    Only ranges that touch or overlap are merged (0.02s). A real breath
+    between words is wider than that, and merging across one would let the
+    trim eat a word.
+    """
+    out = []
+    for a, b in sorted(ranges):
+        if out and a <= out[-1][1] + gap:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def load_silence(path, merge=True):
+    """Read a silence map.
+
+    `merge` joins rows that touch, which is right for the pause-trimming map:
+    one long pause arrives as several rows and each row on its own is too
+    small or too close to the last to act on.
+
+    It is WRONG for the strict (-50dB) map used to snap beat edges. Its small
+    gaps are the soft consonants the snapping comment warns about -- s, f, th
+    -- and merging across one moves the in-point past the first word instead
+    of up to it. That is exactly what happened: merging both maps cut " This"
+    off the front of the beat `literally` in img-9823.
+    """
     starts, ends = [], []
     for line in open(path):
         m = re.search(r"silence_start:\s*([\d.]+)", line)
         if m: starts.append(float(m.group(1)))
         m = re.search(r"silence_end:\s*([\d.]+)", line)
         if m: ends.append(float(m.group(1)))
-    return sorted(zip(starts, ends))
+    pairs = sorted(zip(starts, ends))
+    return merge_touching(pairs) if merge else pairs
 
 
 def load_words(path):
@@ -101,7 +138,10 @@ def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.3
     # 441.46, and the one condition that mattered was the one that failed.
     inner = []
     if not detached:
-        for x, y in sil:
+        # Merge here as well as in load_silence: this is the function that must
+        # not be fooled by one pause arriving as two rows, and it is called
+        # directly from the tests and from other tools.
+        for x, y in merge_touching(sil):
             lo, hi = max(x, s), min(y, e)
             if hi - lo < trim_min:
                 continue
@@ -245,7 +285,8 @@ def main():
     # Edge snapping uses the strict map when available; pause-trimming inside a
     # beat keeps using the -28dB map, which is what that job wants.
     snap_path = os.path.join(work, a.snap_map)
-    snap_sil = load_silence(snap_path) if os.path.exists(snap_path) else sil
+    # never merged: see load_silence
+    snap_sil = load_silence(snap_path, merge=False) if os.path.exists(snap_path) else sil
 
     def snap(s, e):
         """Pull the in/out points in off the silence map so the beat starts

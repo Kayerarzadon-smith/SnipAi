@@ -187,3 +187,44 @@ class TrailingPause(unittest.TestCase):
             "l", 0.0, 12.0, [(2.0, 20.0)], [], detached=True, trim_min=0.22)
         self.assertEqual(round(total(pieces), 2), 12.0)
         self.assertEqual(round(removed, 3), 0.0)
+
+
+class SplitSilenceRows(unittest.TestCase):
+    """silencedetect reports one pause as several rows.
+
+    Found in img-9823: the map had 449.948-450.635 and 450.635-454.219 -- the
+    same silence, split where the level twitched for a frame. walk_pieces
+    trimmed the first, resumed at its end, then rejected the second for
+    starting too near the resume point, leaving 3.48s of dead air in the cut.
+    """
+
+    def test_rows_that_touch_are_one_silence(self):
+        from build_cut import merge_touching
+        self.assertEqual(
+            merge_touching([(449.948, 450.635), (450.635, 454.219)]),
+            [(449.948, 454.219)])
+
+    def test_overlapping_rows_merge(self):
+        from build_cut import merge_touching
+        self.assertEqual(merge_touching([(1.0, 3.0), (2.0, 5.0)]), [(1.0, 5.0)])
+
+    def test_a_real_gap_between_words_is_not_merged(self):
+        """0.2s apart is a breath with a word in between, not one pause."""
+        from build_cut import merge_touching
+        self.assertEqual(
+            merge_touching([(1.0, 2.0), (2.2, 3.0)]),
+            [(1.0, 2.0), (2.2, 3.0)])
+
+    def test_the_split_pause_is_trimmed_as_one(self):
+        pieces, removed, _ = walk_pieces(
+            "im-repeat-after", 449.12, 454.42,
+            [(449.239, 449.485), (449.948, 450.635), (450.635, 454.219)],
+            [], trim_min=0.22, keep=0.065)
+        kept = total(pieces)
+        self.assertLess(kept, 2.0, f"5.3s line with 4.3s of pause rendered {kept}s")
+        self.assertGreater(removed, 3.4, f"only {removed:.2f}s removed")
+
+    def test_merging_does_not_change_a_map_with_no_touching_rows(self):
+        from build_cut import merge_touching
+        rows = [(1.0, 2.0), (3.0, 4.0), (5.5, 6.0)]
+        self.assertEqual(merge_touching(rows), rows)

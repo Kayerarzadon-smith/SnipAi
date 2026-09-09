@@ -90,9 +90,29 @@ def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.3
     Returns (pieces, seconds_removed, splits). The pieces butt together in the
     order returned, so concatenating them closes every gap.
     """
-    inner = [] if detached else [
-        (x, y, False) for x, y in sil
-        if x > s + 0.12 and y < e - 0.12 and (y - x) >= trim_min]
+    # A detected pause is CLIPPED to the line, not required to fit inside it.
+    #
+    # This used to be `x > s + 0.12 and y < e - 0.12`, which throws away any
+    # silence that runs past either edge -- and a line ending in a long pause
+    # is the commonest shape there is, because Whisper folds the pause into the
+    # duration of the preceding word and the out-point lands well inside it.
+    # On img-9817 that left ten seconds of dead air in the middle of a
+    # 111-second cut: the silence map had 430.246-444.266, the beat ended at
+    # 441.46, and the one condition that mattered was the one that failed.
+    inner = []
+    if not detached:
+        for x, y in sil:
+            lo, hi = max(x, s), min(y, e)
+            if hi - lo < trim_min:
+                continue
+            # A pause touching the first word is the IN-point's business --
+            # snap() pulls the edge in off the silence map. Trimming it here
+            # would cut into the word instead of in front of it. The tail is
+            # different: it is clipped above and handled below, because that
+            # is the edge nothing else was fixing.
+            if lo < s + 0.12:
+                continue
+            inner.append((lo, hi, False))
     for hx, hy in holes:
         if hy > s + 0.02 and hx < e - 0.02:
             inner.append((max(hx, s), min(hy, e), True))
@@ -122,7 +142,19 @@ def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.3
                 continue
         else:
             co, ci = x + keep / 2, y - keep / 2
-            if co <= cur + 0.18 or ci >= tail - 0.18 or ci <= co + 0.05:
+            if co <= cur + 0.18:
+                continue                          # too near the first word
+            if ci >= tail - 0.18:
+                # The pause runs to the end of the line. That is not a stretch
+                # out of the middle, it is the out-point sitting in silence --
+                # so the out-point moves, exactly as it does for a hand-drawn
+                # hole that reaches the end. Skipping it, as this did, is what
+                # left the dead air on the end of the line.
+                if co < tail - 0.02:
+                    removed += tail - co
+                    tail = co
+                break
+            if ci <= co + 0.05:
                 continue
         pieces.append((f"{label}-{n}", round(cur, 3), round(co, 3)))
         removed += ci - co

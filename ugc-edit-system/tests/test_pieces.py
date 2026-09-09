@@ -125,3 +125,65 @@ class HolesAtTheEdges(unittest.TestCase):
     def test_nothing_after_an_end_hole_survives(self):
         pieces, _, _ = walk_pieces("l", 0.0, 10.0, [], [(4.0, 99.0), (6.0, 7.0)])
         self.assertEqual(pieces, [("l", 0.0, 4.0)])
+
+
+class TrailingPause(unittest.TestCase):
+    """A line that ends in a long silence.
+
+    Found by opening img-9817-v4.mp4 and measuring it: ten seconds of dead air
+    at 71.8s, in the middle of a 111-second TikTok. The beat `swear-by-glowing`
+    ran 428.30-441.46 and the speech stopped at 430.2 -- Whisper had folded the
+    whole pause into the duration of the word " of" (11.48s), exactly the
+    failure mode CLAUDE.md warns about.
+
+    The silence map knew: silence.txt had 430.246-444.266. walk_pieces threw it
+    away, because the pause runs PAST the beat's out-point and the filter
+    required it to end inside. A trailing pause is the commonest shape there
+    is, and it was the one shape that could not be trimmed.
+    """
+
+    def test_a_pause_running_past_the_out_point_is_still_trimmed(self):
+        # the real numbers, rounded: speech to 430.2, silence to well past the end
+        pieces, removed, _ = walk_pieces(
+            "swear-by-glowing", 428.30, 440.75, [(430.246, 444.266)], [], trim_min=0.22)
+        kept = total(pieces)
+        self.assertLess(kept, 3.0,
+                        f"12.45s line with 10s of trailing silence rendered {kept}s")
+        self.assertGreater(kept, 1.5, "the words must survive")
+        self.assertGreater(removed, 9.0, f"only {removed:.2f}s of dead air removed")
+
+    def test_the_words_before_the_pause_are_kept_whole(self):
+        pieces, _, _ = walk_pieces("l", 0.0, 12.0, [(2.0, 20.0)], [], trim_min=0.22, keep=0.30)
+        self.assertTrue(pieces, "the line must not vanish")
+        self.assertEqual(pieces[0][1], 0.0, "the line still starts where it started")
+        self.assertGreaterEqual(pieces[0][2], 2.0, "nothing spoken may be cut off")
+        self.assertLess(pieces[0][2], 2.4, "and no more than a breath is kept after it")
+
+    def test_a_pause_over_the_in_point_is_left_to_the_edge_snapper(self):
+        """The head has an owner already.
+
+        snap() pulls the in-point in off the silence map before this runs.
+        Trimming a leading pause here as well would cut into the first word
+        rather than in front of it, which is the defect this whole guard
+        exists to prevent -- so a silence touching the in-point is skipped on
+        purpose, and only the tail is clipped."""
+        pieces, removed, _ = walk_pieces("l", 3.0, 12.0, [(0.0, 5.0)], [], trim_min=0.22)
+        self.assertEqual(round(total(pieces), 2), 9.0)
+        self.assertEqual(round(removed, 3), 0.0)
+
+    def test_a_silence_that_swallows_the_whole_line_leaves_something(self):
+        pieces, _, _ = walk_pieces("l", 5.0, 9.0, [(0.0, 30.0)], [], trim_min=0.22)
+        self.assertTrue(pieces, "a line must never render as nothing")
+        self.assertGreater(total(pieces), 0.0)
+
+    def test_a_short_trailing_pause_is_left_alone(self):
+        """Under trim_min it is a breath, not dead air."""
+        pieces, removed, _ = walk_pieces("l", 0.0, 5.0, [(4.9, 9.0)], [], trim_min=0.22)
+        self.assertEqual(round(total(pieces), 2), 5.0)
+        self.assertEqual(round(removed, 3), 0.0)
+
+    def test_detached_audio_is_still_never_pause_trimmed(self):
+        pieces, removed, _ = walk_pieces(
+            "l", 0.0, 12.0, [(2.0, 20.0)], [], detached=True, trim_min=0.22)
+        self.assertEqual(round(total(pieces), 2), 12.0)
+        self.assertEqual(round(removed, 3), 0.0)

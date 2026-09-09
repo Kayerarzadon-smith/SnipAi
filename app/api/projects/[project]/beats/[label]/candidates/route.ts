@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadBeats, updateBeatRange } from "@/lib/beats";
 import { runTool } from "@/lib/pipeline";
-import { updateReviewState } from "@/lib/reviewState";
+import { updateReviewState, loadReviewState } from "@/lib/reviewState";
 import type { CandidateTakesResult } from "@/lib/types";
 
 /* Never prerendered. Every route here answers from the filesystem or from
@@ -24,7 +24,10 @@ export async function GET(req: NextRequest, { params }: { params: { project: str
   const regionStart = Number(url.searchParams.get("start") ?? beat.start - 8);
   const regionEnd = Number(url.searchParams.get("end") ?? beat.end + 8);
 
-  const state = updateReviewState(project, () => {}); // read current cache
+  // A read, and only a read. This was updateReviewState(p, () => {}), which
+  // rewrites the whole file to peek at one field -- so a GET wrote to disk,
+  // and on an unreadable file it wrote defaults over the real thing.
+  const state = loadReviewState(project);
   const cacheKey = label;
   if (!forceRefresh && state.candidateCache[cacheKey]) {
     return NextResponse.json(state.candidateCache[cacheKey]);
@@ -76,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     return NextResponse.json({ error: `no beat '${label}' in ${project}` }, { status: 404 });
   }
 
-  const state = updateReviewState(project, () => {});
+  const state = loadReviewState(project);
   const cached = state.candidateCache[label];
   const candidate = cached?.candidates.find((c) => c.id === candidateId);
   if (!candidate) {

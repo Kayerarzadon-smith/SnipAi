@@ -164,6 +164,98 @@ round-trip GET → undo PATCH → disk. Pinned in
 
 ---
 
+## BUG-007 — ten seconds of dead air in the middle of the cut · P1 · fixed
+
+**Category** 021 export, 006 timeline
+**Found** by opening `img-9817-v4.mp4` and measuring it. Nothing on any screen
+showed this; the render "succeeded".
+
+Measured 10.1 seconds of silence at 71.8s–82.0s of a 111-second TikTok, the
+longest single stretch 7.06s.
+
+**Root cause** `walk_pieces` in `build_cut.py` filtered detected pauses with
+`x > s + 0.12 and y < e - 0.12` — the silence had to end **inside** the beat.
+The beat `swear-by-glowing` ran 428.30–441.46, speech stopped at 430.2, and
+the silence map had 430.246–**444.266**. It ran past the out-point, so the one
+condition that mattered was the one that failed, and the pause was skipped
+entirely.
+
+A line ending in a long pause is the commonest shape there is — Whisper folds
+the pause into the duration of the preceding word (the word ` of` was
+timestamped **11.48 seconds**, exactly what CLAUDE.md warns about), so the
+out-point routinely sits deep inside silence. It was the one shape that could
+not be trimmed. A second guard, `ci >= tail - 0.18`, rejected it again in the
+loop.
+
+**Fix** the pause is CLIPPED to the line instead of required to fit inside it,
+and a pause reaching the end moves the out-point — which is what the
+hand-drawn-hole branch already did. The head keeps its guard: a silence
+touching the in-point belongs to `snap()`, and trimming it here would cut into
+the first word rather than in front of it.
+
+**Proved, not asserted** — rebuilt on a scratch copy and rendered:
+
+| | before | after |
+|---|---|---|
+| cut length | 111.02s | **99.39s** |
+| longest silent stretch | **7.06s** | **0.00s** |
+| total silence | 10.1s | **0.0s** |
+| spoken words lost | — | **0** |
+
+`swear-by-glowing` 12.45s → 1.98s. Three other beats tightened. Every word in
+every beat still present, checked against the transcript.
+
+**Regression** `ugc-edit-system/tests/test_pieces.py::TrailingPause`, 6 cases.
+
+---
+
+## BUG-008 — reading the review state destroyed it · P1 · fixed
+
+**Category** 011 data integrity, 010 races
+**Was** LEDGER S10, open.
+
+`review-state.json` holds everything decided outside beats.json: take picks,
+trim edits, cut regions, deleted lines, beat diagnoses, the cached scorecard.
+
+`readJson()` returns the fallback for an unparseable file, so `loadReviewState`
+handed back bare defaults — and `updateReviewState` wrote them straight back.
+Two routes called `updateReviewState(p, () => {})` purely to **read** the
+candidate cache, so opening the Takes panel on a project whose state file had
+been truncated erased every decision in it *and overwrote the only copy*.
+
+**Fix** `readJsonChecked` tells missing from broken; a broken file is renamed
+to `review-state.json.corrupt-<timestamp>` and **kept**, the state carries a
+`stateProblem` saying where it went, the two reads are reads, and an update
+that changes nothing no longer writes.
+
+**Regression** `tests/review-state-integrity.test.mts`, 17 cases.
+
+---
+
+## Instrument errors I made, and caught
+
+Recorded because a QA pass that manufactures defects is worse than one that
+misses them, and all three of these looked like findings.
+
+1. **`astats=reset=N` counts audio frames, not seconds.** Reported "5239
+   seconds" of a 111-second file and a "328s" silent run. Replaced with
+   `silencedetect`, which reports real time ranges.
+2. **Treated the transcript's top-level list as words.** It is a list of
+   segments with nested `words`. Produced "34 of 34 beats are entirely
+   silent", which was nonsense — corrected, every beat is 74%+ speech.
+3. **`-ss` before `-i` is a keyframe seek.** Measured silence in the wrong
+   part of a 4K source and drew the wrong conclusion from it.
+
+## Not a defect, after measuring
+
+**Rendered length exceeds the EDL by ~0.7s.** The EDL is written to 3dp;
+video comes in whole frames, and each piece is quantised up to the next one.
+Predicted half a frame per piece: 46 pieces → 0.77s, 47 → 0.78s. Observed
+0.715s and 0.698s. That is frame quantisation, not drift. The check now allows
+one frame per piece and fails beyond it.
+
+---
+
 ## Open / not fixed
 
 | # | What | Severity | Why not |

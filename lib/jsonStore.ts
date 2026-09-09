@@ -34,3 +34,41 @@ export function readJson<T>(filePath: string, fallback: T): T {
     return fallback;
   }
 }
+
+/**
+ * Read JSON, telling "there is no file" apart from "the file is broken".
+ *
+ * `readJson` collapses both into the fallback, and that is fine for a cache.
+ * It is not fine for a file holding decisions a person made: `loadReviewState`
+ * returned bare defaults for an unparseable file, and the very next
+ * `updateReviewState` wrote those defaults back over it. Every take pick,
+ * trim, cut region, deleted-line record and diagnosis, gone, with nothing on
+ * screen to say so -- and the file that held them overwritten, so there was
+ * nothing left to recover from either.
+ */
+export function readJsonChecked<T>(filePath: string):
+  { state: "missing" } | { state: "ok"; value: T } | { state: "broken"; why: string } {
+  if (!fs.existsSync(filePath)) return { state: "missing" };
+  let text: string;
+  try { text = fs.readFileSync(filePath, "utf8"); }
+  catch (e) { return { state: "broken", why: (e as Error).message }; }
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); }
+  catch (e) { return { state: "broken", why: (e as Error).message }; }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { state: "broken", why: "not a JSON object" };
+  }
+  return { state: "ok", value: parsed as T };
+}
+
+/** Move a file that cannot be read out of the way, keeping it. Returns where
+ *  it went, so the person can be told rather than left guessing. */
+export function preserveCorrupt(filePath: string): string | null {
+  try {
+    const to = `${filePath}.corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+    fs.renameSync(filePath, to);
+    return to;
+  } catch {
+    return null;
+  }
+}

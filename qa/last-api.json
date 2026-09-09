@@ -1,6 +1,6 @@
 {
  "counts": {
-  "pass": 225,
+  "pass": 289,
   "fail": 0,
   "blocked": 0,
   "skipped": 0
@@ -648,772 +648,1166 @@
   },
   {
    "id": "T0101",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #40",
-   "outcome": "pass",
-   "seed": 60040
-  },
-  {
-   "id": "T0102",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #41",
-   "outcome": "pass",
-   "seed": 60041
-  },
-  {
-   "id": "T0103",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #42",
-   "outcome": "pass",
-   "seed": 60042
-  },
-  {
-   "id": "T0104",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #43",
-   "outcome": "pass",
-   "seed": 60043
-  },
-  {
-   "id": "T0105",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #44",
-   "outcome": "pass",
-   "seed": 60044
-  },
-  {
-   "id": "T0106",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #45",
-   "outcome": "pass",
-   "seed": 60045
-  },
-  {
-   "id": "T0107",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #46",
-   "outcome": "pass",
-   "seed": 60046
-  },
-  {
-   "id": "T0108",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #47",
-   "outcome": "pass",
-   "seed": 60047
-  },
-  {
-   "id": "T0109",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #48",
-   "outcome": "pass",
-   "seed": 60048
-  },
-  {
-   "id": "T0110",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #49",
-   "outcome": "pass",
-   "seed": 60049
-  },
-  {
-   "id": "T0111",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #50",
-   "outcome": "pass",
-   "seed": 60050
-  },
-  {
-   "id": "T0112",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #51",
-   "outcome": "pass",
-   "seed": 60051
-  },
-  {
-   "id": "T0113",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #52",
-   "outcome": "pass",
-   "seed": 60052
-  },
-  {
-   "id": "T0114",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #53",
-   "outcome": "pass",
-   "seed": 60053
-  },
-  {
-   "id": "T0115",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #54",
-   "outcome": "pass",
-   "seed": 60054
-  },
-  {
-   "id": "T0116",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #55",
-   "outcome": "pass",
-   "seed": 60055
-  },
-  {
-   "id": "T0117",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #56",
-   "outcome": "pass",
-   "seed": 60056
-  },
-  {
-   "id": "T0118",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #57",
-   "outcome": "pass",
-   "seed": 60057
-  },
-  {
-   "id": "T0119",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #58",
-   "outcome": "pass",
-   "seed": 60058
-  },
-  {
-   "id": "T0120",
-   "category": "003 persistence",
-   "name": "a generated beat list is accepted or refused cleanly #59",
-   "outcome": "pass",
-   "seed": 60059
-  },
-  {
-   "id": "T0121",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0122",
+   "id": "T0102",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0123",
+   "id": "T0103",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0124",
+   "id": "T0104",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0125",
+   "id": "T0105",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0126",
+   "id": "T0106",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0127",
+   "id": "T0107",
    "category": "019 chaos",
    "name": "POST projects/[project]/pipeline/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0128",
+   "id": "T0108",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0129",
+   "id": "T0109",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0130",
+   "id": "T0110",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0131",
+   "id": "T0111",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0132",
+   "id": "T0112",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0133",
+   "id": "T0113",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0134",
+   "id": "T0114",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/pipeline/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0135",
+   "id": "T0115",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0136",
+   "id": "T0116",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0137",
+   "id": "T0117",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0138",
+   "id": "T0118",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0139",
+   "id": "T0119",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0140",
+   "id": "T0120",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0141",
+   "id": "T0121",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0142",
+   "id": "T0122",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0143",
+   "id": "T0123",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0144",
+   "id": "T0124",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0145",
+   "id": "T0125",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0146",
+   "id": "T0126",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0147",
+   "id": "T0127",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0148",
+   "id": "T0128",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/beats/[label]/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0149",
+   "id": "T0129",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0150",
+   "id": "T0130",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0151",
+   "id": "T0131",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0152",
+   "id": "T0132",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0153",
+   "id": "T0133",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0154",
+   "id": "T0134",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0155",
+   "id": "T0135",
    "category": "019 chaos",
    "name": "POST projects/[project]/beats/[label]/candidates/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0156",
+   "id": "T0136",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0157",
+   "id": "T0137",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0158",
+   "id": "T0138",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0159",
+   "id": "T0139",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0160",
+   "id": "T0140",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0161",
+   "id": "T0141",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0162",
+   "id": "T0142",
    "category": "019 chaos",
    "name": "POST projects/[project]/snapshots/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0163",
+   "id": "T0143",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0164",
+   "id": "T0144",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0165",
+   "id": "T0145",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0166",
+   "id": "T0146",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0167",
+   "id": "T0147",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0168",
+   "id": "T0148",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0169",
+   "id": "T0149",
    "category": "019 chaos",
    "name": "POST projects/[project]/graphics/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0170",
+   "id": "T0150",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0171",
+   "id": "T0151",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0172",
+   "id": "T0152",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0173",
+   "id": "T0153",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0174",
+   "id": "T0154",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0175",
+   "id": "T0155",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0176",
+   "id": "T0156",
    "category": "019 chaos",
    "name": "PATCH projects/[project]/graphics/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0177",
+   "id": "T0157",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0178",
+   "id": "T0158",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0179",
+   "id": "T0159",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0180",
+   "id": "T0160",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0181",
+   "id": "T0161",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0182",
+   "id": "T0162",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0183",
+   "id": "T0163",
    "category": "019 chaos",
    "name": "POST projects/[project]/review-action/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0184",
+   "id": "T0164",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0185",
+   "id": "T0165",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0186",
+   "id": "T0166",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0187",
+   "id": "T0167",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0188",
+   "id": "T0168",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0189",
+   "id": "T0169",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0190",
+   "id": "T0170",
    "category": "019 chaos",
    "name": "PATCH products/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0191",
+   "id": "T0171",
    "category": "019 chaos",
    "name": "POST references/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0192",
+   "id": "T0172",
    "category": "019 chaos",
    "name": "POST references/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0193",
+   "id": "T0173",
    "category": "019 chaos",
    "name": "POST references/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0194",
+   "id": "T0174",
    "category": "019 chaos",
    "name": "POST references/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0195",
+   "id": "T0175",
    "category": "019 chaos",
    "name": "POST references/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0196",
+   "id": "T0176",
    "category": "019 chaos",
    "name": "POST references/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0197",
+   "id": "T0177",
    "category": "019 chaos",
    "name": "POST references/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0198",
+   "id": "T0178",
    "category": "019 chaos",
    "name": "PUT references/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0199",
+   "id": "T0179",
    "category": "019 chaos",
    "name": "PUT references/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0200",
+   "id": "T0180",
    "category": "019 chaos",
    "name": "PUT references/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0201",
+   "id": "T0181",
    "category": "019 chaos",
    "name": "PUT references/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0202",
+   "id": "T0182",
    "category": "019 chaos",
    "name": "PUT references/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0203",
+   "id": "T0183",
    "category": "019 chaos",
    "name": "PUT references/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0204",
+   "id": "T0184",
    "category": "019 chaos",
    "name": "PUT references/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0205",
+   "id": "T0185",
    "category": "019 chaos",
    "name": "POST trash/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0206",
+   "id": "T0186",
    "category": "019 chaos",
    "name": "POST trash/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0207",
+   "id": "T0187",
    "category": "019 chaos",
    "name": "POST trash/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0208",
+   "id": "T0188",
    "category": "019 chaos",
    "name": "POST trash/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0209",
+   "id": "T0189",
    "category": "019 chaos",
    "name": "POST trash/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0210",
+   "id": "T0190",
    "category": "019 chaos",
    "name": "POST trash/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0211",
+   "id": "T0191",
    "category": "019 chaos",
    "name": "POST trash/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0212",
+   "id": "T0192",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0213",
+   "id": "T0193",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0214",
+   "id": "T0194",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0215",
+   "id": "T0195",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0216",
+   "id": "T0196",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0217",
+   "id": "T0197",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0218",
+   "id": "T0198",
    "category": "019 chaos",
    "name": "POST learnings/route.ts given an object of nulls",
    "outcome": "pass"
   },
   {
-   "id": "T0219",
+   "id": "T0199",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given null",
    "outcome": "pass"
   },
   {
-   "id": "T0220",
+   "id": "T0200",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given a number",
    "outcome": "pass"
   },
   {
-   "id": "T0221",
+   "id": "T0201",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given a string",
    "outcome": "pass"
   },
   {
-   "id": "T0222",
+   "id": "T0202",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given an array",
    "outcome": "pass"
   },
   {
-   "id": "T0223",
+   "id": "T0203",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given true",
    "outcome": "pass"
   },
   {
-   "id": "T0224",
+   "id": "T0204",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given an empty object",
    "outcome": "pass"
   },
   {
-   "id": "T0225",
+   "id": "T0205",
    "category": "019 chaos",
    "name": "PATCH learnings/route.ts given an object of nulls",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0206",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #0",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0207",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #1",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0208",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #2",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0209",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #3",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0210",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #4",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0211",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #5",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0212",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #6",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0213",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #7",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0214",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #8",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0215",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #9",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0216",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #10",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0217",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #11",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0218",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #12",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0219",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #13",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0220",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #14",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0221",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #15",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0222",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #16",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0223",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #17",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0224",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #18",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0225",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #19",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0226",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #20",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0227",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #21",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0228",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #22",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0229",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #23",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0230",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #24",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0231",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #25",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0232",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #26",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0233",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #27",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0234",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #28",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0235",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #29",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0236",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #30",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0237",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #31",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0238",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #32",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0239",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #33",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0240",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #34",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0241",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #35",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0242",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #36",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0243",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #37",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0244",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #38",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0245",
+   "category": "010 races",
+   "name": "concurrent review-state writes all survive #39",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0246",
+   "category": "010 races",
+   "name": "two jobs cannot both be running",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0247",
+   "category": "010 races",
+   "name": "a failed job is remembered, not lost",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0248",
+   "category": "010 races",
+   "name": "finishing a job twice does not resurrect it",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0249",
+   "category": "010 races",
+   "name": "a log line arriving after the job ended is not lost",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0250",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #0",
+   "outcome": "pass",
+   "seed": 70000
+  },
+  {
+   "id": "T0251",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #1",
+   "outcome": "pass",
+   "seed": 70001
+  },
+  {
+   "id": "T0252",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #2",
+   "outcome": "pass",
+   "seed": 70002
+  },
+  {
+   "id": "T0253",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #3",
+   "outcome": "pass",
+   "seed": 70003
+  },
+  {
+   "id": "T0254",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #4",
+   "outcome": "pass",
+   "seed": 70004
+  },
+  {
+   "id": "T0255",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #5",
+   "outcome": "pass",
+   "seed": 70005
+  },
+  {
+   "id": "T0256",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #6",
+   "outcome": "pass",
+   "seed": 70006
+  },
+  {
+   "id": "T0257",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #7",
+   "outcome": "pass",
+   "seed": 70007
+  },
+  {
+   "id": "T0258",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #8",
+   "outcome": "pass",
+   "seed": 70008
+  },
+  {
+   "id": "T0259",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #9",
+   "outcome": "pass",
+   "seed": 70009
+  },
+  {
+   "id": "T0260",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #10",
+   "outcome": "pass",
+   "seed": 70010
+  },
+  {
+   "id": "T0261",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #11",
+   "outcome": "pass",
+   "seed": 70011
+  },
+  {
+   "id": "T0262",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #12",
+   "outcome": "pass",
+   "seed": 70012
+  },
+  {
+   "id": "T0263",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #13",
+   "outcome": "pass",
+   "seed": 70013
+  },
+  {
+   "id": "T0264",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #14",
+   "outcome": "pass",
+   "seed": 70014
+  },
+  {
+   "id": "T0265",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #15",
+   "outcome": "pass",
+   "seed": 70015
+  },
+  {
+   "id": "T0266",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #16",
+   "outcome": "pass",
+   "seed": 70016
+  },
+  {
+   "id": "T0267",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #17",
+   "outcome": "pass",
+   "seed": 70017
+  },
+  {
+   "id": "T0268",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #18",
+   "outcome": "pass",
+   "seed": 70018
+  },
+  {
+   "id": "T0269",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #19",
+   "outcome": "pass",
+   "seed": 70019
+  },
+  {
+   "id": "T0270",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #20",
+   "outcome": "pass",
+   "seed": 70020
+  },
+  {
+   "id": "T0271",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #21",
+   "outcome": "pass",
+   "seed": 70021
+  },
+  {
+   "id": "T0272",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #22",
+   "outcome": "pass",
+   "seed": 70022
+  },
+  {
+   "id": "T0273",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #23",
+   "outcome": "pass",
+   "seed": 70023
+  },
+  {
+   "id": "T0274",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #24",
+   "outcome": "pass",
+   "seed": 70024
+  },
+  {
+   "id": "T0275",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #25",
+   "outcome": "pass",
+   "seed": 70025
+  },
+  {
+   "id": "T0276",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #26",
+   "outcome": "pass",
+   "seed": 70026
+  },
+  {
+   "id": "T0277",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #27",
+   "outcome": "pass",
+   "seed": 70027
+  },
+  {
+   "id": "T0278",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #28",
+   "outcome": "pass",
+   "seed": 70028
+  },
+  {
+   "id": "T0279",
+   "category": "010 races",
+   "name": "interleaved beat writes leave a valid edit #29",
+   "outcome": "pass",
+   "seed": 70029
+  },
+  {
+   "id": "T0280",
+   "category": "011 integrity",
+   "name": "a write is atomic: no torn beats.json",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0281",
+   "category": "011 integrity",
+   "name": "an unreadable state file (truncated mid-write) is not silently replaced",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0282",
+   "category": "011 integrity",
+   "name": "an unreadable state file (not JSON) is not silently replaced",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0283",
+   "category": "011 integrity",
+   "name": "an unreadable state file (empty file) is not silently replaced",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0284",
+   "category": "011 integrity",
+   "name": "an unreadable state file (a trailing comma) is not silently replaced",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0285",
+   "category": "011 integrity",
+   "name": "an unreadable state file (null) is not silently replaced",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0286",
+   "category": "011 integrity",
+   "name": "a good state file survives a read",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0287",
+   "category": "011 integrity",
+   "name": "reading the state does not write it",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0288",
+   "category": "011 integrity",
+   "name": "an update that changes nothing does not write",
+   "outcome": "pass"
+  },
+  {
+   "id": "T0289",
+   "category": "011 integrity",
+   "name": "an update that changes something does write",
    "outcome": "pass"
   }
  ]

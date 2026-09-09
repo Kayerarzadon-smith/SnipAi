@@ -41,6 +41,9 @@ export type TimelineMarker = {
 };
 
 export type ReviewState = {
+  /** Set only when the file on disk could not be read and was moved aside.
+   *  Present so the UI can say so instead of showing an empty review. */
+  stateProblem?: string;
   project: string;
   cutStatus: CutStatus;
   cutFile?: string;

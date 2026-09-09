@@ -575,13 +575,24 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   }
 
   async function restoreSnapshot(id: string) {
+    // Putting a version back replaces the whole beat list, which is the
+    // largest single change in the app -- so it is the one that most needs a
+    // step back. It pushed nothing, and the toast said "this is undoable too"
+    // while Cmd-Z answered "Nothing to undo". Pushed before the write, and
+    // taken back if the write fails, so a refused restore leaves no step
+    // behind that undoes to the state you are already in.
+    const pushed = pushHistory("putting that version back");
     setRestoring(id);
     const r = await fetch(`/api/projects/${project}/snapshots`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
     setRestoring(null);
-    if (!r.ok) { toast((await r.json().catch(() => ({}))).error ?? "could not restore that"); return; }
+    if (!r.ok) {
+      dropLastHistory(pushed);
+      toast((await r.json().catch(() => ({}))).error ?? "could not restore that");
+      return;
+    }
     setVersions((await r.json()).snapshots);
     // the open trim now points at a beat that may have moved under it
     setTrimBeat(null); setTrim(null); setSelection(null);

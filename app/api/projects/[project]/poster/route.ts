@@ -50,7 +50,9 @@ export async function GET(req: NextRequest, { params }: { params: { project: str
     }
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const res = await runTool("filmstrip.py", [
-      `projects/${project}`, "--input", input,
+      // absolute, as above -- this one is the queue card's thumbnail, which
+      // is why a card could show a broken image
+      projectDir(project), "--input", input,
       "--start", String(at), "--end", String(at + 0.2),
       "--count", "1", "--size", "160", "-o", out,
     ]);

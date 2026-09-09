@@ -36,7 +36,35 @@ def handlers(src):
         yield name, src[start:i]
 
 
+def relative_project_paths():
+    """A tool given "projects/<name>" resolves it against runTool's cwd, which
+    is CODE_ROOT -- the repo's ugc-edit-system, or the pipeline folder inside
+    the .app. Neither has held a project since the library moved to
+    ~/Movies/SnipAi, so such a call fails for every project that exists.
+
+    It failed quietly in two places for a long time: the waveform sat on
+    "audio envelope loading..." forever, and the Takes panel said the
+    transcript was "not present on this machine" while it was on disk.
+    """
+    import pathlib
+    bad = []
+    for f in pathlib.Path("app").rglob("route.ts"):
+        for i, line in enumerate(f.read_text().splitlines(), 1):
+            if "runTool(" in line or "projects/${" in line:
+                if re.search(r'[`"]projects/\$\{', line):
+                    bad.append(f"{f}:{i}")
+    return bad
+
+
 def main():
+    rel = relative_project_paths()
+    if rel:
+        print("  tools called with a CWD-relative project path:")
+        for r in rel:
+            print(f"    {r}")
+        print("  these resolve against CODE_ROOT and will not find the library")
+        return 1
+
     try:
         src = open(PAGE).read()
     except OSError as e:

@@ -3,6 +3,7 @@ import { loadBeats, updateBeatRange } from "@/lib/beats";
 import { runTool } from "@/lib/pipeline";
 import { updateReviewState, loadReviewState } from "@/lib/reviewState";
 import type { CandidateTakesResult } from "@/lib/types";
+import { projectDir } from "@/lib/paths";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -34,7 +35,9 @@ export async function GET(req: NextRequest, { params }: { params: { project: str
   }
 
   const result = await runTool("list_candidate_takes.py", [
-    `projects/${project}`,
+    // absolute, for the same reason as peaks: a relative path resolves
+    // against CODE_ROOT, which has held no projects since the library moved
+    projectDir(project),
     String(regionStart),
     String(regionEnd),
     "--label",

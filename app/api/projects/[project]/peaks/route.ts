@@ -43,7 +43,17 @@ export async function GET(_req: Request, { params }: { params: { project: string
       return NextResponse.json({ error: "ffmpeg not available", availability: avail }, { status: 503 });
     }
     // Cheap enough to do inline: audio only, ~1.4s for a nine-minute take.
-    const res = await runTool("audio_peaks.py", [`projects/${project}`]);
+    /* Absolute, from the library.
+     *
+     * A relative "projects/<name>" resolves against runTool's cwd, which is
+     * CODE_ROOT -- the repo's ugc-edit-system in a checkout, and
+     * SnipAi.app/Contents/Resources/pipeline in the shipped app. Once the
+     * library moved to ~/Movies/SnipAi neither of those contains any project,
+     * so this 500'd with "could not read the audio" and the timeline's audio
+     * track sat on "audio envelope loading..." forever. Projects built before
+     * the migration still had a peaks.json on disk, which is why one project
+     * showed a waveform and every new one did not. */
+    const res = await runTool("audio_peaks.py", [projectDir(project)]);
     if (!res.ok || !fs.existsSync(peaksPath)) {
       return NextResponse.json({ error: "could not read the audio", log: res.stdout }, { status: 500 });
     }

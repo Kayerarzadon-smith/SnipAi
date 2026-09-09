@@ -73,7 +73,9 @@ export async function GET(req: NextRequest, { params }: { params: { project: str
     }
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     const res = await runTool("filmstrip.py", [
-      `projects/${project}`,
+      // absolute: a relative path resolves against CODE_ROOT, which has held
+      // no projects since the library moved
+      projectDir(project),
       "--input", input,
       "--start", String(start),
       "--end", String(realEnd),

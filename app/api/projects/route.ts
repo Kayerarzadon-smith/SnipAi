@@ -8,6 +8,13 @@ import { runningJob } from "@/lib/jobs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
+/* Never prerendered. Every route here answers from the filesystem or from
+   live job state, and Next will happily freeze a GET-only route at build
+   time: /api/jobs/running shipped as a permanent {"job":null}, which is why
+   the queue's progress bar never moved in the built app and always worked in
+   dev. */
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   // the dashboard animates a project's bar only while its job is live
   const busy = runningJob();

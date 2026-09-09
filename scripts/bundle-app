@@ -52,6 +52,18 @@ npm run build || bad "next build failed"
 [ -d "$ROOT/.next/standalone" ] || bad "no .next/standalone — is output:'standalone' still set in next.config.js?"
 good "server built ($(du -sh "$ROOT/.next/standalone" | cut -f1))"
 
+# A GET-only API route that Next decides to prerender ships as a fixed answer
+# and never changes again. /api/jobs/running went out as a permanent
+# {"job":null}, so the queue's progress bar never moved in the built app while
+# working perfectly in dev -- the kind of fault only a bundle can show you.
+FROZEN="$(find "$ROOT/.next/server/app/api" -name '*.body' 2>/dev/null | sed "s|$ROOT/.next/server/app/||;s|\.body$||")"
+if [ -n "$FROZEN" ]; then
+  printf "  %s%s%s\n" "$ERR" "these API routes were prerendered and will never change:" "$OFF"
+  printf "    %s\n" $FROZEN
+  bad "add 'export const dynamic = \"force-dynamic\"' to each, then bundle again"
+fi
+good "no API route was frozen at build time"
+
 step "Fetching a relocatable CPython $PY_FULL"
 CACHE="$ROOT/.build-cache"
 mkdir -p "$CACHE"

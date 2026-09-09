@@ -4,6 +4,13 @@ import { runTool } from "@/lib/pipeline";
 import { updateReviewState } from "@/lib/reviewState";
 import type { CandidateTakesResult } from "@/lib/types";
 
+/* Never prerendered. Every route here answers from the filesystem or from
+   live job state, and Next will happily freeze a GET-only route at build
+   time: /api/jobs/running shipped as a permanent {"job":null}, which is why
+   the queue's progress bar never moved in the built app and always worked in
+   dev. */
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest, { params }: { params: { project: string; label: string } }) {
   const { project, label } = params;
   const beats = loadBeats(project);

@@ -727,7 +727,18 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   useEffect(() => { buildJobRef.current = buildJob; }, [buildJob]);
   const defaulted = useRef(false);
   useEffect(() => {
-    if (data && !defaulted.current) { defaulted.current = true; if (!data.cutFile && data.hasSource && data.beats.length > 0) setLiveMode(true); }
+    /* Open on YOUR CUT, not on the last render.
+     *
+     * A render is minutes of ffmpeg, so the file can never keep up with an
+     * edit -- which is why waiting on it felt like the edits were not being
+     * applied. Played off the 720p proxy (53MB against 1.4GB, keyframe every
+     * half second) the same beat list plays back directly, holes skipped and
+     * cuts honoured, so a change is on screen the instant it is made. The
+     * rendered file stays one click away for checking what actually exports. */
+    if (data && !defaulted.current) {
+      defaulted.current = true;
+      if (data.hasSource && data.beats.length > 0) setLiveMode(true);
+    }
   }, [data]);
 
   /* Dropping footage is the instruction. If a project still isn't cut by the
@@ -1448,25 +1459,27 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               disabled={!data.hasSource || data.beats.length === 0}
               title={
                 !data.hasSource ? "the raw file isn't on this machine"
-                  : data.beats.length === 0 ? "no beats drafted yet — nothing to play"
-                  : "Your edit played straight off the original footage"
+                  : data.beats.length === 0 ? "no lines drafted yet — nothing to play"
+                  : "Your edit as it stands, played off the footage. Every change shows at once."
               }
               onClick={() => playFrom(liveIdx)}
             >
-              Original footage
+              Your cut
             </button>
             {data.cutFile && (
               <button
                 className={`pm${!liveMode && !(showGraphics && data.graphicsFile) ? " active" : ""}`}
+                title="The exported file. Trails your edit by a render; use it to check the final output."
                 onClick={() => { setShowGraphics(false); rawRef.current?.pause(); setLiveMode(false); }}
               >
-                {data.graphicsFile ? "Clean cut" : "Rendered cut"}
+                {data.graphicsFile ? "Rendered · clean" : "Rendered file"}
               </button>
             )}
-            <label className="auto-apply" title="Re-render the cut a few seconds after you stop editing">
+            <label className="auto-apply"
+                   title="Re-export a few seconds after you stop editing. What you are watching is already current either way.">
               <input type="checkbox" checked={autoApply}
                      onChange={(e) => setAutoApply(e.target.checked)} />
-              Apply edits automatically
+              Keep the exported file current
             </label>
             {!data.cutFile && data.beats.length > 0 && buildJob?.status !== "running" && (
               <button

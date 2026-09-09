@@ -122,7 +122,14 @@ tests() {
   # type-check separately -- on this repo that was twenty seconds of duplicate work
   hdr "types and tests"
   out=$(./scripts/test 2>&1); echo "$out" | tail -14 | sed 's/^/  /'
-  echo "$out" | grep -q "skipped" && note "a suite was SKIPPED -- 'all green' does not mean all ran"
+  # Only when something ACTUALLY skipped. node prints "skipped 0" on every run,
+  # so a bare grep for the word fired every time -- and a warning that is always
+  # there is a warning nobody reads. The two real cases are the pipeline suite
+  # with no venv ("skipped -- no venv") and a non-zero count from node.
+  if echo "$out" | grep -q "skipped --" ||
+     echo "$out" | grep -qE "skipped ([1-9][0-9]*)$"; then
+    note "a suite was SKIPPED -- 'all green' does not mean all ran"
+  fi
   echo "$out" | grep -q "fail 0" || bad "test failures above"
 }
 

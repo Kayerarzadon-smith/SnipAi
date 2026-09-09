@@ -84,6 +84,8 @@ because several of these were reported twice.
 | Select a video track and have the beat row follow | selection linked both ways |
 | Audio while scrubbing | 0.5× to 3×, at the speed of your hand |
 | Restart the app on every change so I can see it land | every session ends bundled and relaunched |
+| A 1,000-scenario QA gauntlet, run against the real app | `qa/` — 4,008 scenarios, 9 defects found, 8 fixed |
+| Ten seconds of dead air gone from the cut | img-9817 111.02s → 98.5s, img-9823 184.3s → 178.9s, zero silent stretches |
 | Make the app more efficient | standalone server: 250MB → 22MB |
 | Darker theme, no emoji on buttons | |
 | An inventory of everything built | the two published guides |

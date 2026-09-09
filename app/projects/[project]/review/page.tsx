@@ -591,6 +591,40 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     applyEditsSoon();          // the render is of whatever was there before
   }
 
+  /* The open snippet editor holds its own copy of the line's in and out, so
+     dragging an edge is live and cheap. That copy has to give way when the
+     line changes underneath it -- an undo, a Put back from History, a restore
+     of an earlier version.
+
+     It did not. Undo took the trim off the stored edit and said so, and the
+     editor went on showing the undone trim as a pending change with Save trim
+     armed -- so Save silently put back the very thing that had just been
+     undone. Worse, every later drag was measured against that stale window: a
+     selection across the line reported "4.86s highlighted" over a bar reading
+     0.54s and a -4.48 trim already pending, before any button was pressed.
+
+     Comparing against what we last SAW rather than against the editor's
+     current values is what separates "the line moved underneath" from "he is
+     part-way through moving it himself". A nudge in the editor changes the
+     editor only, and nothing here fires. */
+  const seenTrimBeat = useRef<{ label: string; start: number; end: number } | null>(null);
+  useEffect(() => {
+    if (!trimBeat || !data) { seenTrimBeat.current = null; return; }
+    const b = data.beats.find((x) => x.label === trimBeat);
+    if (!b) {
+      // undo removed the line the editor is open on; there is nothing to edit
+      setTrimBeat(null); setTrim(null); setSelection(null);
+      trimRef.current = null; seenTrimBeat.current = null;
+      return;
+    }
+    const prev = seenTrimBeat.current;
+    seenTrimBeat.current = { label: b.label, start: b.start, end: b.end };
+    if (!prev || prev.label !== b.label) return;              // just opened
+    if (prev.start === b.start && prev.end === b.end) return;  // nothing moved
+    setTrim({ start: b.start, end: b.end });
+    setSelection(null);
+  }, [data, trimBeat]);
+
   function openTrim(b: Beat) {
     setTrimBeat(b.label);
     setTrim({ start: b.start, end: b.end });

@@ -1,0 +1,197 @@
+{
+  "philosophy": "Zero test dependencies. Node 24 strips types and runs node:test via a 20-line resolver in tests/register.mts; Python uses stdlib unittest. There is no Jest/Vitest/Playwright/Cypress and no browser-driving test in the repo.",
+  "layers": [
+    {
+      "name": "TypeScript suite",
+      "command": "./scripts/test",
+      "location": "tests/*.test.mts",
+      "files": [
+        {
+          "file": "tests/corrupt-project.test.mts",
+          "tests": 5
+        },
+        {
+          "file": "tests/holes.test.mts",
+          "tests": 11
+        },
+        {
+          "file": "tests/layout.test.mts",
+          "tests": 13
+        },
+        {
+          "file": "tests/pipeline.test.mts",
+          "tests": 9
+        },
+        {
+          "file": "tests/reorder.test.mts",
+          "tests": 12
+        },
+        {
+          "file": "tests/review-state-integrity.test.mts",
+          "tests": 7
+        },
+        {
+          "file": "tests/scorecard-coupling.test.mts",
+          "tests": 5
+        },
+        {
+          "file": "tests/silent-noop-edit.test.mts",
+          "tests": 14
+        },
+        {
+          "file": "tests/snapshots.test.mts",
+          "tests": 11
+        },
+        {
+          "file": "tests/span.test.mts",
+          "tests": 12
+        },
+        {
+          "file": "tests/trash.test.mts",
+          "tests": 4
+        },
+        {
+          "file": "tests/undo-round-trip.test.mts",
+          "tests": 7
+        },
+        {
+          "file": "tests/upload.test.mts",
+          "tests": 5
+        }
+      ],
+      "validates": "Pure editing maths (layout, holes, span delete, reorder, splitBeat), persistence and snapshots, route handlers called directly as functions over Request, upload streaming, corrupt-input handling, review-state integrity, scorecard/tool wording coupling.",
+      "doesNotValidate": "Anything rendered. No component renders, no DOM, no browser, no CSS, no accessibility, no visual regression, no real ffmpeg/Whisper execution.",
+      "runtimeCounts": {
+        "tests": 152,
+        "suites": 27,
+        "pass": 152,
+        "fail": 0
+      },
+      "staticGrepCount": 115,
+      "countNote": "runtimeCounts is authoritative; the static count is lower because tests are generated inside for-loops."
+    },
+    {
+      "name": "Bug board",
+      "command": "./scripts/qa --regressions",
+      "location": "tests/regressions/*.test.mts",
+      "files": [
+        {
+          "file": "tests/regressions/S1-pipeline-patch-preserves-beat-fields.test.mts",
+          "tests": 1
+        },
+        {
+          "file": "tests/regressions/S2-failjob-persists.test.mts",
+          "tests": 1
+        },
+        {
+          "file": "tests/regressions/S7-split-duplicates-holes.test.mts",
+          "tests": 1
+        }
+      ],
+      "semantics": "DELIBERATELY RED. A test here fails until the ledger bug it names is fixed; a pass is the signal to flip the ledger row. It is counted but does NOT gate ./scripts/test.",
+      "currentState": "1 open (S1, closed as wontfix but kept red on purpose), 2 passing (S2, S7).",
+      "runtimeCounts": {
+        "tests": 3,
+        "pass": 2,
+        "fail": 1
+      },
+      "staticGrepCount": 3,
+      "countNote": "runtimeCounts is authoritative; the static count is lower because tests are generated inside for-loops."
+    },
+    {
+      "name": "Python pipeline",
+      "command": "cd ugc-edit-system && .venv/bin/python -m unittest discover -s tests -q",
+      "location": "ugc-edit-system/tests/",
+      "files": [
+        {
+          "file": "ugc-edit-system/tests/regressions/test_P10_base_label.py",
+          "tests": 2
+        },
+        {
+          "file": "ugc-edit-system/tests/regressions/test_P5_negative_silence_start.py",
+          "tests": 1
+        },
+        {
+          "file": "ugc-edit-system/tests/test_paths.py",
+          "tests": 9
+        },
+        {
+          "file": "ugc-edit-system/tests/test_pieces.py",
+          "tests": 29
+        },
+        {
+          "file": "ugc-edit-system/tests/test_scoring.py",
+          "tests": 17
+        }
+      ],
+      "validates": "walk_pieces (which frames survive a cut), silence-map merging, scoring, data-root resolution.",
+      "doesNotValidate": "No tool is executed end-to-end against real media by this suite. build_cut's file output, extract.sh, and the concat are untested here.",
+      "runtimeCounts": {
+        "tests": 55,
+        "pass": 55,
+        "fail": 0
+      },
+      "staticGrepCount": 58,
+      "countNote": "runtimeCounts is authoritative; the static count is lower because tests are generated inside for-loops."
+    },
+    {
+      "name": "Gauntlet (property/fuzz)",
+      "command": "node --import ./tests/register.mts qa/run.mts   |   qa/run-api.mts",
+      "location": [
+        "qa/gauntlet/adversarial.mts",
+        "qa/gauntlet/api.mts",
+        "qa/gauntlet/bodies.mts",
+        "qa/gauntlet/noop.mts",
+        "qa/gauntlet/persistence.mts",
+        "qa/gauntlet/races.mts",
+        "qa/gauntlet/scorecard.mts",
+        "qa/gauntlet/statefile.mts",
+        "qa/gauntlet/timeline.mts"
+      ],
+      "seeded": "qa/rng.mts mulberry32 \u2014 every failure reports the seed that reproduces it.",
+      "validates": "Generated beat lists/EDLs against layout and span-delete invariants; degenerate and hostile inputs; every JSON route against non-object bodies; concurrent writes; review-state corruption; the changed/unchanged contract on every write path.",
+      "doesNotValidate": "Not run by ./scripts/test or ./scripts/qa \u2014 it is a separate command and will NOT run in CI unless wired in. THIS IS A GAP.",
+      "runtimeCounts": {
+        "coreScenarios": 2640,
+        "routeScenarios": 416,
+        "fail": 0
+      }
+    },
+    {
+      "name": "Media verification",
+      "command": "python3 qa/verify_media.py <project-dir>  /  qa/verify_words.py <project-dir> [--against <dir>]",
+      "validates": "Opens the finished mp4: duration vs EDL (bounded by frame quantisation), streams present, fps, resolution, silent stretches via silencedetect, black frames, every EDL piece inside the source. verify_words checks no spoken word was lost against the transcript.",
+      "doesNotValidate": "Not automated, not wired to any script, requires a built project. Manual invocation only."
+    },
+    {
+      "name": "Mechanical QA gate",
+      "command": "./scripts/qa [--fast|--full|--deep|--regressions]",
+      "validates": "Guards, type check, the TS+Python suites, the bug board, orphaned-API-route sweep, and (deep) knip.",
+      "hook": ".githooks/pre-commit runs ./scripts/qa --fast; core.hooksPath is set to .githooks."
+    }
+  ],
+  "absent": [
+    "end-to-end / browser automation",
+    "visual regression / screenshot diffing",
+    "accessibility (axe or equivalent)",
+    "performance budgets or benchmarks in CI",
+    "security scanning / dependency audit in CI",
+    "load testing",
+    "mutation testing",
+    "coverage measurement of any kind",
+    "CI configuration of any kind (no .github/, no CI file in the repo)"
+  ],
+  "gaps": [
+    "No coverage tooling: the percentage of lib/ and app/ exercised is UNKNOWN.",
+    "The gauntlet and the media verifiers are not invoked by any script, so they only run when a human runs them.",
+    "No test executes the Swift launcher, the bundling script, or the app bundle.",
+    "No test drives the WKWebView; every UI check in this repo's history was done in a separate Chromium pane against the same server."
+  ],
+  "measuredAt": "commit b9ee16f, 2026-09-09",
+  "totalAutomatedChecks": {
+    "unitAndIntegration": 207,
+    "bugBoard": 3,
+    "gauntletScenarios": 3056,
+    "note": "3,266 checks total. The 3,056 gauntlet scenarios are generated, not hand-written."
+  }
+}

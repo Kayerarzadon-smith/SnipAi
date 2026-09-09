@@ -1,0 +1,303 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 4737,
+    "note": "Bound to loopback only, in package.json dev/start and in native/main.swift (HOSTNAME=127.0.0.1). There is NO authentication of any kind; loopback binding is the whole access control."
+  },
+  "pages": [
+    {
+      "route": "/",
+      "file": "app/page.tsx"
+    },
+    {
+      "route": "/connectors",
+      "file": "app/connectors/page.tsx"
+    },
+    {
+      "route": "/dashboard",
+      "file": "app/dashboard/page.tsx"
+    },
+    {
+      "route": "/projects/[project]/review",
+      "file": "app/projects/[project]/review/page.tsx"
+    },
+    {
+      "route": "/settings",
+      "file": "app/settings/page.tsx"
+    }
+  ],
+  "apiRoutes": [
+    {
+      "path": "/api/connections",
+      "file": "app/api/connections/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/jobs/[jobId]",
+      "file": "app/api/jobs/[jobId]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/jobs/running",
+      "file": "app/api/jobs/running/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/learn",
+      "file": "app/api/learn/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/learnings",
+      "file": "app/api/learnings/route.ts",
+      "methods": [
+        "GET",
+        "POST",
+        "PATCH"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/media/[...path]",
+      "file": "app/api/media/[...path]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/products",
+      "file": "app/api/products/route.ts",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects/[project]/beats/[label]/candidates",
+      "file": "app/api/projects/[project]/beats/[label]/candidates/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": true,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/projects/[project]/beats/[label]",
+      "file": "app/api/projects/[project]/beats/[label]/route.ts",
+      "methods": [
+        "PATCH"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": true,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects/[project]/beats",
+      "file": "app/api/projects/[project]/beats/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": true,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects/[project]/filmstrip",
+      "file": "app/api/projects/[project]/filmstrip/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/projects/[project]/graphics",
+      "file": "app/api/projects/[project]/graphics/route.ts",
+      "methods": [
+        "GET",
+        "PATCH",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/projects/[project]/peaks",
+      "file": "app/api/projects/[project]/peaks/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/projects/[project]/pipeline/jobs/[jobId]",
+      "file": "app/api/projects/[project]/pipeline/jobs/[jobId]/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects/[project]/pipeline",
+      "file": "app/api/projects/[project]/pipeline/route.ts",
+      "methods": [
+        "POST",
+        "GET",
+        "PATCH"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": true,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects/[project]/poster",
+      "file": "app/api/projects/[project]/poster/route.ts",
+      "methods": [
+        "GET"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/projects/[project]/review-action",
+      "file": "app/api/projects/[project]/review-action/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects/[project]",
+      "file": "app/api/projects/[project]/route.ts",
+      "methods": [
+        "GET",
+        "DELETE"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/projects/[project]/snapshots",
+      "file": "app/api/projects/[project]/snapshots/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/projects",
+      "file": "app/api/projects/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": true,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/references",
+      "file": "app/api/references/route.ts",
+      "methods": [
+        "GET",
+        "PUT",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    },
+    {
+      "path": "/api/trash",
+      "file": "app/api/trash/route.ts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": true,
+      "writesBeats": false,
+      "spawnsSubprocess": false
+    },
+    {
+      "path": "/api/voice",
+      "file": "app/api/voice/route.ts",
+      "methods": [
+        "POST"
+      ],
+      "dynamic": "force-dynamic",
+      "readsJsonBody": false,
+      "writesBeats": false,
+      "spawnsSubprocess": true
+    }
+  ],
+  "counts": {
+    "pages": 5,
+    "apiRoutes": 23
+  }
+}

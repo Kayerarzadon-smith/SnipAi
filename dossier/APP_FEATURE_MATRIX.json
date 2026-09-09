@@ -1,0 +1,583 @@
+{
+  "commit": "b9ee16f",
+  "counts": {
+    "total": 28,
+    "P0": 9,
+    "P1": 9,
+    "P2": 7,
+    "P3": 3
+  },
+  "features": [
+    {
+      "id": "import",
+      "name": "Import footage",
+      "priority": "P0",
+      "location": "app/dashboard/DropZone.tsx + POST /api/projects",
+      "purpose": "Get raw footage into a project. Dropping footage is the whole instruction.",
+      "entryPoints": [
+        "Import footage button",
+        "drag-and-drop anywhere on the dashboard"
+      ],
+      "inputs": [
+        "one or more video files (.mov .mp4 .m4v .avi .mkv .webm)",
+        "project name derived from the filename"
+      ],
+      "outputs": [
+        "projects/<name>/{raw,cuts,work}/ and beats.json",
+        "a queued `auto` pipeline job"
+      ],
+      "stateChanges": [
+        "creates a project directory",
+        "enqueues a job"
+      ],
+      "persistence": "filesystem under DATA_ROOT/projects",
+      "transport": "RAW BODY (application/octet-stream) with x-snipai-project and x-snipai-filename headers, streamed to disk via node:stream/promises pipeline. XHR on the client for upload progress. A multipart path is still accepted for compatibility.",
+      "errorStates": [
+        "not a video (400)",
+        "project already exists (409)",
+        "arrives empty (400)",
+        "disk write failure (500, project dir removed)"
+      ],
+      "dependencies": [
+        "lib/paths (DATA_ROOT)",
+        "lib/beats saveBeats"
+      ],
+      "relatedFeatures": [
+        "auto pipeline",
+        "queue card",
+        "dedupe"
+      ],
+      "tests": [
+        "tests/upload.test.mts (5)",
+        "qa/gauntlet \u2014 project-name traversal cases"
+      ],
+      "knownWeaknesses": [
+        "NO SIZE CAP on the project importer (the reference uploader caps at 600MB) \u2014 LEDGER S3 partially addressed by streaming, the cap is still absent",
+        "dedupe is by filename or exact byte size; two different takes of identical size collide",
+        "a second drop REPLACES the queue rather than appending"
+      ]
+    },
+    {
+      "id": "auto-pipeline",
+      "name": "Automatic pipeline (transcribe \u2192 draft \u2192 proxy \u2192 build)",
+      "priority": "P0",
+      "location": "lib/pipeline.ts runAutoPipelineJob; POST /api/projects/[p]/pipeline {step:'auto'}",
+      "purpose": "Turn raw footage into a cut with no second step.",
+      "phases": [
+        {
+          "step": "transcribe",
+          "bar": "0-45",
+          "label": "Transcribing"
+        },
+        {
+          "step": "draft-beats",
+          "bar": "45-56",
+          "label": "Choosing the takes"
+        },
+        {
+          "step": "source-proxy",
+          "bar": "56-74",
+          "label": "Shrinking for smooth playback"
+        },
+        {
+          "step": "build",
+          "bar": "74-100",
+          "label": "Snipping"
+        }
+      ],
+      "inputs": [
+        "a project with raw footage"
+      ],
+      "outputs": [
+        "work/transcript.json, silence.txt, silence-strict.txt, beat-analysis.json, source-proxy.mp4, edl.json, extract.sh, concat.txt",
+        "cuts/<project>-vN.mp4",
+        "cached scorecard in review-state.json"
+      ],
+      "stateChanges": [
+        "writes beats.json",
+        "writes review-state.checks",
+        "creates a cut file"
+      ],
+      "persistence": "filesystem; job state in DATA_ROOT/state/jobs.json",
+      "concurrency": "ONE heavy job at a time, enforced by runningJob(); a second request returns 409.",
+      "errorStates": [
+        "python3/ffmpeg unavailable (503)",
+        "faster-whisper missing (503)",
+        "raw footage not on this machine (404)",
+        "a step fails (job status error, message in the log)",
+        "a step goes quiet for 5 minutes (killed, now warned about first)"
+      ],
+      "tests": [
+        "tests/pipeline.test.mts (runCommand idle/kill/warn semantics)",
+        "ugc-edit-system/tests/test_pieces.py (walk_pieces)"
+      ],
+      "knownWeaknesses": [
+        "the auto build renders from the 720p PROXY and the UI does not say so",
+        "unbounded stdout accumulation over a 6-hour cap \u2014 LEDGER S4",
+        "job.log re-serialised every 2s \u2014 LEDGER S4",
+        "six routes spawn ffmpeg/Whisper without the runningJob guard \u2014 LEDGER S15"
+      ]
+    },
+    {
+      "id": "beats",
+      "name": "beats.json \u2014 the edit itself",
+      "priority": "P0",
+      "location": "lib/beats.ts, DATA_ROOT/projects/<p>/beats.json",
+      "purpose": "THE artifact. Everything else is raw footage or rebuildable. One entry per line: label, start, end, text, optional holes/fades/detached audio.",
+      "inputs": [
+        "every editing action"
+      ],
+      "outputs": [
+        "what build_cut.py renders"
+      ],
+      "persistence": "atomic write (tmp + rename) via lib/jsonStore.writeJsonAtomic; a snapshot of the PREVIOUS state is taken before every write",
+      "errorStates": [
+        "unreadable/corrupt \u2192 readBeats returns {ok:false,missing:false,why} and the project shows on the queue with a problem instead of vanishing"
+      ],
+      "tests": [
+        "tests/corrupt-project.test.mts",
+        "tests/silent-noop-edit.test.mts",
+        "tests/undo-round-trip.test.mts",
+        "tests/snapshots.test.mts"
+      ],
+      "invariants": [
+        "saveBeats returns whether it wrote; a no-op write is skipped and reported as such",
+        "every write burns exactly one snapshot; a no-op burns none"
+      ]
+    },
+    {
+      "id": "cut-region",
+      "name": "Highlight a region and delete it (snippet editor)",
+      "priority": "P0",
+      "location": "app/components/TrimWave.tsx + deleteSelection in review/page.tsx + PATCH /beats/[label] {holes}",
+      "purpose": "Take a stretch out of the middle of a line; the picture either side butts together.",
+      "entryPoints": [
+        "drag across the waveform, then Delete/Backspace or the 'Cut this bit out' button"
+      ],
+      "inputs": [
+        "a source-time range"
+      ],
+      "outputs": [
+        "a hole on the beat"
+      ],
+      "stateChanges": [
+        "beat.holes",
+        "review-state.cutRegions (the learning signal)",
+        "undo history entry"
+      ],
+      "errorStates": [
+        "a hole that is the whole line (400)",
+        "leaves under 0.15s (400)",
+        "lands inside an existing hole \u2192 changed:false, 'that stretch is already cut out', highlight KEPT"
+      ],
+      "tests": [
+        "tests/holes.test.mts (11)",
+        "tests/silent-noop-edit.test.mts (14)",
+        "qa/gauntlet/noop.mts"
+      ],
+      "knownWeaknesses": [
+        "a partial-overlap cut reports the whole highlight length in the toast, not what was removed"
+      ]
+    },
+    {
+      "id": "span-delete",
+      "name": "Ripple delete across the timeline",
+      "priority": "P0",
+      "location": "lib/timelineLayout.resolveSpanDelete + cutSpan in review/page.tsx + POST /beats {op:'cut_span'}",
+      "purpose": "One drag across the cut removes that stretch, however many lines it crosses.",
+      "inputs": [
+        "a cut-time range"
+      ],
+      "outputs": [
+        "holes and/or dropped beats, applied atomically"
+      ],
+      "errorStates": [
+        "would delete the whole video (400)",
+        "one line's holes refused \u2192 the WHOLE span is rejected (atomic)",
+        "resolves to no change \u2192 changed:false"
+      ],
+      "tests": [
+        "tests/span.test.mts (12)",
+        "qa/gauntlet/timeline.mts \u2014 922 generated span-delete scenarios"
+      ]
+    },
+    {
+      "id": "undo",
+      "name": "Undo (\u2318Z)",
+      "priority": "P0",
+      "location": "undoLast in review/page.tsx + PATCH /pipeline {beats}",
+      "purpose": "Restore the beat list to the state before the last edit.",
+      "depth": "24 entries (pushHistory keeps h.slice(-24))",
+      "inputs": [
+        "\u2318Z"
+      ],
+      "outputs": [
+        "beats.json restored"
+      ],
+      "stateChanges": [
+        "beats.json",
+        "a snapshot of the pre-undo state"
+      ],
+      "errorStates": [
+        "nothing to undo",
+        "undo to the current state \u2192 changed:false, 'there was nothing to undo'"
+      ],
+      "tests": [
+        "tests/undo-round-trip.test.mts (7)",
+        "qa/gauntlet/noop.mts"
+      ],
+      "knownWeaknesses": [
+        "THERE IS NO REDO. \u2318\u21e7Z is not bound anywhere. The client history is in-memory only and is lost on refresh.",
+        "the server-side undo path merges nothing from disk, deliberately (LEDGER S1 wontfix) \u2014 undo must be able to REMOVE a hole"
+      ]
+    },
+    {
+      "id": "snapshots",
+      "name": "Version history (snapshots)",
+      "priority": "P0",
+      "location": "lib/snapshots.ts + /api/projects/[p]/snapshots",
+      "purpose": "A copy of beats.json aside before every write, with a reason, restorable.",
+      "retention": "KEEP = 60, oldest pruned",
+      "naming": "timestamp in the FILENAME, not the mtime; reason slugged with spaces\u2192underscore so hyphens in labels survive",
+      "errorStates": [
+        "restore snapshots first, so a restore is itself undoable"
+      ],
+      "tests": [
+        "tests/snapshots.test.mts (11)"
+      ]
+    },
+    {
+      "id": "build",
+      "name": "Build the cut",
+      "priority": "P0",
+      "location": "lib/pipeline.buildCut + POST /pipeline {step:'build'}",
+      "purpose": "beats.json \u2192 edl.json \u2192 extract.sh (one ffmpeg per clip) \u2192 concat -c copy \u2192 cuts/<p>-vN.mp4, then the two checks.",
+      "outputs": [
+        "a cut file at SOURCE resolution",
+        "review-state.checks (repeats + pacing)"
+      ],
+      "errorStates": [
+        "build_cut.py failed",
+        "no extract.sh produced",
+        "extraction killed after clip N of M",
+        "ffmpeg concat failed"
+      ],
+      "tests": [
+        "ugc-edit-system/tests/test_pieces.py",
+        "qa/verify_media.py (manual)"
+      ],
+      "knownWeaknesses": [
+        "the render exceeds the EDL by ~half a frame per piece (frame quantisation, measured and bounded, not a defect)"
+      ]
+    },
+    {
+      "id": "trim",
+      "name": "Trim a line's in/out points",
+      "priority": "P1",
+      "location": "TrimWave handles + dragEdge + PATCH /beats/[label] {start,end}",
+      "purpose": "The take is right, the edges are wrong.",
+      "inputs": [
+        "drag a 1px handle, or [ and ] keys (0.05s, 0.20s with shift), or I/O at the playhead"
+      ],
+      "stateChanges": [
+        "beat.start/end",
+        "review-state.trimEdits \u2014 ONLY when something moved"
+      ],
+      "errorStates": [
+        "under 0.15s (400)",
+        "start after end (400)",
+        "negative (400)",
+        "already there \u2192 changed:false"
+      ],
+      "tests": [
+        "tests/silent-noop-edit.test.mts",
+        "qa/gauntlet/noop.mts"
+      ],
+      "knownWeaknesses": [
+        "trim never re-runs normaliseHoles, so a hole can end up covering the whole beat \u2014 LEDGER S8"
+      ]
+    },
+    {
+      "id": "split",
+      "name": "Split a beat (\u2318B / S)",
+      "priority": "P1",
+      "location": "POST /beats {op:'split'} + lib/splitBeat.ts",
+      "purpose": "Cut one line into two at the playhead.",
+      "stateChanges": [
+        "two beats replace one; holes partitioned, detached audio divided, fadeIn to the head and fadeOut to the tail"
+      ],
+      "errorStates": [
+        "split too close to an edge (each half must be \u22650.15s)",
+        "a cut needs at least one beat"
+      ],
+      "tests": [
+        "tests/undo-round-trip.test.mts (5 split cases)",
+        "tests/regressions/S7 (now green)"
+      ]
+    },
+    {
+      "id": "reorder",
+      "name": "Drag a line to a new place",
+      "priority": "P1",
+      "location": "lib/timelineLayout.reorderTo + POST /beats {op:'reorder'}",
+      "errorStates": [
+        "order must list every existing beat exactly once (400)",
+        "dropped where it already was \u2192 changed:false"
+      ],
+      "tests": [
+        "tests/reorder.test.mts (12)"
+      ]
+    },
+    {
+      "id": "delete-beat",
+      "name": "Delete a line",
+      "priority": "P1",
+      "location": "POST /beats {op:'remove'}",
+      "stateChanges": [
+        "beat removed",
+        "review-state.deletedBeats records the label, text and range"
+      ],
+      "errorStates": [
+        "a cut needs at least one beat (400)"
+      ]
+    },
+    {
+      "id": "timeline",
+      "name": "The timeline",
+      "priority": "P1",
+      "location": "app/components/Timeline.tsx (862 lines)",
+      "purpose": "Two tracks (video + audio), zoom, waveform at device-pixel resolution, filmstrip, 1px playhead, 1px trim handles, fade grips, range selection.",
+      "interactions": [
+        "\u2318+scroll zoom",
+        "Fit / \u2212 / + / px-per-second readout",
+        "click to scrub",
+        "drag a clip",
+        "drag a trim handle",
+        "drag a fade grip",
+        "drag a range then Delete"
+      ],
+      "tests": [
+        "tests/layout.test.mts (13)",
+        "qa/gauntlet/timeline.mts + adversarial.mts \u2014 1,272 + 711 scenarios"
+      ],
+      "knownWeaknesses": [
+        "no snap and no snap toggle \u2014 verified absent, selection is free-form to the millisecond"
+      ]
+    },
+    {
+      "id": "playback",
+      "name": "Playback and scrubbing",
+      "priority": "P1",
+      "location": "review/page.tsx rAF loop + video elements",
+      "modes": [
+        "'Your cut' \u2014 live edit off the 720p proxy, beat to beat, skipping holes",
+        "'Rendered file' \u2014 the built mp4"
+      ],
+      "interactions": [
+        "Space play/pause",
+        "J/K/L shuttle (up to 8x)",
+        "arrows step 1 frame, shift 1 second",
+        "Home/End",
+        "click the timeline or waveform to scrub"
+      ],
+      "invariants": [
+        "the playhead is driven by requestAnimationFrame, not timeupdate (measured 47 updates/sec)",
+        "holes are skipped ONLY while playing \u2014 paused, the playhead stays where it was put"
+      ],
+      "tests": [
+        "NONE automated. Verified by driving the app manually."
+      ],
+      "knownWeaknesses": [
+        "no automated playback test of any kind"
+      ]
+    },
+    {
+      "id": "beat-row",
+      "name": "Lines list / carousel",
+      "priority": "P1",
+      "location": "review/page.tsx beat rows",
+      "purpose": "The script as cut. The playing line lights and scrolls into view; it yields for 4s if you scroll.",
+      "verified": "line-level highlight tracks the playhead across all 34 beats and across cuts, in both player modes",
+      "knownWeaknesses": [
+        "THE WORD-LEVEL HIGHLIGHT NEVER RENDERS \u2014 BUG-010, open. The code exists; `spoken` is null at runtime."
+      ]
+    },
+    {
+      "id": "takes",
+      "name": "Take picker",
+      "priority": "P1",
+      "location": "/api/projects/[p]/beats/[label]/candidates + Takes button",
+      "purpose": "The drafter's in/out is not the only take; open the window and see the others.",
+      "errorStates": [
+        "candidate scan unavailable (422)",
+        "could not parse candidate scan output (500)"
+      ],
+      "knownWeaknesses": [
+        "CWD-relative project path where every other caller passes absolute \u2014 LEDGER S5",
+        "takePicks is empty, so nothing has taught it \u2014 DOCKET R3"
+      ]
+    },
+    {
+      "id": "graphics",
+      "name": "Motion graphics and definition cards",
+      "priority": "P2",
+      "location": "app/components/GraphicsPanel.tsx + /api/projects/[p]/graphics",
+      "kinds": [
+        "definition",
+        "stat",
+        "callout",
+        "emphasis",
+        "lower_third",
+        "ai_overlay (recorded as a request; generation is parked)"
+      ],
+      "entryPoints": [
+        "Graphic button on a line",
+        "the folded panel under the timeline",
+        "voice input in the graphic dialog"
+      ],
+      "knownWeaknesses": [
+        "graphic ids collide every 16m40s (Date.now().slice(-6)) \u2014 deleting one deletes both \u2014 LEDGER S14"
+      ]
+    },
+    {
+      "id": "scorecard",
+      "name": "Scorecard and flags",
+      "priority": "P2",
+      "location": "lib/scorecard.ts + projectSummary",
+      "metrics": [
+        "Repeated phrases (verify_cut.py)",
+        "Pacing vs. house style (compare_to_reference.py)",
+        "word-boundary flags",
+        "per-beat confidence"
+      ],
+      "knownWeaknesses": [
+        "parsed out of tool STDOUT by regex; a wording change silently returns 'needs a built cut', which is indistinguishable from 'not built yet'. Pinned by tests/scorecard-coupling.test.mts."
+      ]
+    },
+    {
+      "id": "check",
+      "name": "Re-score without rebuilding",
+      "priority": "P2",
+      "location": "POST /pipeline {step:'check'} + runCheckJob",
+      "purpose": "Re-run the two checks against the cut that already exists \u2014 seconds, not a 4K re-render."
+    },
+    {
+      "id": "learning",
+      "name": "Learning from edits",
+      "priority": "P2",
+      "location": "ugc-edit-system/tools/learn_from_edits.py + review-state signals",
+      "signals": [
+        "trimEdits",
+        "cutRegions",
+        "spanCuts",
+        "takePicks",
+        "deletedBeats",
+        "beatDiagnoses"
+      ],
+      "outputs": [
+        "DATA_ROOT/state/tuning.json \u2014 snap_lead, snap_tail, split_gap, trim_min"
+      ],
+      "guards": [
+        "per-parameter clamps (LIMITS)",
+        "a `learned_through` watermark so the same edits are not counted twice"
+      ],
+      "history": "This loop ran away once: reading the wrong tuning.json compounded shifts 11x to snap_tail 1.359 and left 10.8s of dead air.",
+      "knownWeaknesses": [
+        "a no-op trim used to record a zero-delta entry, dragging the tuner toward zero \u2014 fixed"
+      ]
+    },
+    {
+      "id": "trash",
+      "name": "Delete a project / Recently deleted",
+      "priority": "P2",
+      "location": "lib/trash.ts + /api/trash",
+      "retention": "RETAIN_DAYS = 5, the delete time read out of the folder name",
+      "tests": [
+        "tests/trash.test.mts (4)"
+      ]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "priority": "P3",
+      "location": "app/settings/page.tsx",
+      "sections": [
+        "Profile",
+        "Microphone (granted at launch, not mid-sentence)",
+        "Products SnipAi listens for + Amazon affiliate tag",
+        "Editing tools / learned rules",
+        "Reference videos"
+      ],
+      "knownWeaknesses": [
+        "Products & links writes a file only an uninvoked tool reads \u2014 DOCKET R2",
+        "references: measured.map indexes the input array by output position, crediting the wrong files \u2014 LEDGER S13"
+      ]
+    },
+    {
+      "id": "connectors",
+      "name": "Connectors",
+      "priority": "P3",
+      "location": "app/connectors/page.tsx + lib/connections.ts",
+      "tiles": [
+        "TikTok Shop",
+        "Instagram",
+        "Pinterest",
+        "Trybe",
+        "X",
+        "Snapchat",
+        "Facebook",
+        "Amazon Storefront"
+      ],
+      "status": "ALL EIGHT are hard-coded not_connected. There is no OAuth, no token store, no posting code. This is a stub surface \u2014 DOCKET B1."
+    },
+    {
+      "id": "media-stream",
+      "name": "Media streaming",
+      "priority": "P1",
+      "location": "/api/media/[...path]",
+      "purpose": "Serves raw footage, the proxy, and cuts with HTTP Range support so the video elements can seek.",
+      "security": "resolveMediaPath resolves against PROJECTS_ROOT and rejects anything that escapes it",
+      "knownWeaknesses": [
+        "416 for a range past EOF instead of clamping to size-1 \u2014 LEDGER S18"
+      ]
+    },
+    {
+      "id": "voice",
+      "name": "Voice input",
+      "priority": "P3",
+      "location": "app/components/VoiceInput.tsx + /api/voice + transcribe_note.py",
+      "purpose": "Describe a graphic by talking instead of typing."
+    },
+    {
+      "id": "filmstrip",
+      "name": "Filmstrip",
+      "priority": "P2",
+      "location": "/api/projects/[p]/filmstrip + filmstrip.py",
+      "knownWeaknesses": [
+        "cache key omits the cut file, so v2 shows v1's frames \u2014 LEDGER S11",
+        "count is never NaN-checked and NaN reaches argv and the cache key \u2014 LEDGER S12"
+      ]
+    },
+    {
+      "id": "peaks",
+      "name": "Waveform peaks",
+      "priority": "P2",
+      "location": "/api/projects/[p]/peaks + audio_peaks.py",
+      "knownWeaknesses": [
+        "CWD-relative project path \u2014 LEDGER S5"
+      ]
+    },
+    {
+      "id": "native",
+      "name": "Native macOS wrapper",
+      "priority": "P0",
+      "location": "native/main.swift (445 lines)",
+      "purpose": "Owns the server process, sets the SNIPAI_ environment contract, opens a WKWebView on 127.0.0.1:4737, always on the primary display.",
+      "knownWeaknesses": [
+        "unsigned \u2014 Gatekeeper will stop it on any other Mac (DOCKET B2)",
+        "x86_64 only (DOCKET B4)",
+        "deliberately NO Undo item in the Edit menu: a menu key equivalent would swallow the page's \u2318Z"
+      ]
+    }
+  ]
+}

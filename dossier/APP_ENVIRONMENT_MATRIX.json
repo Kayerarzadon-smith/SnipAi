@@ -1,0 +1,79 @@
+{
+  "note": "Derived from the repository only. This app is a single-user macOS desktop application; most of a web matrix does not apply and is marked NOT_APPLICABLE rather than guessed.",
+  "os": {
+    "supported": [
+      "macOS 11.0+"
+    ],
+    "evidence": "SnipAi.app/Contents/Info.plist LSMinimumSystemVersion = 11.0",
+    "testedOn": "macOS 24.4.0 (Darwin), the only machine in evidence",
+    "windows": "NOT_SUPPORTED",
+    "linux": "NOT_SUPPORTED"
+  },
+  "architecture": {
+    "builtBinaries": "x86_64 (both the Swift launcher and the bundled node are Mach-O x86_64)",
+    "hostMachine": "x86_64",
+    "appleSilicon": "Runs under Rosetta only. scripts/bundle-app selects the CPython triple from `uname -m`, so a build ON an arm64 Mac would produce an arm64 bundle, but no universal binary is produced and none has been tested. DOCKET B4.",
+    "risk": "A bundle built on x86_64 and handed to an arm64 Mac carries an x86_64 node and an x86_64 CPython."
+  },
+  "browser": {
+    "runtime": "WKWebView inside the native wrapper (native/main.swift). There is no browser support matrix \u2014 the app ships its own web view.",
+    "alsoReachable": "Any browser at http://127.0.0.1:4737 while the server runs; the launch-snipai.command path opens the default browser. Untested in Safari/Chrome/Firefox as products.",
+    "knownWebViewDifference": "Backspace was historically treated as Back by the web view; the review screen calls preventDefault unconditionally on Delete/Backspace because of it."
+  },
+  "display": {
+    "minimumWindow": "900x600 (native/main.swift window.minSize)",
+    "openBehaviour": "always centered on the PRIMARY display (NSScreen.screens.first), deliberately not the last frame",
+    "responsive": "UNKNOWN below 900x600 \u2014 the native window cannot go smaller, but a browser can. No mobile layout exists.",
+    "mobile": "NOT_SUPPORTED"
+  },
+  "hardware": {
+    "cpu": "Whisper and ffmpeg are the load. lib/pipeline.ts runs children at low priority and sets OMP_NUM_THREADS/MKL_NUM_THREADS; the tools honour SNIPAI_THREADS.",
+    "gpu": "NOT_USED. faster-whisper runs CPU int8 (small.en).",
+    "ram": "A 700MB upload measured 149MB peak RSS after the streaming fix (2169MB before). 4K H.264 encode is the other pressure. The host machine went into swap and rebooted under the pre-fix buffering.",
+    "disk": "Library measured at 8.8GB for two projects. Build caches: .next 136M, .build-cache 543M, node_modules 250M, .venv 433M, SnipAi.app 666M."
+  },
+  "media": {
+    "importAccepted": [
+      ".mov",
+      ".mp4",
+      ".m4v",
+      ".avi",
+      ".mkv",
+      ".webm"
+    ],
+    "importPickerFilter": "accept=\"video/*\" (app/dashboard/DropZone.tsx)",
+    "referenceUploadAccepted": [
+      ".mp4",
+      ".mov",
+      ".m4v",
+      ".webm"
+    ],
+    "mismatch": "The reference uploader accepts a NARROWER set than the project importer (no .avi/.mkv). Worth a test.",
+    "referenceSizeCap": "600MB (app/api/references/route.ts). The project importer has NO size cap.",
+    "testedFootage": "4K HEVC .MOV from an iPhone, 30fps, portrait 2160x3840, 1.7-1.8GB, ~9-11 minutes",
+    "untested": [
+      "24 / 25 / 29.97 / 50 / 60 fps",
+      "variable frame rate",
+      "HDR",
+      "landscape or square",
+      "audio-only files",
+      "multi-audio-track files",
+      "files with no audio stream"
+    ],
+    "renderOutput": "H.264 yuv420p + AAC 192k, source resolution, faststart. The auto pipeline instead renders from the 720p proxy."
+  },
+  "network": {
+    "required": "NONE for the core product. Nothing is fetched at runtime; the server is loopback-only.",
+    "onlyExternalCalls": "lib/imagegen.ts (parked, unused) and scripts/connect-image-provider (manual).",
+    "offline": "Fully functional offline. This is a genuine strength and should be asserted by the gauntlet, not assumed."
+  },
+  "notApplicable": [
+    "CDN",
+    "service workers",
+    "cookies",
+    "CORS",
+    "multi-tenant isolation",
+    "mobile browsers",
+    "screen readers on web (no a11y work has been done \u2014 see risks)"
+  ]
+}

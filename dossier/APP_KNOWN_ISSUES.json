@@ -1,0 +1,294 @@
+{
+  "sources": {
+    "standingLedger": "audits/LEDGER.md \u2014 defects found by QA passes",
+    "gauntletLog": "qa/BUGS.md \u2014 defects found by the 2026-09-09 gauntlet, with reproductions",
+    "requestDocket": "DOCKET.md \u2014 what the user asked for and what happened to it"
+  },
+  "ledger": [
+    {
+      "id": "S1",
+      "location": "pipeline/route.ts:136",
+      "description": "Beat rebuilt from a 4-field whitelist; undo drops `holes`, `audioStart`/`audioEnd`, `fadeIn`/`fadeOut`",
+      "status": "wontfix",
+      "statusRaw": "**wontfix 2026-09-09** \u2014 merging from disk on undo would make every cut permanent. The live loss needs GET to drop a field; it does not (6 fields pinned round-tripping in `tests/undo-round-trip.test.mts`)",
+      "regressionTest": "`tests/regressions/S1-*.test.mts` (kept red on purpose)"
+    },
+    {
+      "id": "S2",
+      "location": "lib/jobs.ts:184",
+      "description": "`failJob` is the one mutator that doesn't `persist()`; failed builds stay \"running\" everywhere else and then 409 the next build",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "`tests/regressions/S2-*.test.mts`"
+    },
+    {
+      "id": "S3",
+      "location": "projects/route.ts:68",
+      "description": "Upload buffered whole, twice, no size cap; a 1.4GB original OOMs and the catch then deletes the new project dir. Same at `references/route.ts:60`",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "no \u2014 needs a large-file harness"
+    },
+    {
+      "id": "S4",
+      "location": "lib/pipeline.ts:149`, `lib/jobs.ts:164",
+      "description": "Unbounded stdout accumulation over a 6-hour cap, and unbounded `job.log` re-serialised every 2s",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "no"
+    },
+    {
+      "id": "S5",
+      "location": "peaks/route.ts:39`, `beats/[label]/candidates/route.ts:26",
+      "description": "CWD-relative `projects/<name>` where every other caller passes an absolute path; take picker 422s after migration",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S6",
+      "location": "lib/pipeline.ts:32",
+      "description": "`spawnSync` + `import faster_whisper` on the request path of eight GETs, 60s cache",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "no"
+    },
+    {
+      "id": "S7",
+      "location": "beats/route.ts:87",
+      "description": "Split spreads holes and detached audio onto both halves; the line renders twice",
+      "status": "fixed",
+      "statusRaw": "**fixed 2026-09-09** \u2014 `lib/splitBeat.ts` divides instead of copying",
+      "regressionTest": "`tests/regressions/S7-*.test.mts` (now green) + `tests/undo-round-trip.test.mts`"
+    },
+    {
+      "id": "S8",
+      "location": "beats/[label]/route.ts:136",
+      "description": "Trim never re-runs `normaliseHoles`; a hole can end up covering the whole beat",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S9",
+      "location": "projects/[project]/route.ts:148",
+      "description": "`cutTimeline` strips any `-<digits>`; real beats `hook-1`/`hook-2` collapse into one",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S10",
+      "location": "candidates/route.ts:20",
+      "description": "`updateReviewState(p, () => {})` is a full read-modify-write, so a GET rewrites `review-state.json` and can lose a concurrent write",
+      "status": "fixed",
+      "statusRaw": "**fixed 2026-09-09** \u2014 the reads are reads, a no-op update does not write, and an unreadable file is kept aside instead of replaced by defaults (it was destroying every take pick)",
+      "regressionTest": "`tests/review-state-integrity.test.mts`"
+    },
+    {
+      "id": "S11",
+      "location": "filmstrip/route.ts:59",
+      "description": "Cache key omits the cut file; scrub v2, see v1's frames",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S12",
+      "location": "filmstrip/route.ts:32",
+      "description": "`count` never NaN-checked; `NaN` reaches argv and the cache key",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S13",
+      "location": "references/route.ts:143",
+      "description": "`measured.map((_, i) => files[i])` indexes the input array by output position; wrong files credited in `house-style.json`",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S14",
+      "location": "graphics/route.ts:232",
+      "description": "`g${Date.now().slice(-6)}` collides every 16m40s; deleting one graphic deletes both",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S15",
+      "location": "six routes",
+      "description": "ffmpeg/Whisper spawned without `runningJob()`; twelve filmstrips render at once on page load",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "no"
+    },
+    {
+      "id": "S16",
+      "location": "lib/projectSummary.ts:117",
+      "description": "Cut length ignores holes; `lib/snapshots.ts:129` subtracts them. Same edit, two durations",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S17",
+      "location": "products/route.ts:14",
+      "description": "`read()` swallows every error and returns `{products: []}`, which PATCH writes back over the catalogue",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    },
+    {
+      "id": "S18",
+      "location": "media/[...path]/route.ts:73",
+      "description": "416 for a range past EOF instead of clamping to `size - 1`",
+      "status": "open",
+      "statusRaw": "open",
+      "regressionTest": "yes, not yet written"
+    }
+  ],
+  "openCount": 15,
+  "gauntletFixed": [
+    {
+      "id": "BUG-001",
+      "sev": "P1",
+      "title": "a working transcode is killed for being quiet",
+      "fixed": true,
+      "detail": "make_source_proxy.py ran ffmpeg with -nostats, so a 1.8GB transcode was silent and the 5-minute idle watchdog killed it. Now -progress pipe:1."
+    },
+    {
+      "id": "BUG-002",
+      "sev": "P1",
+      "title": "one bad beats.json emptied the whole queue",
+      "fixed": true,
+      "detail": "loadBeats was a bare JSON.parse with a cast; a throw propagated out of summarizeAllProjects and 500'd /api/projects."
+    },
+    {
+      "id": "BUG-003",
+      "sev": "P2",
+      "title": "a negative EDL duration ran the timeline backwards",
+      "fixed": true
+    },
+    {
+      "id": "BUG-004",
+      "sev": "P1",
+      "title": "splitting a beat said the line twice",
+      "fixed": true,
+      "detail": "LEDGER S7. Both halves spread the whole beat, so both claimed the same detached audio. Invisible until the export."
+    },
+    {
+      "id": "BUG-005",
+      "sev": "P2",
+      "title": "ten routes 500'd on a JSON body of null",
+      "fixed": true
+    },
+    {
+      "id": "BUG-006",
+      "sev": "P2",
+      "title": "./scripts/test said all green without running the bug board",
+      "fixed": true
+    },
+    {
+      "id": "BUG-007",
+      "sev": "P1",
+      "title": "ten seconds of dead air in the middle of the cut",
+      "fixed": true,
+      "detail": "walk_pieces required a detected pause to END inside the beat; a trailing pause is the commonest shape and was the one that could not be trimmed."
+    },
+    {
+      "id": "BUG-008",
+      "sev": "P1",
+      "title": "reading the review state destroyed it",
+      "fixed": true,
+      "detail": "LEDGER S10."
+    },
+    {
+      "id": "BUG-009",
+      "sev": "P1",
+      "title": "one pause reported as two touching rows was never trimmed",
+      "fixed": true
+    },
+    {
+      "id": "BUG-011",
+      "sev": "P1",
+      "title": "delete said it cut, and cut nothing",
+      "fixed": true,
+      "detail": "A highlight inside an existing hole merged into it, saveBeats skipped the no-op write, the route answered 200, the client cleared the highlight and toasted a cut."
+    },
+    {
+      "id": "BUG-F1",
+      "sev": "P2",
+      "title": "a no-op trim taught the tuner a zero-delta edit",
+      "fixed": true
+    },
+    {
+      "id": "BUG-F2",
+      "sev": "P2",
+      "title": "the changed signal covered 2 write paths of 8",
+      "fixed": true
+    },
+    {
+      "id": "BUG-F3",
+      "sev": "P3",
+      "title": "a no-op left a dead step on the undo stack",
+      "fixed": true
+    },
+    {
+      "id": "REPORT-3",
+      "sev": "P2",
+      "title": "the playhead teleported out of holes while PAUSED, not just while playing",
+      "fixed": true,
+      "detail": "onTimeUpdate skipped holes unconditionally; a scrub fires timeupdate, so dragging near cut footage yanked the playhead away. Reported as 'it keeps auto-snapping'."
+    },
+    {
+      "id": "REPORT-5",
+      "sev": "P3",
+      "title": "double-clicking Import ran the import loop twice",
+      "fixed": true,
+      "detail": "The button disables on React state; the second click lands before the re-render. Now a synchronous ref guard."
+    }
+  ],
+  "openDefects": [
+    {
+      "id": "BUG-010",
+      "sev": "P2",
+      "title": "the word-level highlight never renders",
+      "status": "OPEN",
+      "detail": "Line-level tracking works. Word-level produces zero .wd elements in either player mode, playing or paused; the React hook holding {label,wordIx} is null at runtime. Transcript, beatsRef, liveMode, the rAF loop and the player element were each ruled out. Root cause NOT isolated.",
+      "code": "app/projects/[project]/review/page.tsx \u2014 the rAF loop that calls setSpoken, and the render at the beat row's .txt span"
+    },
+    {
+      "id": "CONTENT-1",
+      "sev": "P2",
+      "title": "11 repeated phrases in img-9817's current cut",
+      "status": "OPEN",
+      "detail": "verify_cut.py reports them. ugc-edit-system/CLAUDE.md calls this the only check that reflects what a viewer actually hears. Down from 13."
+    },
+    {
+      "id": "UX-1",
+      "sev": "P3",
+      "title": "the auto pipeline's review render is 720p and nothing on screen says so",
+      "status": "OPEN",
+      "detail": "Deliberate (lib/pipeline.ts stepBuild passes {proxy:true}); pressing Build gives full resolution. The two are not distinguished in the UI, so a 406x720 file can be mistaken for the deliverable."
+    },
+    {
+      "id": "UX-2",
+      "sev": "P3",
+      "title": "a partial-overlap cut reports the whole highlight length",
+      "status": "OPEN",
+      "detail": "Cutting a region that is half inside an existing hole removes only the new part but the toast names the full selection."
+    }
+  ],
+  "suppressions": {
+    "emptyOrCommentOnlyCatches": 11,
+    "note": "Counted by grep over app/ and lib/. Each is a deliberate 'this failure is not worth surfacing' decision; a gauntlet should probe whether any of them hides a real failure. lib/jsonStore.readJson returning a fallback for an unparseable file was exactly this shape and caused BUG-008.",
+    "tsIgnores": 0,
+    "eslintDisables": 1,
+    "skippedTests": 0,
+    "flakyTestsKnown": 0,
+    "flakyHistory": "tests/pipeline.test.mts had a timing test failing ~1 run in 15 (200ms cadence under a 1s idle window); widened to a 2s window and swept 15 clean runs."
+  }
+}

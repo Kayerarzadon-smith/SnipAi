@@ -1,0 +1,53 @@
+{
+  "app": {
+    "name": "snipai",
+    "version": "0.1.0",
+    "private": true
+  },
+  "node": {
+    "runtimeUnderTest": "v24.20.0",
+    "npm": "11.19.0",
+    "note": "Node 24 native TS type-stripping is required by the test runner (tests/register.mts). No transpiler in the test path."
+  },
+  "packageManager": "npm",
+  "lockfileVersion": 3,
+  "javascript": {
+    "dependencies": {
+      "next": "14.2.35",
+      "react": "18.3.1",
+      "react-dom": "18.3.1"
+    },
+    "devDependencies": {
+      "typescript": "5.5.4",
+      "@types/node": "20.14.15",
+      "@types/react": "18.3.3",
+      "@types/react-dom": "18.3.0"
+    },
+    "totalLockedPackages": 36,
+    "note": "Three runtime deps. No test framework, no linter plugins beyond next lint, no state library, no HTTP client, no UI kit."
+  },
+  "python": {
+    "pinned": [
+      "faster-whisper==1.2.1",
+      "imageio-ffmpeg==0.6.0"
+    ],
+    "interpreter": "CPython 3.11.16, python-build-standalone release 20260901 (pinned in scripts/bundle-app)",
+    "note": "faster-whisper pulls ctranslate2/onnxruntime/av/numpy/tokenizers transitively. ffmpeg ships inside imageio-ffmpeg; there is NO system ffmpeg and no ffprobe on the target machine."
+  },
+  "native": {
+    "language": "Swift",
+    "entry": "native/main.swift",
+    "lines": 445,
+    "compiler": "swiftc -O (invoked by scripts/bundle-app)",
+    "framework": "WKWebView + AppKit"
+  },
+  "externalServices": {
+    "imageProviders": [
+      "openai/gpt-image-1",
+      "gemini-2.5-flash-image",
+      "bfl/flux-kontext-pro"
+    ],
+    "status": "PARKED \u2014 lib/imagegen.ts is written and unused by any route; no key is configured. Verify by grepping for imports of lib/imagegen.",
+    "everythingElse": "NONE. No analytics, no telemetry, no CDN, no auth provider, no cloud storage, no database server."
+  }
+}

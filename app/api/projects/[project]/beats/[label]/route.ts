@@ -43,8 +43,11 @@ export async function PATCH(
     if (!b) return NextResponse.json({ error: `no beat '${label}' in ${project}` }, { status: 404 });
     delete b.audioStart;
     delete b.audioEnd;
-    saveBeatsFor(project, beatsFile);
-    return NextResponse.json({ label, track: "audio", relinked: true });
+    const changed = saveBeatsFor(project, beatsFile);
+    return NextResponse.json({
+      label, track: "audio", relinked: true, changed,
+      ...(changed ? {} : { unchanged: "this line's audio was already locked to its picture" }),
+    });
   }
 
   /* A hole is a stretch cut out of the middle of the line. It changes which
@@ -101,8 +104,11 @@ export async function PATCH(
       if (capped <= 0.001) delete (beat as Record<string, unknown>)[k];
       else (beat as unknown as Record<string, number>)[k] = Math.round(capped * 1000) / 1000;
     }
-    saveBeatsFor(project, bf);
-    return NextResponse.json({ label, fadeIn: beat.fadeIn ?? 0, fadeOut: beat.fadeOut ?? 0 });
+    const changed = saveBeatsFor(project, bf);
+    return NextResponse.json({
+      label, fadeIn: beat.fadeIn ?? 0, fadeOut: beat.fadeOut ?? 0, changed,
+      ...(changed ? {} : { unchanged: "that fade is already set" }),
+    });
   }
 
   const start = body.start as number;
@@ -142,12 +148,17 @@ export async function PATCH(
   if (track === "audio") {
     existing.audioStart = Math.round(start * 1000) / 1000;
     existing.audioEnd = Math.round(end * 1000) / 1000;
-    saveBeatsFor(project, beats!);
+    // dragging the audio edge to where it already is is a no-op like any
+    // other, and has to say so -- this path was left out of that the first
+    // time and reported success either way
+    const changed = saveBeatsFor(project, beats!);
     return NextResponse.json({
       label,
       track: "audio",
       after: { audioStart: existing.audioStart, audioEnd: existing.audioEnd },
       offset: Math.round((existing.audioStart - existing.start) * 1000) / 1000,
+      changed,
+      ...(changed ? {} : { unchanged: "the audio is already there" }),
     });
   }
 
@@ -158,15 +169,26 @@ export async function PATCH(
   const startDelta = Math.round((start - before.start) * 1000) / 1000;
   const endDelta = Math.round((end - before.end) * 1000) / 1000;
 
-  // the whole point: a trim is evidence about where the edges should have been
-  updateReviewState(project, (st) => {
-    (st.trimEdits ??= []).push({
-      beatLabel: label,
-      startDelta,
-      endDelta,
-      at: new Date().toISOString(),
+  /* A trim is evidence about where the edges should have been -- but only if
+     an edge actually moved.
+     
+     This recorded an entry unconditionally, so a trim to where the edge
+     already was pushed startDelta:0, endDelta:0 into the signal the tuner
+     learns from. Every no-op drags snap_lead and snap_tail toward zero, and
+     nothing about it is visible: the file does not change, so there is no
+     edit to look at and wonder about. This learner has already run away once
+     in the other direction (snap_tail reached 1.359 and left ten seconds of
+     dead air), which is what makes feeding it noise worth refusing. */
+  if (changed) {
+    updateReviewState(project, (st) => {
+      (st.trimEdits ??= []).push({
+        beatLabel: label,
+        startDelta,
+        endDelta,
+        at: new Date().toISOString(),
+      });
     });
-  });
+  }
 
   return NextResponse.json({
     label,

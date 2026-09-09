@@ -109,3 +109,93 @@ describe("cutting a stretch that is already cut", () => {
     assert.ok(body.unchanged, "it must say why nothing happened");
   });
 });
+
+/* Round two of the feature gauntlet.
+ *
+ * The signal was applied to two of the route's write paths first time round.
+ * The other four answered a no-op exactly as before — the same defect on a
+ * different surface, including the one that matters most: the timeline's span
+ * delete, which is the same user action as the snippet delete. */
+describe("every write path can tell you it changed nothing", () => {
+  const A = { label: "a", start: 10, end: 20, holes: [[12, 13]] as [number, number][] };
+  const B = { label: "b", start: 30, end: 40 };
+
+  const post = (body: unknown) =>
+    new Request("http://127.0.0.1:4737/t", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }) as never;
+  const pctx = { params: { project: P } } as never;
+
+  test("detached audio: dragging it to where it already is", async () => {
+    write([{ ...A, audioStart: 9.2, audioEnd: 19.4 }, { ...B }]);
+    const { PATCH } = await import("../app/api/projects/[project]/beats/[label]/route.ts");
+    const same = await (await PATCH(patch({ track: "audio", start: 9.2, end: 19.4 }), ctx("a"))).json() as { changed: boolean };
+    assert.equal(same.changed, false);
+    const moved = await (await PATCH(patch({ track: "audio", start: 9.0, end: 19.4 }), ctx("a"))).json() as { changed: boolean };
+    assert.equal(moved.changed, true);
+  });
+
+  test("fades: setting the fade it already has", async () => {
+    write([{ ...A, fadeIn: 0.2 }, { ...B }]);
+    const { PATCH } = await import("../app/api/projects/[project]/beats/[label]/route.ts");
+    const same = await (await PATCH(patch({ fadeIn: 0.2 }), ctx("a"))).json() as { changed: boolean };
+    assert.equal(same.changed, false);
+    const moved = await (await PATCH(patch({ fadeIn: 0.35 }), ctx("a"))).json() as { changed: boolean };
+    assert.equal(moved.changed, true);
+  });
+
+  test("reorder: dropping a line back where it was", async () => {
+    write([{ ...A }, { ...B }]);
+    const { POST } = await import("../app/api/projects/[project]/beats/route.ts");
+    const same = await (await POST(post({ op: "reorder", order: ["a", "b"] }), pctx)).json() as { changed: boolean };
+    assert.equal(same.changed, false);
+    const moved = await (await POST(post({ op: "reorder", order: ["b", "a"] }), pctx)).json() as { changed: boolean };
+    assert.equal(moved.changed, true);
+  });
+
+  test("the timeline's span delete over footage already cut", async () => {
+    write([{ ...A }, { ...B }]);
+    const { POST } = await import("../app/api/projects/[project]/beats/route.ts");
+    const same = await (await POST(post({ op: "cut_span", edits: [{ label: "a", holes: [[12, 13]] }] }), pctx)).json() as
+      { changed: boolean; unchanged?: string };
+    assert.equal(same.changed, false, "a span landing inside an existing hole cut nothing");
+    assert.match(String(same.unchanged), /already cut/);
+    const moved = await (await POST(post({ op: "cut_span", edits: [{ label: "a", holes: [[12, 13], [15, 16]] }] }), pctx)).json() as
+      { changed: boolean };
+    assert.equal(moved.changed, true);
+  });
+
+  test("undo to the state you are already in", async () => {
+    write([{ ...A }, { ...B }]);
+    const { PATCH } = await import("../app/api/projects/[project]/pipeline/route.ts");
+    const same = await (await PATCH(patch({ beats: [{ ...A }, { ...B }] }), pctx)).json() as
+      { changed: boolean; unchanged?: string };
+    assert.equal(same.changed, false);
+    assert.match(String(same.unchanged), /nothing to undo/);
+    const moved = await (await PATCH(patch({ beats: [{ ...A, end: 21 }, { ...B }] }), pctx)).json() as { changed: boolean };
+    assert.equal(moved.changed, true);
+  });
+});
+
+describe("a no-op must not teach the tuner", () => {
+  test("a trim that moved nothing records no learning signal", async () => {
+    write([{ label: "hook", start: 10, end: 20 }]);
+    fs.rmSync(path.join(dir, "review-state.json"), { force: true });
+    const { PATCH } = await import("../app/api/projects/[project]/beats/[label]/route.ts");
+    await PATCH(patch({ start: 10, end: 20 }), ctx("hook"));
+    const { loadReviewState } = await import("../lib/reviewState.ts");
+    const st = loadReviewState(P) as unknown as { trimEdits?: unknown[] };
+    assert.equal((st.trimEdits ?? []).length, 0,
+      "a zero-delta trim in the signal drags snap_lead and snap_tail toward zero, invisibly");
+  });
+
+  test("a real trim still records one", async () => {
+    write([{ label: "hook", start: 10, end: 20 }]);
+    fs.rmSync(path.join(dir, "review-state.json"), { force: true });
+    const { PATCH } = await import("../app/api/projects/[project]/beats/[label]/route.ts");
+    await PATCH(patch({ start: 10.5, end: 20 }), ctx("hook"));
+    const { loadReviewState } = await import("../lib/reviewState.ts");
+    const st = loadReviewState(P) as unknown as { trimEdits?: unknown[] };
+    assert.equal((st.trimEdits ?? []).length, 1);
+  });
+});

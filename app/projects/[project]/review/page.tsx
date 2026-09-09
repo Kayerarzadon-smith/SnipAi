@@ -168,10 +168,25 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
      one. Snapshots rather than inverse operations: a delete, a split and a
      trim undo by exactly the same move, and there is nothing to get wrong. */
   const [history, setHistory] = useState<{ beats: Beat[]; what: string }[]>([]);
-  const pushHistory = useCallback((what: string) => {
+  /** Returns whether it actually pushed, so the caller can take it back. It
+   *  declines on an empty beat list, and a drop that assumed otherwise would
+   *  eat somebody else's undo step. */
+  const pushHistory = useCallback((what: string): boolean => {
     const beats = beatsRef.current;
-    if (!beats.length) return;
+    if (!beats.length) return false;
     setHistory((h) => [...h.slice(-24), { beats: beats.map((b) => ({ ...b })), what }]);
+    return true;
+  }, []);
+
+  /** Take back the entry an edit pushed before it turned out to change
+   *  nothing. Left in place it is an undo step that undoes to the state you
+   *  are already in — you press ⌘Z, nothing moves, and the real edit you
+   *  wanted back is one press further away than it looks.
+   *
+   *  Only ever called with the value pushHistory returned, so it cannot drop
+   *  an entry this edit did not add. */
+  const dropLastHistory = useCallback((didPush: boolean) => {
+    if (didPush) setHistory((h) => h.slice(0, -1));
   }, []);
 
   async function undoLast() {
@@ -184,9 +199,13 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       body: JSON.stringify({ beats: last.beats }),
     });
     if (!res.ok) { toast("could not undo that"); return; }
+    const u = await res.json().catch(() => ({} as { changed?: boolean; unchanged?: string }));
     setUndo(null);
     await load();
-    toast(`Undid ${last.what}`);
+    // undoing to the state you are already in wrote nothing; saying "Undid
+    // that trim" would be the history moving while the edit did not
+    toast(u.changed === false ? (u.unchanged ?? "there was nothing to undo")
+                              : `Undid ${last.what}`);
   }
   const [snipPad, setSnipPad] = useState(1);
   const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
@@ -213,7 +232,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       return;
     }
     if (headCut || tailCut) {
-      pushHistory("trimming that edge off");
+      const pushed = pushHistory("trimming that edge off");
       const next = headCut ? { start: to, end: b.end } : { start: b.start, end: from };
       if (next.end - next.start < 0.15) { toast("that leaves nothing behind"); return; }
       const res0 = await fetch(`/api/projects/${project}/beats/${b.label}`, {
@@ -227,6 +246,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       if (!res0.ok) { toast((await res0.json().catch(() => ({}))).error ?? "could not trim it"); return; }
       const o0 = await res0.json().catch(() => ({} as { changed?: boolean; unchanged?: string }));
       if (o0.changed === false) {
+        dropLastHistory(pushed);
         toast(o0.unchanged ?? "that edge is already there");
         return;
       }
@@ -238,7 +258,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     applyEditsSoon();
       return;
     }
-    pushHistory("cutting that bit out");
+    const pushed = pushHistory("cutting that bit out");
     // Record WHAT was cut, not just that something was. The words inside a
     // removed stretch, and how much of it was silence, are what let the
     // drafter make the same cut on its own next time.
@@ -288,6 +308,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
        loud. */
     const outcome = await res.json().catch(() => ({} as { changed?: boolean; unchanged?: string }));
     if (outcome.changed === false) {
+      dropLastHistory(pushed);
       toast(outcome.unchanged ?? "that stretch is already cut out");
       return;
     }
@@ -1218,13 +1239,20 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const { pieces } = layout(data.beats, data.edl);
     const edits = resolveSpanDelete(pieces, data.beats, from, to);
     if (!edits.length) { toast("nothing under that selection"); return; }
-    pushHistory("cutting that stretch out");
+    const pushed = pushHistory("cutting that stretch out");
     const res = await fetch(`/api/projects/${project}/beats`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ op: "cut_span", edits, span: { from, to } }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) { toast(body.error ?? "could not cut that"); return; }
+    // the same no-op the snippet editor has: a span landing entirely inside
+    // footage already removed resolves to the holes that are already there
+    if (body.changed === false) {
+      dropLastHistory(pushed);
+      toast(body.unchanged ?? "that stretch is already cut out");
+      return;
+    }
     setSelectedClip(null);
     await load();
     const dropped = (body.dropped ?? []).length;

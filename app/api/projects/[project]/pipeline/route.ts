@@ -181,6 +181,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { project: s
     });
   }
   existing.beats = clean as unknown as typeof existing.beats;
-  saveBeats(project, existing, "undo");
-  return NextResponse.json({ ok: true });
+  // Undoing to the state you are already in writes nothing. Saying "Undid
+  // that trim" anyway is the same lie in a quieter place -- the history moved
+  // and the edit did not.
+  const changed = saveBeats(project, existing, "undo");
+  return NextResponse.json({
+    ok: true, changed,
+    ...(changed ? {} : { unchanged: "there was nothing to undo" }),
+  });
 }

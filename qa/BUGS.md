@@ -419,3 +419,71 @@ one frame per piece and fails beyond it.
 | — | proxy is 0.10s shorter than its source (40.07 vs 40.17) | P3 | Last partial frame. Seeks near the very end clamp. Not chased. |
 | — | the auto pipeline's review render is 720p and nothing on screen says so | P3 | Deliberate (minutes, not tens of minutes). But pressing Build gives full 4K and the two are not distinguished in the UI — worth a label. |
 | S10..S15 | six items on `audits/LEDGER.md` | P2-P3 | Pre-existing board, untouched by this pass except S1 and S7. |
+
+---
+
+# Feature gauntlet — the `changed` / `unchanged` signal
+
+Run against the feature added in `9b63ac8`. Three defects in the feature
+itself, all fixed.
+
+## BUG-F1 — a no-op trim taught the tuner · P2 · fixed
+
+The trim path recorded `{startDelta: 0, endDelta: 0}` into `trimEdits`
+whether or not an edge moved. That is the signal `learn_from_edits.py` reads,
+so every trim-to-where-it-already-is dragged `snap_lead` and `snap_tail`
+toward zero — invisibly, because the file does not change, so there is no
+edit to look at and wonder about. **This learner has already run away once in
+the other direction** (`snap_tail` reached 1.359 and left ten seconds of dead
+air), which is what makes feeding it noise worth refusing.
+
+Fixed: the learning entry is written only when something actually moved.
+
+## BUG-F2 — the signal covered two write paths out of eight · P2 · fixed
+
+The feature was applied where the bug was reported and nowhere else. The other
+paths answered a no-op exactly as before:
+
+| path | was | now |
+|---|---|---|
+| detached audio | no `changed` at all | reports, *"the audio is already there"* |
+| relink audio to picture | no `changed` at all | reports |
+| fades | no `changed` at all | reports, *"that fade is already set"* |
+| reorder a line | no `changed` at all | reports, *"that line is already there"* |
+| **cut a span out of the timeline** | no `changed` at all | reports, *"that stretch is already cut out"* |
+| **undo** | no `changed` at all | reports, *"there was nothing to undo"* |
+
+The span delete is the one that matters: it is the **same user action** as the
+snippet delete, on the timeline instead, and it had the identical fault. Undo
+is the quiet one — the history moved and the edit did not, and it said
+*"Undid that trim"* either way.
+
+## BUG-F3 — a no-op left a dead step on the undo stack · P3 · fixed
+
+`pushHistory` runs before the write, so a no-op left an entry that undoes to
+the state you are already in: press ⌘Z, nothing moves, and the edit you
+actually wanted back is one press further away than it looks.
+
+The entry is taken back when the write turns out to change nothing. And
+because `pushHistory` declines on an empty beat list, it now returns whether
+it pushed — a drop that assumed otherwise would eat somebody else's step. That
+was a fault in my own fix, caught before it shipped.
+
+## Verified in the running app
+
+| sequence | result |
+|---|---|
+| drag inside an existing hole → Delete | holes unchanged, **highlight kept**, *"already cut out"* |
+| then ⌘Z | **"Nothing to undo"** — no dead step was left |
+| drag over real footage → Delete | hole added, highlight cleared, *"Cut out 0.59s"* |
+| then ⌘Z | *"Undid cutting that bit out"*, holes **exactly restored** |
+| **4 Deletes in one tick on one selection** | **one** hole, **one** snapshot, then *"already cut out"* |
+
+Before the feature, that last row was four *"Cut out 0.55s"* toasts for one cut.
+
+## Not tested
+
+- **Visual QA of the toast** — the browser pane renders hidden in this
+  session, so the message was read out of the DOM, not looked at.
+- **The WKWebView itself** — every UI check ran in the in-app Chromium pane
+  against the same server, not through the native wrapper.

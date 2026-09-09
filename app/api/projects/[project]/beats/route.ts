@@ -119,8 +119,12 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
       );
     }
     existing.beats = order.map((l) => byLabel.get(l)!);
-    saveBeats(project, existing, "moved a line");
-    return NextResponse.json({ ok: true, beats: existing.beats });
+    const changed = saveBeats(project, existing, "moved a line");
+    if (!changed) {
+      return NextResponse.json({ ok: true, beats: existing.beats, changed: false,
+                                 unchanged: "that line is already there" });
+    }
+    return NextResponse.json({ ok: true, beats: existing.beats, changed: true });
   }
 
   /* One drag across the timeline, applied as one edit.
@@ -167,7 +171,20 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     }
     const kept = beats.filter((b) => !dropping.has(b.label));
     existing.beats = kept;
-    saveBeats(project, existing, "cut a span out of the timeline");
+    /* The same "it said it cut and cut nothing" as the snippet editor, on the
+       other surface: drag a span across the timeline that lands entirely
+       inside footage already removed and every edit resolves to the holes
+       that are already there. Nothing is written, and the drag reports a cut.
+       The learning log is only written when something moved, for the same
+       reason -- a recorded span cut that removed nothing is a lesson in
+       cutting nothing. */
+    const changed = saveBeats(project, existing, "cut a span out of the timeline");
+    if (!changed) {
+      return NextResponse.json({
+        ok: true, beats: existing.beats, dropped: [], changed: false,
+        unchanged: "that stretch is already cut out",
+      });
+    }
 
     // What was taken out, so the drafter can make the same cut unprompted.
     updateReviewState(project, (st) => {
@@ -183,7 +200,7 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
       ].slice(-200);
       return st;
     });
-    return NextResponse.json({ ok: true, beats: existing.beats, dropped: [...dropping] });
+    return NextResponse.json({ ok: true, beats: existing.beats, dropped: [...dropping], changed: true });
   }
 
   return NextResponse.json({ error: `unknown op '${String(op)}'` }, { status: 400 });

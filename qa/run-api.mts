@@ -16,11 +16,14 @@ const api = await import("./gauntlet/api.mts");
 const bodies = await import("./gauntlet/bodies.mts");
 const races = await import("./gauntlet/races.mts");
 const statefile = await import("./gauntlet/statefile.mts");
+const noop = await import("./gauntlet/noop.mts");
 const rep = new Report();
 await api.run(rep, Number(process.env.QA_BUDGET ?? 60), root);
 await bodies.run(rep);
 await races.run(rep, Number(process.env.QA_BUDGET ?? 60), root);
 await statefile.run(rep, root);
+await noop.run(rep, Number(process.env.QA_BUDGET ?? 60), root);
+await noop.runPaths(rep, root);
 
 const c = rep.counts;
 console.log(`\nAPI scenarios ${rep.results.length}   pass ${c.pass}   fail ${c.fail}   blocked ${c.blocked}`);

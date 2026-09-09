@@ -338,6 +338,55 @@ code that looks right, wired to nothing, and nobody keeping score.
 
 ---
 
+## BUG-011 — delete says it cut, and cuts nothing · P1 · fixed
+
+**Category** 013 synchronised cut & delete, 018 UI state
+**Reported by Kayer twice.** I told him it was fixed once, and it was not.
+
+The first report was a real bug and a different one: `moved` lived on a state
+object that mouseup read out of a stale closure, so the highlight was thrown
+away as a click. That fix was right. It was not this.
+
+**Reproduction** Open a line that already has a stretch cut out of it.
+Highlight a region that falls inside that stretch. Press Delete.
+
+**Expected** something, anything, that tells you what happened.
+**Actual** the highlight vanishes, the line stays exactly as long as it was,
+and the toast says *"Cut out 1.22s — the gap closed"*.
+
+**Root cause** Every layer behaved correctly and the result was a lie.
+`normaliseHoles` merges the new range into the hole already there, so the list
+comes out identical; `saveBeats` skips the write because nothing changed —
+which is right, it keeps the undo history clean; the route answers 200; and
+the client clears the selection and reports a cut.
+
+Skipping a no-op write is correct. **Reporting it as a cut is not.**
+
+**Fix** `saveBeats` and `updateBeatRange` return whether they wrote. The route
+answers `changed: false` with a reason. The client keeps the highlight where
+it is — so it can be moved rather than re-drawn — and says *"that stretch is
+already cut out"*.
+
+**Verified in the running app, both ways**
+
+| what was highlighted | holes | highlight | message |
+|---|---|---|---|
+| inside an existing hole | unchanged | **kept** | *that stretch is already cut out* |
+| real footage between two holes | **cut** | cleared | *Cut out 0.49s — the gap closed* |
+
+**Also covered** the head/tail trim path, which had the same shape: trimming
+an edge to where it already is looked exactly like a trim that worked.
+
+**Regression** `tests/silent-noop-edit.test.mts`, 7 cases, using the real
+numbers from img-9817 beat 8.
+
+**What I should have done the first time.** I reproduced the original bug with
+a synthetic keydown on a beat with no holes, saw it work, and called it fixed.
+The condition that makes it fail is the state his project was actually in.
+A repro that does not match the reported conditions is not a repro.
+
+---
+
 ## Instrument errors I made, and caught
 
 Recorded because a QA pass that manufactures defects is worse than one that

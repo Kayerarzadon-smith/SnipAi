@@ -58,26 +58,36 @@ export function loadBeats(project: string): BeatsFile | null {
  * first, on every write, with no judgement about which edits are risky. The
  * expensive lesson was that the risky ones are never the ones you expect.
  */
-export function saveBeats(project: string, data: BeatsFile, reason = "edit"): void {
+/**
+ * Write the edit. Returns whether anything actually changed.
+ *
+ * The return value is the important half. Skipping a no-op write is right --
+ * it keeps the undo history free of copies of a state nobody touched -- but
+ * silently succeeding is how "I highlighted a stretch, pressed delete, and
+ * nothing happened" became a thing the app did. The caller has to be able to
+ * tell "saved" from "there was nothing to save", because to the person at the
+ * keyboard those look identical and only one of them is what they asked for.
+ */
+export function saveBeats(project: string, data: BeatsFile, reason = "edit"): boolean {
   const p = beatsPath(project);
-  // An edit that changes nothing is not an edit. Writing anyway would churn
-  // the file and fill the history with copies of a state nobody touched.
-  if (!wouldChange(p, data)) return;
+  if (!wouldChange(p, data)) return false;
   takeSnapshot(project, reason);
   writeJsonAtomic(p, data);
+  return true;
 }
 
 /** Update one beat's start/end in place — the same edit Kayer already makes
  * by hand in beats.json when he resolves an ambiguous take. */
-export function updateBeatRange(project: string, label: string, start: number, end: number): BeatsFile {
+export function updateBeatRange(
+  project: string, label: string, start: number, end: number
+): { data: BeatsFile; changed: boolean } {
   const data = loadBeats(project);
   if (!data) throw new Error(`no beats.json for project ${project}`);
   const beat = data.beats.find((b) => b.label === label);
   if (!beat) throw new Error(`no beat '${label}' in ${project}`);
   beat.start = start;
   beat.end = end;
-  saveBeats(project, data, `trim ${label}`);
-  return data;
+  return { data, changed: saveBeats(project, data, `trim ${label}`) };
 }
 
 /**

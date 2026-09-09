@@ -62,10 +62,23 @@ export async function PATCH(
     const result = normaliseHoles(body.holes, beat);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
     const merged = result.holes;
+    const before = JSON.stringify(beat.holes ?? []);
     if (merged.length) beat.holes = merged;
     else delete beat.holes;
-    saveBeatsFor(project, bf, `cut a hole in ${label}`);
-    return NextResponse.json({ label, holes: beat.holes ?? [], kept: result.kept });
+    const changed = saveBeatsFor(project, bf, `cut a hole in ${label}`);
+    // A highlight that lands inside footage already cut merges into the hole
+    // that is there, so the list comes out identical and there is nothing to
+    // write. That is not a failure and it is not a success -- it is "that is
+    // already gone", and the client has to be able to say so instead of
+    // clearing the highlight and reporting a cut that did not happen.
+    return NextResponse.json({
+      label, holes: beat.holes ?? [], kept: result.kept, changed,
+      ...(changed ? {} : {
+        unchanged: JSON.stringify(beat.holes ?? []) === before
+          ? "that stretch is already cut out"
+          : "that would not change anything",
+      }),
+    });
   }
 
   // fades are their own edit: they change nothing about which frames are kept
@@ -139,7 +152,8 @@ export async function PATCH(
   }
 
   const before = { start: existing.start, end: existing.end };
-  updateBeatRange(project, label, Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000);
+  const { changed } = updateBeatRange(project, label,
+    Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000);
 
   const startDelta = Math.round((start - before.start) * 1000) / 1000;
   const endDelta = Math.round((end - before.end) * 1000) / 1000;
@@ -160,5 +174,9 @@ export async function PATCH(
     after: { start, end },
     // how much the human moved each edge -- the signal the tuner learns from
     delta: { start: startDelta, end: endDelta },
+    // whether anything was actually written: a trim to where the edge already
+    // is looks exactly like a trim that worked, and only one of them is
+    changed,
+    ...(changed ? {} : { unchanged: "that edge is already there" }),
   });
 }

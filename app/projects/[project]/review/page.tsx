@@ -225,6 +225,11 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
         }),
       });
       if (!res0.ok) { toast((await res0.json().catch(() => ({}))).error ?? "could not trim it"); return; }
+      const o0 = await res0.json().catch(() => ({} as { changed?: boolean; unchanged?: string }));
+      if (o0.changed === false) {
+        toast(o0.unchanged ?? "that edge is already there");
+        return;
+      }
       setSelection(null);
       setTrim(next);
       await load();
@@ -272,6 +277,18 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     });
     if (!res.ok) {
       toast((await res.json().catch(() => ({}))).error ?? "could not cut there");
+      return;
+    }
+    /* The write can succeed and change nothing: a highlight that lands inside
+       footage already cut merges into the hole that is there. Clearing the
+       highlight and saying "cut" was the app telling you it had done
+       something it had not -- which is exactly what "I press delete and
+       nothing happens" looks like from the other side of the screen. The
+       highlight stays put so it can be moved, and the reason is said out
+       loud. */
+    const outcome = await res.json().catch(() => ({} as { changed?: boolean; unchanged?: string }));
+    if (outcome.changed === false) {
+      toast(outcome.unchanged ?? "that stretch is already cut out");
       return;
     }
     setSelection(null);

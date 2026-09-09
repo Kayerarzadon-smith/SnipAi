@@ -156,7 +156,10 @@ regressions() {
 }
 
 sweeps() {
-  hdr "orphaned API routes"
+  hdr "edits that never rebuild"
+python3 scripts/guard-rebuild.py || true
+
+hdr "orphaned API routes"
   found=0
   while IFS= read -r r; do
     route=$(dirname "${r#app/api/}")

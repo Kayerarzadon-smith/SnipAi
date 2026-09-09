@@ -206,6 +206,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     // that trim" would be the history moving while the edit did not
     toast(u.changed === false ? (u.unchanged ?? "there was nothing to undo")
                               : `Undid ${last.what}`);
+    // An undo changes the edit like any other change, so the render behind it
+    // is now wrong. Without this the file on disk kept the thing you undid,
+    // and the queue went on advertising it as ready to post.
+    if (u.changed !== false) applyEditsSoon();
   }
   const [snipPad, setSnipPad] = useState(1);
   const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
@@ -581,6 +585,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     await load();
     setHistoryOpen(false);
     toast("Put back — and this is undoable too");
+    applyEditsSoon();          // the render is of whatever was there before
   }
 
   function openTrim(b: Beat) {
@@ -1171,6 +1176,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     }
     await load();
     toast(range ? "Audio detached — drag its edges on the audio track" : "Audio locked back to the picture");
+    applyEditsSoon();
   }
 
   /** Ramp a line in or out. Paints immediately, saves once the drag settles. */
@@ -1222,6 +1228,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
         }),
       });
       await load();
+      applyEditsSoon();
     }, 420);
   }
 
@@ -1238,6 +1245,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     if (selectedClip === b.label) setSelectedClip(null);
     await load();
     setUndo({ beat: b, at: Date.now() });
+    applyEditsSoon();
     toast(`Cut “${b.text ?? b.label}”`, 9000);
     setTimeout(() => setUndo((u) => (u && u.beat.label === b.label ? null : u)), 9000);
   }
@@ -1257,6 +1265,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     if (!res.ok) { toast("could not put it back"); return; }
     await load();
     toast(`Restored “${undo.beat.text ?? undo.beat.label}”`);
+    applyEditsSoon();
   }
 
   /** Take a marked stretch of the timeline out of the cut.
@@ -1423,6 +1432,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       setTakePickerBeat(null);
       await load();
       setLearnAfterBeat(pickedLabel);
+      applyEditsSoon();          // a different take is a different in and out
     }
   }
 

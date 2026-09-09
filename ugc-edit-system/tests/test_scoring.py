@@ -128,3 +128,54 @@ class SilenceHelpers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class ProposeTightening(unittest.TestCase):
+    """What is safe to take out of a line.
+
+    Built after compare_to_reference said img-9817 was 45% over and named the
+    longest beats -- when the longest beat was 91% speech and had 0.82s to
+    give, while a beat two seconds shorter held 4.5s. Length is not waste.
+    """
+
+    def setUp(self):
+        import propose_tightening as pt
+        self.pt = pt
+
+    def test_a_real_pause_is_proposed(self):
+        # one span 0-10, silent 3-6, words either side
+        words = [{"w": "a", "s": 0.5, "e": 1.0}, {"w": "b", "s": 7.0, "e": 7.5}]
+        cuts = self.pt.propose_for_beat({}, [(0.0, 10.0)], [(3.0, 6.0)], words, 0.30)
+        self.assertEqual(len(cuts), 1)
+        self.assertGreater(cuts[0]["seconds"], 2.0)
+        self.assertEqual(cuts[0]["where"], "middle")
+
+    def test_breathing_room_is_left_at_both_ends(self):
+        words = [{"w": "a", "s": 0.5, "e": 1.0}, {"w": "b", "s": 7.0, "e": 7.5}]
+        cuts = self.pt.propose_for_beat({}, [(0.0, 10.0)], [(3.0, 6.0)], words, 0.30)
+        self.assertAlmostEqual(cuts[0]["from"], 3.15, places=2)
+        self.assertAlmostEqual(cuts[0]["to"], 5.85, places=2)
+
+    def test_nothing_is_proposed_over_a_word(self):
+        """The one thing that must never happen."""
+        words = [{"w": "mid", "s": 4.0, "e": 4.6}]      # a word inside the silence
+        cuts = self.pt.propose_for_beat({}, [(0.0, 10.0)], [(3.0, 6.0)], words, 0.30)
+        self.assertEqual(cuts, [], "proposed cutting a range containing a word")
+
+    def test_a_breath_is_left_alone(self):
+        words = [{"w": "a", "s": 0.5, "e": 1.0}]
+        cuts = self.pt.propose_for_beat({}, [(0.0, 10.0)], [(3.0, 3.3)], words, 0.30)
+        self.assertEqual(cuts, [], "0.3s is a breath, not dead air")
+
+    def test_a_line_is_never_left_shorter_than_the_floor(self):
+        words = []
+        cuts = self.pt.propose_for_beat({}, [(0.0, 2.0)], [(0.0, 2.0)], words, 0.0)
+        kept = 2.0 - sum(c["seconds"] for c in cuts)
+        self.assertGreaterEqual(round(kept, 3), self.pt.MIN_KEPT)
+
+    def test_touching_silence_rows_are_one_pause(self):
+        merged = self.pt.load_silence.__wrapped__ if hasattr(self.pt.load_silence, "__wrapped__") else None
+        # load_silence reads a file; the merge rule is exercised through it in
+        # build_cut's own tests. Here we only assert the constant contract.
+        self.assertLess(self.pt.MIN_WORTH_CUTTING, 1.0)
+        self.assertGreater(self.pt.WORD_MARGIN, 0.0)

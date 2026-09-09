@@ -99,6 +99,15 @@ export default function DashboardPage() {
                       {p.beatCount} beats
                       {p.cutFile ? ` · ${p.cutFile}` : " · no cut built yet"}
                     </div>
+                    {/* The beat count above is the CURRENT edit. When the file
+                        beside it was rendered from an older one, saying so is
+                        the whole difference between posting your edit and
+                        posting the line you deleted. */}
+                    {p.cutStale && (
+                      <div className="sub stale-cut">
+                        that file was rendered before your latest edit
+                      </div>
+                    )}
                     {p.removedSeconds !== null && (
                       <div className="cut-stat mono">
                         {dur(p.sourceSeconds)} → {dur(p.cutSeconds)}

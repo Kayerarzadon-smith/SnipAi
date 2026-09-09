@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isCutStale } from "@/lib/cutFreshness";
 import { readEdl } from "@/lib/edl";
 import { loadBeats, findCutFile, findGraphicsFile } from "@/lib/beats";
 import { loadReviewState } from "@/lib/reviewState";
@@ -53,17 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: { project: st
   }
   const cutFile = findCutFile(project);
   const graphicsFile = findGraphicsFile(project);
-  // A rendered file is a snapshot. Any trim saved after it was built is not in
-  // it, and saying so beats letting the old file pass as the current edit.
-  let cutStale = false;
-  if (cutFile) {
-    try {
-      const builtAt = fs.statSync(path.join(projectDir(project), "cuts", cutFile)).mtimeMs;
-      cutStale = (state.trimEdits ?? []).some((t) => Date.parse(t.at) > builtAt);
-    } catch {
-      // no stat, no claim
-    }
-  }
+  const cutStale = isCutStale(project, cutFile);
   // Live edit plays the raw file directly, so whether that file is really on
   // this machine decides what the player can honestly offer. These projects
   // came from iCloud and the footage is often still a placeholder.

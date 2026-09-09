@@ -1344,3 +1344,7 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
   font-size: 12px; color: var(--text-faint);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* The rendered file no longer matches the edit beside it. Not an error -- the
+   rebuild is usually already running -- but it must not read as finished. */
+.stale-cut { color: var(--warn, #d08a2c); }

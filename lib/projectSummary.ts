@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { isCutStale } from "./cutFreshness";
 import { layout } from "./timelineLayout";
 import { readEdl } from "./edl";
 import path from "node:path";
@@ -34,6 +35,9 @@ export type ProjectSummary = {
    * spans, which ignores the silence the render drops. */
   sourceSeconds: number | null;
   cutSeconds: number | null;
+  /** The edit has changed since the file was rendered, so the file is a video
+   *  of a previous decision. The Queue must not call that ready to post. */
+  cutStale: boolean;
   removedSeconds: number | null;
   /** name + byte size of the footage already in this project, so an upload
    * can warn before importing the same file twice under a different name. */
@@ -64,8 +68,13 @@ function computeStages(opts: {
   ];
 }
 
-function nextStepFor(stages: PipelineStage[]): string {
+function nextStepFor(stages: PipelineStage[], cutStale: boolean): string {
   const pending = stages.find((s) => !s.done);
+  /* A file that no longer matches the edit is not ready to post, whatever the
+     approval says. The Queue used to pair the new beat count with the old file
+     and call it finished, which is how someone posts a video still containing
+     the line they deleted. */
+  if (cutStale) return "Rebuilding to match your edit";
   if (!pending) return "Ready to post";
   switch (pending.key) {
     case "footage": return "Drop in raw footage";
@@ -142,6 +151,8 @@ export function summarizeProject(name: string): ProjectSummary | null {
   const removedSeconds =
     sourceSeconds !== null && cutSeconds !== null ? Math.max(0, sourceSeconds - cutSeconds) : null;
 
+  const cutStale = isCutStale(name, cutFile);
+
   const stages = computeStages({
     hasRawFootage,
     hasTranscript: transcriptWords !== null,
@@ -163,9 +174,10 @@ export function summarizeProject(name: string): ProjectSummary | null {
     flaggedBeatLabels: Array.from(new Set(flaggedBeatLabels)),
     progressPct,
     stages,
-    nextStep: nextStepFor(stages),
+    nextStep: nextStepFor(stages, cutStale),
     sourceSeconds: sourceSeconds === null ? null : Math.round(sourceSeconds * 10) / 10,
     cutSeconds: cutSeconds === null ? null : Math.round(cutSeconds * 10) / 10,
+    cutStale,
     removedSeconds: removedSeconds === null ? null : Math.round(removedSeconds * 10) / 10,
     rawFiles,
   };
@@ -179,7 +191,7 @@ function brokenProject(name: string, why: string): ProjectSummary {
     cutFile: null, hasRawFootage: fs.existsSync(path.join(projectDir(name), "raw")),
     hasTranscript: false, scorecardOverall: null, flaggedBeatLabels: [],
     progressPct: 0, stages: [], nextStep: why,
-    sourceSeconds: null, cutSeconds: null, removedSeconds: null, rawFiles: [],
+    sourceSeconds: null, cutSeconds: null, cutStale: false, removedSeconds: null, rawFiles: [],
     problem: why,
   };
 }

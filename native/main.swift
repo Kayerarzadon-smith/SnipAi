@@ -269,6 +269,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         let editMenuItem = NSMenuItem()
         mainMenu.addItem(editMenuItem)
         let editMenu = NSMenu(title: "Edit")
+        // Deliberately NO Undo/Redo item here.
+        //
+        // A menu key equivalent is matched before the web view ever sees the
+        // key, so a ⌘Z item wired to the responder chain would swallow the
+        // one the editor already handles -- the undo stack in the review
+        // screen, which restores the beat list. It works today precisely
+        // because nothing up here claims the shortcut. Adding one to "support
+        // ⌘Z" would remove it.
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")

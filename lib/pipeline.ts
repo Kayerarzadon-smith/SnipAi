@@ -122,18 +122,42 @@ export function runCommand(
      * forever without finishing. */
     const idleMs = opts.idleMs ?? 5 * 60 * 1000;
     const hardMs = opts.timeoutMs ?? 6 * 60 * 60 * 1000;
+    /* Say something before killing anything.
+     *
+     * Until now the job was silent for five minutes and then died. From the
+     * queue those five minutes look exactly like work -- "the user cannot
+     * distinguish working from hung, which is the actual defect". So a quarter
+     * of the way into the window the log says so, and keeps saying so, which
+     * turns silence into information instead of an absence of it. */
+    // A quarter of the window, capped at 20s so a long job says something
+    // reasonably soon, and floored well under idleMs so the warning ALWAYS
+    // lands before the kill -- a watchdog that dies without having spoken is
+    // the thing being fixed.
+    const warnMs = Math.max(500, Math.min(20_000, Math.round(idleMs / 4)));
     let killedBy: "silence" | "cap" | null = null;
     let idleTimer: NodeJS.Timeout;
+    let warnTimer: NodeJS.Timeout;
+    let quietSince = Date.now();
 
-    const stopTimers = () => { clearTimeout(idleTimer); clearTimeout(hardTimer); };
+    const stopTimers = () => { clearTimeout(idleTimer); clearTimeout(hardTimer); clearTimeout(warnTimer); };
     /** the group, not just the leader -- see `detached` above */
     const killTree = () => {
       try { if (child.pid) process.kill(-child.pid, "SIGKILL"); }
       catch { child.kill("SIGKILL"); }        // already gone, or no group
     };
+    const warn = () => {
+      const quiet = Math.round((Date.now() - quietSince) / 1000);
+      const left = Math.max(0, Math.round((idleMs - (Date.now() - quietSince)) / 1000));
+      opts.onLine?.(
+        `still working — nothing reported for ${quiet}s. ` +
+        `If it stays quiet for another ${left}s it will be stopped.`);
+      warnTimer = setTimeout(warn, warnMs);
+    };
     const beat = () => {
-      clearTimeout(idleTimer);
+      clearTimeout(idleTimer); clearTimeout(warnTimer);
+      quietSince = Date.now();
       idleTimer = setTimeout(() => { killedBy = "silence"; killTree(); }, idleMs);
+      warnTimer = setTimeout(warn, warnMs);
     };
     const hardTimer = setTimeout(() => { killedBy = "cap"; killTree(); }, hardMs);
 

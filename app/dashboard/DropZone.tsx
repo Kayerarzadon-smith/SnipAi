@@ -111,7 +111,16 @@ export function DropZone({
         status: "rejected" as const,
         message: "not a video file",
       }));
-      const vids = all.filter(isVideo);
+      // The picker can hand back the same file twice, and a second drop should
+      // add to the queue rather than replace it. Both are deduped on name and
+      // size, which is what "the same footage" means here.
+      const seen = new Set<string>();
+      const vids = all.filter(isVideo).filter((f) => {
+        const key = `${f.name.toLowerCase()}:${f.size}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       setQueued([
         ...rejected,
         ...vids.map((file) => {
@@ -168,7 +177,18 @@ export function DropZone({
     };
   }, [accept]);
 
+  /* A ref, not the `busy` state, because state is asynchronous.
+     
+     The button is disabled on `busy`, but React has not re-rendered yet when
+     the second half of a double-click arrives — so both clicks ran importAll,
+     both POSTed the same file, and the loser came back 409 "project already
+     exists". An error row, for pressing the button the way people press
+     buttons. */
+  const importing = useRef(false);
+
   async function importAll() {
+    if (importing.current) return;
+    importing.current = true;
     setBusy(true);
     for (let i = 0; i < queued.length; i++) {
       const item = queued[i];
@@ -199,6 +219,7 @@ export function DropZone({
       );
     }
     setBusy(false);
+    importing.current = false;
     router.refresh();
   }
 

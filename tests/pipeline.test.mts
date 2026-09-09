@@ -84,3 +84,33 @@ describe("finding the cut to re-check", () => {
     assert.equal(latestCut(P), `${P}-v10.mp4`);
   });
 });
+
+/* A job that has gone quiet says so before it is killed.
+ *
+ * Kayer watched a 1.76GB import sit on one unchanging word for five minutes
+ * and could not tell working from hung -- which is the defect, separately
+ * from how long the work legitimately takes. Silence is now narrated. */
+describe("a quiet job is narrated, not just killed", () => {
+  test("it warns while still alive, then kills", async () => {
+    const lines: string[] = [];
+    const r = await runCommand("bash", ["-c", 'echo starting; sleep 30'],
+                               { idleMs: 1200, onLine: (l) => lines.push(l) });
+    assert.equal(r.ok, false);
+    assert.equal(r.timedOut, true);
+    const warned = lines.filter((l) => /still working/.test(l));
+    assert.ok(warned.length >= 1,
+      `expected at least one "still working" warning before the kill, got:\n${lines.join("\n")}`);
+    assert.match(warned[0], /nothing reported for \d+s/);
+    assert.match(warned[0], /will be stopped/, "the warning has to say what happens next");
+  });
+
+  test("a job that keeps talking is never warned about", async () => {
+    const lines: string[] = [];
+    const r = await runCommand("bash",
+      ["-c", 'for i in $(seq 1 12); do echo "working $i"; sleep 0.2; done'],
+      { idleMs: 4000, onLine: (l) => lines.push(l) });
+    assert.equal(r.ok, true);
+    assert.equal(lines.filter((l) => /still working/.test(l)).length, 0,
+      "a job reporting normally must not be accused of stalling");
+  });
+});

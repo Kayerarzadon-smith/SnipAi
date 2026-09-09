@@ -1615,15 +1615,33 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                 const v = e.target as HTMLVideoElement;
                 setRawHead(v.currentTime);
 
+                /* Skipping a cut stretch belongs to PLAYBACK, not to the
+                   playhead in general.
+                   
+                   This ran on every timeupdate, and a scrub fires timeupdate
+                   too — so putting the playhead inside a stretch you had
+                   already cut teleported it to the far edge, under your
+                   cursor, while you were dragging. That is the "it keeps on
+                   auto-snapping, I didn't do that" in Kayer's recording: not
+                   the selection quantising (nothing here quantises) but the
+                   picture jumping away from where he put it.
+                   
+                   Paused, the playhead is his. He is looking at the waveform
+                   deciding where to cut, and the footage either side of a hole
+                   is exactly what he needs to see. */
+                const skipHoles = !v.paused;
+
                 // previewing a single trimmed range
                 if (stopAt.current !== null) {
-                  const openBeat = beatsRef.current.find((x) => x.label === trimBeat);
-                  for (const [hf, ht] of openBeat?.holes ?? []) {
-                    if (v.currentTime >= hf && v.currentTime < ht - 0.02) { v.currentTime = ht; return; }
+                  if (skipHoles) {
+                    const openBeat = beatsRef.current.find((x) => x.label === trimBeat);
+                    for (const [hf, ht] of openBeat?.holes ?? []) {
+                      if (v.currentTime >= hf && v.currentTime < ht - 0.02) { v.currentTime = ht; return; }
+                    }
                   }
                   if (v.currentTime >= stopAt.current) {
-                  v.pause(); stopAt.current = null;
-                }
+                    v.pause(); stopAt.current = null;
+                  }
                   return;
                 }
                 if (!liveMode) return;
@@ -1636,10 +1654,13 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                 if (!cur) return;
                 // A stretch cut out of the middle of this line has to be
                 // jumped, or live playback still shows the thing you deleted.
-                for (const [hf, ht] of cur.holes ?? []) {
-                  if (v.currentTime >= hf && v.currentTime < ht - 0.02) {
-                    v.currentTime = ht;
-                    return;
+                // Only while it is playing -- see above.
+                if (skipHoles) {
+                  for (const [hf, ht] of cur.holes ?? []) {
+                    if (v.currentTime >= hf && v.currentTime < ht - 0.02) {
+                      v.currentTime = ht;
+                      return;
+                    }
                   }
                 }
                 const { end } = rangeFor(cur);

@@ -487,3 +487,96 @@ Before the feature, that last row was four *"Cut out 0.55s"* toasts for one cut.
   session, so the message was read out of the DOM, not looked at.
 - **The WKWebView itself** — every UI check ran in the in-app Chromium pane
   against the same server, not through the native wrapper.
+
+---
+
+# Report of 2026-09-09 — five numbered bugs
+
+Worked through as filed. Two were real and are fixed; one was real but not for
+the reason given; one was already delivered and he could not see it; one is
+half real.
+
+## BUG-1 — Delete is a no-op on an active selection · fixed, cause was not the one suspected
+
+The suspected causes were checked and are not it:
+
+- *"listener bound to document/the beat-list container"* — it is bound to
+  `window` (`review/page.tsx:990`), so no element needs focus.
+- *"the canvas isn't focusable (no tabIndex)"* — irrelevant for a window
+  listener; adding focus would risk breaking it.
+- *"the destructive action is only wired to the Cut this bit out button"* —
+  `Delete`/`Backspace` call `deleteSelection(b)`, the same function the button
+  calls.
+- *"add ⌘Z while you're in there"* — ⌘Z already works and restores the beat
+  list. **Do not add an Undo item to the native Edit menu**: a menu key
+  equivalent is matched before the web view sees the key, so a ⌘Z item would
+  swallow the one that works. Now commented in `native/main.swift`.
+
+The real cause was BUG-011: the highlight landed inside footage already cut, so
+the write was a genuine no-op the client reported as a cut. Fixed in `9b63ac8`
+and extended to every write path in `c35aa6c`. It now keeps the highlight and
+says *"that stretch is already cut out"*.
+
+## BUG-2 — "snapping is forced" · not reproduced, and the opposite is true
+
+There is **no quantisation anywhere in the selection path**. `timeAt` is a
+linear pixel→time map (`TrimWave.tsx:118`); `dragEdge` rounds to the
+millisecond and enforces a 0.15s floor and nothing else; `Timeline.tsx`
+contains no snapping either. Selection is already free-form to the
+millisecond, so a "soft magnet with an Alt bypass" would be **adding**
+snapping where none exists.
+
+What he was seeing is BUG-3.
+
+## BUG-3 — "selection mutates without user input" · P2 · fixed, and it is the real BUG-2
+
+Not the selection — the **playhead**. `onTimeUpdate` teleports the playhead to
+the far edge of any hole it lands in, so live playback never shows deleted
+footage. Correct during playback; it also ran while **paused**, and a scrub
+fires `timeupdate` too. So putting the playhead inside a stretch already cut
+threw it to the hole's edge, under the cursor, mid-drag.
+
+That is *"it keeps on auto-snapping. Or not right there. I didn't do that."*
+
+Fixed: holes are skipped only while the video is actually playing. Paused, the
+playhead stays where it was put — the footage either side of a cut is exactly
+what you need to see when deciding where to cut.
+
+## BUG-4 — import has no progress telemetry · already delivered, plus a stall watchdog
+
+Most of what is asked for existed and he could not see it, for two reasons
+both fixed earlier today: `/api/jobs/running` was prerendered at build time and
+served a permanent `{"job":null}`, so the bar never moved for **any** job; and
+the upload phase used `fetch`, which cannot report upload progress at all.
+
+Already present: `{stage, pct}` per phase, per-stage verbs in the app's voice
+(*Transcribing*, *Choosing the takes*, *Shrinking for smooth playback*,
+*Snipping*), a determinate bar, and an **ETA** (`etaSeconds`, "done ~9:41").
+
+Genuinely missing, now added: **the stall watchdog says something before it
+kills**. A job that goes quiet was silent for five minutes and then died. It
+now reports *"still working — nothing reported for 45s. If it stays quiet for
+another 255s it will be stopped."* at a quarter of the window, repeating. The
+warning is floored well below the kill so it can never die without having
+spoken.
+
+## BUG-5 — possible duplicate import · half real, fixed
+
+Dedupe against existing projects already existed (by name, or by exact byte
+size under a different name). Two real gaps:
+
+- **Double-clicking Import ran the loop twice.** The button is disabled on
+  `busy`, but that is React state — the second half of a double-click arrives
+  before the re-render. Both loops POSTed the same file and the loser came back
+  409. A synchronous `useRef` guard now holds the door.
+- **The same file twice in one selection** was queued twice. Deduped on
+  name+size as the files are accepted.
+
+## Still not tested
+
+**Delete pressed in the real WKWebView.** I drove the native app and got as far
+as proving the **drag** works there — *"0.44s highlighted"* in the actual
+window, which rules out the focus theory for that half. The keypress was
+refused because a system dialog was open on his side, and the tool is explicit
+that this must not be forced. So the native Delete keypress remains **NOT
+TESTED**; it is verified in the in-app browser against the same server.

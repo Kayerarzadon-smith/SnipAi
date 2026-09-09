@@ -13,14 +13,81 @@ meant -- but seeking lands almost instantly. Made once per source and reused.
 
 Audio is copied at full quality: these edits are decided by ear.
 """
-import argparse, json, os, subprocess, sys
+import argparse, json, os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def ffmpeg_bin():
+    # SNIPAI_FFMPEG first: inside the .app there is no venv, and this Mac has
+    # no system ffmpeg at all, so a bare "ffmpeg" is not a fallback -- it is a
+    # FileNotFoundError with the shape of one.
+    env = (os.environ.get("SNIPAI_FFMPEG") or "").strip()
+    if env and os.path.exists(env):
+        return env
     venv = os.path.join(ROOT, ".venv", "bin", "ffmpeg")
-    return venv if os.path.exists(venv) else "ffmpeg"
+    if os.path.exists(venv):
+        return venv
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def source_seconds(src):
+    """How long the footage is, read off ffmpeg's own banner.
+
+    There is no ffprobe on this machine (see CLAUDE.md). `ffmpeg -i` with no
+    output prints the Duration line and exits non-zero, which costs a few
+    milliseconds and is the cheapest honest answer available.
+    """
+    p = subprocess.run([ffmpeg_bin(), "-i", src], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    m = re.search(r"Duration:\s*(\d+):(\d\d):(\d\d)\.(\d+)", p.stderr or "")
+    if not m:
+        return None
+    h, mi, sec, frac = m.groups()
+    return int(h) * 3600 + int(mi) * 60 + int(sec) + float("0." + frac)
+
+
+def transcode(cmd, total):
+    """Run ffmpeg and report how far in it has got.
+
+    -nostats plus -loglevel error means ffmpeg says NOTHING for the whole
+    transcode. On a 1.8GB 4K source that is ten minutes of silence, and the
+    runner -- which judges a job by whether it is still talking, not by how
+    long it has taken -- killed it at five with "stopped responding". The job
+    was working the whole time.
+
+    -progress pipe:1 turns that silence into a key=value block every second:
+    a heartbeat the runner can see, and the percentage the queue can show.
+    """
+    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    last = -1
+    for line in proc.stdout:
+        line = line.strip()
+        if not line.startswith("out_time_ms="):
+            continue
+        try:
+            done = int(line.split("=", 1)[1]) / 1_000_000.0
+        except ValueError:
+            continue
+        if total:
+            pct = max(0, min(99, int(done / total * 100)))
+            if pct != last:
+                last = pct
+                print(f"PROGRESS {pct}", flush=True)
+                print(f"shrinking for smooth playback — {pct}%", flush=True)
+        elif int(done) != last:
+            last = int(done)
+            print(f"shrinking for smooth playback — {int(done)}s in", flush=True)
+    err = proc.stderr.read()
+    if proc.wait() != 0:
+        sys.stderr.write((err or "")[-1500:] + "\n")
+        return False
+    return True
 
 
 def source_of(project):
@@ -60,10 +127,13 @@ def main():
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",
         out, "-loglevel", "error", "-nostats",
+        # a heartbeat, and a real percentage: see transcode()
+        "-progress", "pipe:1",
     ]
+    total = source_seconds(src)
     print(f"transcoding {os.path.basename(src)} -> {os.path.basename(out)} "
-          f"({a.height}p, keyframe every 0.5s)...")
-    if subprocess.run(cmd, stdin=subprocess.DEVNULL).returncode != 0:
+          f"({a.height}p, keyframe every 0.5s)...", flush=True)
+    if not transcode(cmd, total):
         raise SystemExit("ffmpeg failed")
     mb = os.path.getsize(out) / 1e6
     print(f"Wrote {out}  ({mb:.0f} MB)")

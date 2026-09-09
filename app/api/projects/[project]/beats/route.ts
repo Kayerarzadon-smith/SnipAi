@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadBeats, saveBeats } from "@/lib/beats";
 import { updateReviewState } from "@/lib/reviewState";
 import { normaliseHoles } from "@/lib/holes";
+import { splitBeat } from "@/lib/splitBeat";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -10,7 +12,16 @@ import { normaliseHoles } from "@/lib/holes";
    dev. */
 export const dynamic = "force-dynamic";
 
-type Beat = { label: string; start: number; end: number; text?: string };
+/* The four fields this route validates, plus the ones it must not lose or
+   duplicate. The local type used to declare only the first four, which is
+   exactly why `{ ...b }` on a split looked safe: the extra fields were
+   invisible to the type checker and got copied onto both halves. */
+type Beat = {
+  label: string; start: number; end: number; text?: string;
+  holes?: [number, number][];
+  audioStart?: number; audioEnd?: number;
+  fadeIn?: number; fadeOut?: number;
+};
 
 const MIN_DUR = 0.15;
 
@@ -36,11 +47,9 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
 
   let body: { op?: unknown; label?: unknown; at?: unknown; order?: unknown;
               edits?: unknown; span?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
 
   let existing;
   try {
@@ -91,12 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
       );
     }
     const taken = new Set(beats.map((x) => x.label));
-    const left: Beat = { ...b, end: round(at) };
-    const right: Beat = {
-      ...b,
-      label: uniqueLabel(`${b.label}-b`, taken),
-      start: round(at),
-    };
+    const { left, right } = splitBeat(b, round(at), uniqueLabel(`${b.label}-b`, taken));
     existing.beats = [...beats.slice(0, i), left, right, ...beats.slice(i + 1)];
     saveBeats(project, existing);
     return NextResponse.json({ ok: true, beats: existing.beats });

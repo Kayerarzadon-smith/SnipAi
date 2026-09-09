@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { listProjectNames, projectDir } from "./paths";
-import { loadBeats, findCutFile } from "./beats";
+import { loadBeats, readBeats, findCutFile } from "./beats";
 import { loadReviewState } from "./reviewState";
 import { computeWordCutoffMetric, buildScorecard, loadTranscriptWords, computeWordBoundaryFlags } from "./scorecard";
 import type { CutStatus } from "./types";
@@ -35,6 +35,8 @@ export type ProjectSummary = {
   /** name + byte size of the footage already in this project, so an upload
    * can warn before importing the same file twice under a different name. */
   rawFiles: { name: string; size: number }[];
+  /** Set only when the project is on disk but unreadable. */
+  problem?: string;
 };
 
 /**
@@ -82,8 +84,16 @@ function titleFromName(name: string): string {
 }
 
 export function summarizeProject(name: string): ProjectSummary | null {
-  const beats = loadBeats(name);
-  if (!beats) return null;
+  const read = readBeats(name);
+  if (!read.ok) {
+    // A project whose beats.json is missing is not a project. One whose
+    // beats.json is BROKEN is a project with a problem, and silently dropping
+    // it from the queue is how footage appears to vanish -- so it stays on
+    // screen, saying what is wrong with it.
+    if (read.missing) return null;
+    return brokenProject(name, read.why);
+  }
+  const beats = read.data;
   const dir = projectDir(name);
   const state = loadReviewState(name);
   const cutFile = findCutFile(name);
@@ -149,8 +159,26 @@ export function summarizeProject(name: string): ProjectSummary | null {
   };
 }
 
+/** A project that is on disk but cannot be read, rendered as itself so the
+ *  queue can show it instead of pretending it is not there. */
+function brokenProject(name: string, why: string): ProjectSummary {
+  return {
+    name, title: titleFromName(name), beatCount: 0, cutStatus: "unreviewed",
+    cutFile: null, hasRawFootage: fs.existsSync(path.join(projectDir(name), "raw")),
+    hasTranscript: false, scorecardOverall: null, flaggedBeatLabels: [],
+    progressPct: 0, stages: [], nextStep: why,
+    sourceSeconds: null, cutSeconds: null, removedSeconds: null, rawFiles: [],
+    problem: why,
+  };
+}
+
 export function summarizeAllProjects(): ProjectSummary[] {
   return listProjectNames()
-    .map(summarizeProject)
+    .map((name) => {
+      // One project must never be able to empty the queue. Anything that gets
+      // past summarizeProject's own guards still stops here.
+      try { return summarizeProject(name); }
+      catch (e) { return brokenProject(name, `could not read this project: ${(e as Error).message}`); }
+    })
     .filter((p): p is ProjectSummary => p !== null);
 }

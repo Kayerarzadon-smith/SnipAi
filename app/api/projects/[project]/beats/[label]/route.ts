@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadBeats, updateBeatRange, saveBeats as saveBeatsFor } from "@/lib/beats";
 import { updateReviewState } from "@/lib/reviewState";
 import { normaliseHoles } from "@/lib/holes";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -26,11 +27,9 @@ export async function PATCH(
 
   let body: { start?: unknown; end?: unknown; audioStart?: unknown; audioEnd?: unknown;
               track?: unknown; fadeIn?: unknown; fadeOut?: unknown; holes?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
 
   // Number("") is 0 and Number(true) is 1, so coercing first would let a
   // malformed body silently move the beat to a real-looking time.

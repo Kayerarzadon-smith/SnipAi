@@ -22,6 +22,18 @@ node --import ./tests/register.mts --test "tests/"*.test.mts 2>&1 \
   | grep -vE "MODULE_TYPELESS_PACKAGE_JSON|Reparsing as ES module|To eliminate this warning|trace-warnings"
 [ "${PIPESTATUS[0]}" = 0 ] || fail=1
 
+# tests/regressions/ is the bug board, not the suite: a test there is written
+# to FAIL until the bug it names is fixed, so it cannot gate this runner. It
+# is counted, though -- "all green" meant nothing about the board, and the
+# board is where the known defects live.
+printf "\n%s== bug board ==%s\n" "$BOLD" "$OFF"
+board=$(node --import ./tests/register.mts --test "tests/regressions/"*.test.mts 2>&1)
+bpass=$(printf '%s\n' "$board" | sed -n 's/^.* pass \([0-9]*\)$/\1/p' | tail -1)
+bfail=$(printf '%s\n' "$board" | sed -n 's/^.* fail \([0-9]*\)$/\1/p' | tail -1)
+if [ "${bfail:-0}" = 0 ]; then printf "  %s%s fixed, none outstanding%s\n" "$OK" "${bpass:-0}" "$OFF"
+else printf "  %s%s still open%s%s (%s fixed) -- ./scripts/qa --regressions\n" "$ERR" "$bfail" "$OFF" "$DIM" "${bpass:-0}"
+     printf "%s" "$OFF"; fi
+
 printf "\n%s== pipeline ==%s\n" "$BOLD" "$OFF"
 VENV=ugc-edit-system/.venv/bin/python
 if [ ! -x "$VENV" ]; then

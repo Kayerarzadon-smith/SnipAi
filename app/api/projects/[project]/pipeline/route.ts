@@ -5,6 +5,7 @@ import { checkAvailability, runBuildJob, runCheckJob, runTranscribeJob, runSourc
 import { loadBeats, saveBeats } from "@/lib/beats";
 import { projectDir } from "@/lib/paths";
 import { createJob, failJob, runningJob } from "@/lib/jobs";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -24,11 +25,9 @@ type Body = { step: "transcribe" | "draft-beats" | "build" | "check" | "source-p
 export async function POST(req: NextRequest, { params }: { params: { project: string } }) {
   const { project } = params;
   let body: Body;
-  try {
-    body = (await req.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
   const avail = checkAvailability();
 
   if (!avail.python3 || !avail.ffmpeg) {
@@ -137,11 +136,9 @@ export async function GET() {
 export async function PATCH(req: NextRequest, { params }: { params: { project: string } }) {
   const { project } = params;
   let body: { beats?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
   const existing = loadBeats(project);
   if (!existing) return NextResponse.json({ error: `no project '${project}'` }, { status: 404 });
 

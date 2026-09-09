@@ -9,10 +9,45 @@ export function beatsPath(project: string): string {
   return path.join(projectDir(project), "beats.json");
 }
 
-export function loadBeats(project: string): BeatsFile | null {
+/**
+ * Read the edit, or say why it cannot be read.
+ *
+ * `null` used to be the answer to "no such project" only, and anything else
+ * threw: a bare JSON.parse with a cast on the end. beats.json is the edit,
+ * it is a file Kayer opens by hand, and every route plus the dashboard's
+ * summary calls this -- so one stray comma in one project threw out of
+ * summarizeAllProjects, 500'd /api/projects, and emptied the whole queue.
+ * Every project, because of one file.
+ *
+ * The cast was the other half: `{"beats": null}` parsed happily and handed
+ * back a document whose `beats` is not a list, and the TypeError surfaced
+ * somewhere else entirely, at a .map() four calls away.
+ */
+export function readBeats(project: string):
+  { ok: true; data: BeatsFile } | { ok: false; missing: true } | { ok: false; missing: false; why: string } {
   const p = beatsPath(project);
-  if (!fs.existsSync(p)) return null;
-  return JSON.parse(fs.readFileSync(p, "utf8")) as BeatsFile;
+  if (!fs.existsSync(p)) return { ok: false, missing: true };
+  let text: string;
+  try { text = fs.readFileSync(p, "utf8"); }
+  catch (e) { return { ok: false, missing: false, why: `could not read beats.json: ${(e as Error).message}` }; }
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); }
+  catch (e) { return { ok: false, missing: false, why: `beats.json is not valid JSON: ${(e as Error).message}` }; }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, missing: false, why: "beats.json is not an object" };
+  }
+  const doc = parsed as Partial<BeatsFile>;
+  if (!Array.isArray(doc.beats)) {
+    return { ok: false, missing: false, why: "beats.json has no list of beats" };
+  }
+  return { ok: true, data: doc as BeatsFile };
+}
+
+/** The edit, or null if there isn't one that can be read. Callers that want
+ *  to tell "no project" from "broken project" apart use readBeats. */
+export function loadBeats(project: string): BeatsFile | null {
+  const r = readBeats(project);
+  return r.ok ? r.data : null;
 }
 
 /**

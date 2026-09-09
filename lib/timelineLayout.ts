@@ -87,6 +87,17 @@ export function layout(
    */
   const edlStillFits = (c: Clip, mine: EdlPiece[]) => {
     for (const e of mine) {
+      // A piece that cannot describe any real footage -- a negative or
+      // non-finite duration, an inverted range -- is not a picture of this
+      // beat, whatever it claims. Trusting it laid the beat out at a negative
+      // length, and since every position downstream is a running sum, one bad
+      // piece ran the whole timeline backwards: negative totals, a playhead
+      // that maps outside the cut, filmstrip offsets in the wrong direction.
+      // Falling through to the beat's own extent is what already happens for
+      // every other kind of stale EDL.
+      if (!Number.isFinite(e.dur) || e.dur < 0) return false;
+      if (!Number.isFinite(e.src_start) || !Number.isFinite(e.src_end)) return false;
+      if (e.src_end < e.src_start) return false;
       if (e.src_start < c.start - 0.05 || e.src_end > c.end + 0.05) return false;
       for (const [hf, ht] of c.holes ?? []) {
         if (e.src_start < ht - 0.02 && e.src_end > hf + 0.02) return false;

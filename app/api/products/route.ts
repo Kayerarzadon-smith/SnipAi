@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { REFERENCE_ROOT } from "@/lib/paths";
 import { writeJsonAtomic } from "@/lib/jsonStore";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -42,11 +43,9 @@ export async function GET() {
 /** Save the affiliate tag, or one product's links. */
 export async function PATCH(req: NextRequest) {
   let body: { amazonTag?: unknown; productId?: unknown; links?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
 
   const c = read();
 

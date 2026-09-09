@@ -7,6 +7,7 @@ import { loadBeats, findCutFile } from "@/lib/beats";
 import { checkAvailability, runTool } from "@/lib/pipeline";
 import { createJob, failJob, runningJob } from "@/lib/jobs";
 import { runPlanGraphicsJob, runRenderGraphicsJob } from "@/lib/pipeline";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -70,11 +71,9 @@ export async function GET(_req: NextRequest, { params }: { params: { project: st
 export async function PATCH(req: NextRequest, { params }: { params: { project: string } }) {
   const { project } = params;
   let body: { id?: unknown; patch?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
   if (typeof body.id !== "string") {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
@@ -124,11 +123,9 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
   const { project } = params;
   let body: { action?: unknown; allowUnverified?: unknown;
               from?: unknown; to?: unknown; shift?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
   const CHEAP = body.action === "add" || body.action === "delete" || body.action === "scan_line";
   if (!CHEAP) {
     if (!findCutFile(project)) {

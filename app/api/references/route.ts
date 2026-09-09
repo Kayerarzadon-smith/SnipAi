@@ -5,6 +5,7 @@ import path from "node:path";
 import { REFERENCE_ROOT } from "@/lib/paths";
 import { runTool, checkAvailability } from "@/lib/pipeline";
 import { createJob, failJob, runningJob, appendLog, finishJob } from "@/lib/jobs";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -51,7 +52,15 @@ export async function GET() {
 
 /** Add a reference video to learn a style from. */
 export async function PUT(req: NextRequest) {
-  const form = await req.formData();
+  // An upload arrives as multipart. Anything else -- a JSON body, a bare
+  // string, a request with no content-type -- makes formData() throw, and an
+  // uncaught throw here is a 500 with a stack where a sentence belongs.
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "send the video as a multipart form upload" }, { status: 400 });
+  }
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "no video received" }, { status: 400 });
@@ -70,10 +79,9 @@ export async function PUT(req: NextRequest) {
 
 /** Measure them all, then average into the target the drafter aims at. */
 export async function POST(req: NextRequest) {
-  let body: { action?: unknown; file?: unknown };
-  try { body = await req.json(); } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const body = parsed.body as { action?: unknown; file?: unknown };
 
   if (body.action === "remove") {
     if (typeof body.file !== "string" || body.file.includes("/") || body.file.includes("..")) {

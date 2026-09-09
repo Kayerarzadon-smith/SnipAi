@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listTrash, restoreFromTrash, purgeOne, RETAIN_DAYS } from "@/lib/trash";
+import { readJsonObject } from "@/lib/requestBody";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -16,11 +17,9 @@ export async function GET() {
 /** Put one back, or erase it now. */
 export async function POST(req: NextRequest) {
   let body: { action?: unknown; id?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "body must be JSON" }, { status: 400 });
-  }
+  const parsed = await readJsonObject(req);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  body = parsed.body as typeof body;
   if (typeof body.id !== "string") {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }

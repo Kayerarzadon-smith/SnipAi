@@ -34,6 +34,16 @@ if [ "${bfail:-0}" = 0 ]; then printf "  %s%s fixed, none outstanding%s\n" "$OK"
 else printf "  %s%s still open%s%s (%s fixed) -- ./scripts/qa --regressions\n" "$ERR" "$bfail" "$OFF" "$DIM" "${bpass:-0}"
      printf "%s" "$OFF"; fi
 
+# Two things no unit test can see, because neither is a function: a review
+# handler that forgets to schedule the re-render, and the desktop file chooser
+# going missing. Both shipped once, both were invisible until someone tried to
+# work in the app. scripts/qa ran the first of these with `|| true`, which
+# meant it could report the bug and pass anyway.
+printf "\n%s== guards ==%s\n" "$BOLD" "$OFF"
+for g in scripts/guard-rebuild.py scripts/guard-open-panel.py; do
+  python3 "$g" || fail=1
+done
+
 printf "\n%s== pipeline ==%s\n" "$BOLD" "$OFF"
 VENV=ugc-edit-system/.venv/bin/python
 if [ ! -x "$VENV" ]; then

@@ -158,6 +158,7 @@ regressions() {
 sweeps() {
   hdr "edits that never rebuild"
 python3 scripts/guard-rebuild.py || true
+  python3 scripts/guard-open-panel.py || true
 
 hdr "orphaned API routes"
   found=0

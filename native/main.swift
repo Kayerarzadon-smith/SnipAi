@@ -13,6 +13,16 @@ let kPort = 4737
 let kURLString = "http://localhost:\(kPort)/dashboard"
 let kHealthURL = "http://localhost:\(kPort)/api/projects"
 
+/// What the file chooser will let you pick.
+///
+/// WKOpenPanelParameters does not carry the input's `accept` attribute, so the
+/// panel cannot mirror `accept="video/*"` on its own -- the filter has to be
+/// stated here. This is VIDEO_EXT_LIST from app/api/projects/route.ts, which
+/// is what the importer will actually take; scripts/guard-open-panel.py fails
+/// the build if the two drift apart, or if a file input appears that is not
+/// asking for video.
+let kVideoExtensions = ["mov", "mp4", "m4v", "avi", "mkv", "webm"]
+
 /// Everything the app runs lives beside it in Contents/Resources.
 ///
 /// This used to be a hardcoded ~/Projects/SnipAi, which meant the app was not
@@ -408,6 +418,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
                                     decisionHandler: @escaping (Int) -> Void) {
         let ours = origin.host == "localhost" && origin.port == kPort
         decisionHandler(ours && type == 1 ? 1 : 2)
+    }
+
+    /// Put a file chooser in front of <input type="file">.
+    ///
+    /// WKWebView has no picker of its own. Without this method the click is
+    /// accepted, nothing opens, no change event fires, and the page has no way
+    /// to know -- which is exactly what "Import footage opens no file picker,
+    /// no sheet, no error" looks like. The same page in a browser worked
+    /// because the browser brings its own.
+    ///
+    /// Two things this has to get right. The completion handler must be called
+    /// exactly once: call it twice and WebKit traps, never and the input is
+    /// dead until the page reloads. And it takes the file's real URL -- the
+    /// page reads the bytes straight off disk and streams them, so a 2GB
+    /// import never passes through here.
+    func webView(_ webView: WKWebView,
+                 runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping ([URL]?) -> Void) {
+        // The only route to the handler, so it cannot fire twice.
+        var answered = false
+        let done: ([URL]?) -> Void = { urls in
+            if answered { return }
+            answered = true
+            completionHandler(urls)
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        // Neither input sets webkitdirectory, so a folder is never wanted.
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.allowedFileTypes = kVideoExtensions
+        panel.message = parameters.allowsMultipleSelection
+            ? "Choose the video files to bring in."
+            : "Choose a video file."
+        panel.prompt = "Choose"
+
+        // A sheet, so it belongs to the window it came from and the app is not
+        // frozen behind it. Modal only if there is somehow no window to hang
+        // it on, which would otherwise drop the picker silently again.
+        if let host = webView.window ?? self.window {
+            panel.beginSheetModal(for: host) { response in
+                done(response == .OK ? panel.urls : nil)
+            }
+        } else {
+            done(panel.runModal() == .OK ? panel.urls : nil)
+        }
     }
 
     // MARK: - WKNavigationDelegate

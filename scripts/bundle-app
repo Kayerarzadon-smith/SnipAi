@@ -52,6 +52,17 @@ npm run build || bad "next build failed"
 [ -d "$ROOT/.next/standalone" ] || bad "no .next/standalone — is output:'standalone' still set in next.config.js?"
 good "server built ($(du -sh "$ROOT/.next/standalone" | cut -f1))"
 
+# The tracer will happily copy the LAST bundle into the new one, because the
+# bundle lives in the repo root -- and then the one after that, one level
+# deeper each time, until a build dies with ENAMETOOLONG on a path that says
+# SnipAi.app/Contents/Resources/server/ over and over and nothing about what
+# is wrong. next.config.js excludes it; this is what notices if that stops
+# working, while the answer is still one line long.
+if find "$ROOT/.next/standalone" -maxdepth 6 -name "SnipAi.app" -print -quit | grep -q .; then
+  bad "the built server contains a copy of the app — check outputFileTracingExcludes"
+  exit 1
+fi
+
 # A GET-only API route that Next decides to prerender ships as a fixed answer
 # and never changes again. /api/jobs/running went out as a permanent
 # {"job":null}, so the queue's progress bar never moved in the built app while

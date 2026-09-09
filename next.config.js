@@ -17,6 +17,13 @@ const nextConfig = {
         "./ugc-edit-system/**",
         "./.next/cache/**",
         "./tests/**",
+        // The last bundle sits in the repo root, and the tracer copied it
+        // into the new one -- so every build nested a whole app inside the
+        // next, one level deeper each time. The fifth or sixth build dies
+        // with ENAMETOOLONG on a path that reads
+        // SnipAi.app/Contents/Resources/server/SnipAi.app/Contents/... over
+        // and over, which says nothing at all about what went wrong.
+        "./SnipAi.app/**",
       ],
     },
   },

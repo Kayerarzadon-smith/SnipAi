@@ -5,6 +5,7 @@ import { DropZone } from "./DropZone";
 import RemoveProject from "./RemoveProject";
 import RecentlyDeleted from "./RecentlyDeleted";
 import LiveProgress from "./LiveProgress";
+import FreshOnArrival from "./FreshOnArrival";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,9 @@ export default function DashboardPage() {
   );
 
   return (
-    <section>
+    <>
+      <FreshOnArrival />
+      <section>
       <div className="page-head">
         <div>
           <h1>Production queue</h1>
@@ -129,5 +132,6 @@ export default function DashboardPage() {
 
       <RecentlyDeleted />
     </section>
+    </>
   );
 }

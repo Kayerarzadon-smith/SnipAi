@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import { layout } from "./timelineLayout";
+import { readEdl } from "./edl";
 import path from "node:path";
 import { listProjectNames, projectDir } from "./paths";
 import { loadBeats, readBeats, findCutFile } from "./beats";
@@ -27,8 +29,9 @@ export type ProjectSummary = {
   stages: PipelineStage[];
   nextStep: string;
   /** How much footage the edit removes. sourceSeconds comes from the last
-   * word in the transcript (no ffmpeg call needed); cutSeconds is the sum of
-   * the beats actually kept. */
+   * word in the transcript (no ffmpeg call needed); cutSeconds is the length
+   * of the rendered file, laid out from the EDL -- not the sum of the beat
+   * spans, which ignores the silence the render drops. */
   sourceSeconds: number | null;
   cutSeconds: number | null;
   removedSeconds: number | null;
@@ -124,8 +127,17 @@ export function summarizeProject(name: string): ProjectSummary | null {
   if (transcriptWords && transcriptWords.length) {
     sourceSeconds = Math.max(...transcriptWords.map((w) => w.e));
   }
+  /* The length of the FILE, not the sum of the beat spans.
+   *
+   * Beat spans ignore the interior silence the render drops, so the card
+   * overstated every project that has any -- img-9817 read "2m 10s" for a
+   * file that is 1m 38s, img-9823 "3m 51s" for 2m 59s. The Review screen was
+   * right about both at the same moment, because it lays the timeline out
+   * from the EDL. Same function, so the two screens cannot disagree again:
+   * layout() also knows what to do when a beat has been edited since the
+   * build and its pieces no longer describe it. */
   const cutSeconds = beats.beats.length
-    ? beats.beats.reduce((sum, b) => sum + Math.max(0, b.end - b.start), 0)
+    ? layout(beats.beats, readEdl(name, !!cutFile)).total
     : null;
   const removedSeconds =
     sourceSeconds !== null && cutSeconds !== null ? Math.max(0, sourceSeconds - cutSeconds) : null;

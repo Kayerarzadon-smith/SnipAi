@@ -21,7 +21,7 @@ import re
 import sys
 
 SWIFT = pathlib.Path("native/main.swift")
-ROUTE = pathlib.Path("app/api/projects/route.ts")
+ROUTE = pathlib.Path("lib/videoFiles.ts")
 
 
 def swift_extensions(src):

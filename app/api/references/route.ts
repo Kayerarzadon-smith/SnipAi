@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { VIDEO_EXT, acceptedList } from "@/lib/videoFiles";
 import fs from "node:fs";
 import { writeJsonAtomic } from "@/lib/jsonStore";
 import path from "node:path";
@@ -16,7 +17,9 @@ export const dynamic = "force-dynamic";
 
 const REF_DIR = path.join(REFERENCE_ROOT, "inspiration");
 const STYLE = path.join(REFERENCE_ROOT, "house-style.json");
-const VIDEO = /\.(mp4|mov|m4v|webm)$/i;
+// The same list as footage. It used to be four of the six, which is how a
+// playable .avi came to be "a video" on the Queue and "isn't a video" here.
+const VIDEO = VIDEO_EXT;
 
 type Measured = {
   file: string;
@@ -66,7 +69,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "no video received" }, { status: 400 });
   }
   if (!VIDEO.test(file.name)) {
-    return NextResponse.json({ error: `${file.name} isn't a video` }, { status: 400 });
+    // Name the container and the ones that work. "isn't a video" about a
+      // video someone is looking at reads as the app being wrong, not the file.
+      return NextResponse.json(
+        { error: `${file.name} — references have to be ${acceptedList()}` },
+        { status: 400 }
+      );
   }
   if (file.size > 600 * 1024 * 1024) {
     return NextResponse.json({ error: "that file is too big for a reference" }, { status: 413 });

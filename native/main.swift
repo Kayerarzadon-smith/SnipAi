@@ -17,8 +17,8 @@ let kHealthURL = "http://localhost:\(kPort)/api/projects"
 ///
 /// WKOpenPanelParameters does not carry the input's `accept` attribute, so the
 /// panel cannot mirror `accept="video/*"` on its own -- the filter has to be
-/// stated here. This is VIDEO_EXT_LIST from app/api/projects/route.ts, which
-/// is what the importer will actually take; scripts/guard-open-panel.py fails
+/// stated here. This is VIDEO_EXT_LIST from lib/videoFiles.ts, which is
+/// what the importer will actually take; scripts/guard-open-panel.py fails
 /// the build if the two drift apart, or if a file input appears that is not
 /// asking for video.
 let kVideoExtensions = ["mov", "mp4", "m4v", "avi", "mkv", "webm"]

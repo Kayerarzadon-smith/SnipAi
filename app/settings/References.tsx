@@ -42,12 +42,19 @@ export default function References() {
     if (!files?.length) return;
     setBusy(true);
     setError(null);
+    // Every refusal, not the last one. setError per file meant picking two
+    // bad files reported one of them and the other vanished without a word --
+    // and you cannot tell "rejected silently" from "accepted" by looking.
+    const refused: string[] = [];
     for (const f of Array.from(files)) {
       const fd = new FormData();
       fd.append("file", f);
       const res = await fetch("/api/references", { method: "PUT", body: fd });
-      if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? `could not add ${f.name}`);
+      if (!res.ok) {
+        refused.push((await res.json().catch(() => ({}))).error ?? `could not add ${f.name}`);
+      }
     }
+    if (refused.length) setError(refused.join(" · "));
     setBusy(false);
     await load();
   }

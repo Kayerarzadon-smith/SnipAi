@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import { projectDir, assertValidProjectName } from "@/lib/paths";
+import { VIDEO_EXT, VIDEO_EXT_LIST } from "@/lib/videoFiles";
 import { saveBeats } from "@/lib/beats";
 import { summarizeAllProjects } from "@/lib/projectSummary";
 import { runningJob } from "@/lib/jobs";
@@ -31,8 +32,6 @@ export async function GET() {
  * separate (optional) pipeline step kicked off from the project page,
  * since it needs python3/ffmpeg/faster-whisper actually installed.
  */
-const VIDEO_EXT_LIST = [".mov", ".mp4", ".m4v", ".avi", ".mkv", ".webm"];
-const VIDEO_EXT = new RegExp(`(${VIDEO_EXT_LIST.join("|").replace(/\./g, "\\.")})$`, "i");
 
 /**
  * Footage arrives as a raw body, not multipart, and is streamed to disk.

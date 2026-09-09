@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isVideoName } from "@/lib/videoFiles";
 import { useRouter } from "next/navigation";
 
 type Existing = { project: string; name: string; size: number }[];
@@ -102,7 +103,7 @@ export function DropZone({
     (files: FileList | null) => {
       if (!files?.length) return;
       const all = Array.from(files);
-      const isVideo = (f: File) => /\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(f.name);
+      const isVideo = (f: File) => isVideoName(f.name);
       // Non-video files used to be filtered out silently -- drop five things,
       // see three, and never learn what happened to the other two.
       const rejected = all.filter((f) => !isVideo(f)).map((file) => ({
@@ -114,8 +115,18 @@ export function DropZone({
       // The picker can hand back the same file twice, and a second drop should
       // add to the queue rather than replace it. Both are deduped on name and
       // size, which is what "the same footage" means here.
+      // A file with nothing in it is not importable, and the tray is where
+      // that gets said. It used to be counted as ready, uploaded, and only
+      // then refused -- the .txt and .jpg beside it were screened here, so
+      // being told about this one last was the odd part.
+      const empties = all.filter((f) => isVideo(f) && f.size === 0).map((file) => ({
+        file,
+        name: file.name,
+        status: "rejected" as const,
+        message: "is empty",
+      }));
       const seen = new Set<string>();
-      const vids = all.filter(isVideo).filter((f) => {
+      const vids = all.filter((f) => isVideo(f) && f.size > 0).filter((f) => {
         const key = `${f.name.toLowerCase()}:${f.size}`;
         if (seen.has(key)) return false;
         seen.add(key);
@@ -123,12 +134,13 @@ export function DropZone({
       });
       setQueued([
         ...rejected,
+        ...empties,
         ...vids.map((file) => {
           // same name, or same size under a different name -- both are the
           // same footage arriving twice
           const dupe =
             existing.find((e) => e.name.toLowerCase() === file.name.toLowerCase()) ??
-            existing.find((e) => e.size === file.size);
+            (file.size > 0 ? existing.find((e) => e.size === file.size) : undefined);
           return dupe
             ? {
                 file,

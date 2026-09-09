@@ -99,6 +99,24 @@ def collect_trims():
     return trims
 
 
+def since_last_applied(trims):
+    """Only the corrections that have not already been learned from.
+
+    Proposals are SHIFTS, and learning now runs after every edit, so the same
+    handful of trims was being applied again and again -- eleven times over,
+    in the case that put snap_tail at 1.359s. A shift has to consume its
+    evidence or it is not learning, it is compounding.
+    """
+    mark = ""
+    try:
+        with open(TUNING) as f:
+            mark = (json.load(f).get("learned_through") or "")
+    except Exception:
+        pass
+    fresh = [t for t in trims if str(t.get("at") or "") > mark]
+    return fresh, max([str(t.get("at") or "") for t in trims] or [mark])
+
+
 def collect_regions():
     """Every stretch cut out of the middle of a line."""
     out = []
@@ -164,6 +182,26 @@ def analyse_regions(regions, min_evidence):
             "why": "kept cutting these out: " + ", ".join(f"{w} x{heard[w]}" for w in sorted(common)),
         })
     return proposals
+
+
+# What a learned parameter is allowed to become.
+#
+# snap_lead/snap_tail exist to stop ~0.3-0.4s of silence sitting between every
+# phrase, so a value above that is not a preference, it is the setting failing
+# at its own job. Left unbounded, snap_tail reached 1.359s -- over a second of
+# dead air kept after every line, 10.8s across a two-minute cut, which is
+# exactly the "there are gaps, it is not tight" complaint.
+LIMITS = {
+    "snap_lead": (0.0, 0.35),
+    "snap_tail": (0.0, 0.35),
+    "split_gap": (0.15, 2.0),
+    "trim_min":  (0.10, 1.50),
+}
+
+
+def clamp(param, value):
+    lo, hi = LIMITS.get(param, (0.0, float("inf")))
+    return round(min(max(value, lo), hi), 3)
 
 
 def analyse_trims(trims, min_evidence):
@@ -257,7 +295,8 @@ def main():
 
     trims = collect_trims()
     regions = collect_regions()
-    trim_proposals = analyse_trims(trims, a.min_evidence)
+    fresh_trims, trims_through = since_last_applied(trims)
+    trim_proposals = analyse_trims(fresh_trims, a.min_evidence)
     region_proposals = analyse_regions(regions, a.min_evidence)
     print(f"{len(overrides)} take override(s), {len(trims)} manual trim(s), "
           f"{len(regions)} cut-out stretch(es)")
@@ -273,13 +312,14 @@ def main():
         print("\nFrom your trims:")
         for tp in trim_proposals:
             cur = (tuning.get("cutting") or {}).get(tp["param"], 0.0)
-            new = round(max(0.0, cur + tp["shift"]), 3)
+            new = clamp(tp["param"], cur + tp["shift"])
             print(f"  {tp['param']}: {cur} -> {new}   ({tp['evidence']} trims)")
             print(f"      {tp['why']}")
         if a.apply:
             for tp in trim_proposals:
                 cur = (tuning.setdefault("cutting", {})).get(tp["param"], 0.0)
-                tuning["cutting"][tp["param"]] = round(max(0.0, cur + tp["shift"]), 3)
+                tuning["cutting"][tp["param"]] = clamp(tp["param"], cur + tp["shift"])
+            tuning["learned_through"] = trims_through    # these trims are spent
             applied = True
 
     if region_proposals:

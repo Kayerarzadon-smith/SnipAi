@@ -16,6 +16,8 @@ winner, so a person can see what the AI saw and override it.
 Does not touch beats.json. Read-only.
 """
 import argparse, json, os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import data_path  # noqa: E402
 
 
 def load_tuning():
@@ -31,8 +33,11 @@ def load_tuning():
         "penalty_dead_air_max": 0.30, "bonus_last_complete": 0.08,
         "false_start_word_ratio": 0.6, "dead_air_seconds": 1.5,
     }
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "state", "tuning.json")
+    # The library's copy, which is the one learn_from_edits writes. Resolving
+    # this from the tool's own directory read the copy that ships with the
+    # CODE instead -- so corrections were written to one file and rendering
+    # read another, and the loop had been open since the library moved out.
+    path = data_path("state", "tuning.json")
     try:
         with open(path) as f:
             defaults.update(json.load(f).get("scoring", {}))

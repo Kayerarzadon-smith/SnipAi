@@ -62,3 +62,54 @@ class DataPathsResolveToTheLibrary(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TuningIsReadFromTheLibrary(unittest.TestCase):
+    """Learning writes the library's tuning.json; rendering must read the same
+    file. Three tools rolled their own resolution to the copy that ships with
+    the CODE, so corrections were written to one file and rendering read
+    another -- the loop had been open since the library moved out, and the
+    renderer sat on a stale snap_tail of 0.881 that left ~10s of dead air in a
+    two-minute cut."""
+
+    def test_all_three_read_the_same_file_as_the_learner(self):
+        import inspect
+        import learn_from_edits
+        import build_cut
+        import draft_beats
+        import list_candidate_takes
+        for mod in (build_cut, draft_beats, list_candidate_takes):
+            src = inspect.getsource(mod)
+            self.assertIn('data_path("state", "tuning.json")', src,
+                          f"{mod.__name__} resolves tuning.json for itself")
+            self.assertNotIn('"state", "tuning.json")\n', src.replace(
+                'data_path("state", "tuning.json")', ''),
+                f"{mod.__name__} still has a hand-rolled tuning path")
+        self._assert_not_beside_the_code(learn_from_edits.TUNING, "tuning")
+
+    def _assert_not_beside_the_code(self, value, what):
+        self.assertFalse(os.path.abspath(value).startswith(
+            os.path.join(CODE_ROOT, "state")),
+            f"{what} points inside the code bundle: {value}")
+
+
+class LearnedValuesAreBounded(unittest.TestCase):
+    """A shift with no ceiling and no consumed evidence compounds. snap_tail
+    reached 1.359s -- over a second of silence kept after every line."""
+
+    def test_edge_snapping_cannot_exceed_what_it_exists_to_prevent(self):
+        from learn_from_edits import clamp
+        # the setting exists to stop ~0.3-0.4s of silence between phrases,
+        # so anything past that is the setting failing at its own job
+        self.assertEqual(clamp("snap_tail", 1.359), 0.35)
+        self.assertEqual(clamp("snap_lead", 9.0), 0.35)
+        self.assertEqual(clamp("snap_tail", -0.5), 0.0)
+        self.assertEqual(clamp("snap_tail", 0.2), 0.2)
+
+    def test_evidence_is_consumed_so_the_same_trims_cannot_compound(self):
+        import learn_from_edits as L
+        trims = [{"at": "2026-01-01T00:00:00Z", "endDelta": 0.1},
+                 {"at": "2026-01-02T00:00:00Z", "endDelta": 0.1}]
+        fresh, through = L.since_last_applied(trims)
+        self.assertEqual(through, "2026-01-02T00:00:00Z")
+        self.assertIsInstance(fresh, list)

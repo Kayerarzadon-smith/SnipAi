@@ -23,6 +23,8 @@ whose winner scored below the confidence bar are marked needs_review so the
 app can surface them first.
 """
 import argparse, difflib, json, os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import data_path  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from list_candidate_takes import (  # noqa: E402
@@ -103,8 +105,11 @@ def tuned(key, fallback):
     down and then ignored, and the next video needs exactly the same edits as
     the last one.
     """
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "state", "tuning.json")
+    # The library's copy, which is the one learn_from_edits writes. Resolving
+    # this from the tool's own directory read the copy that ships with the
+    # CODE instead -- so corrections were written to one file and rendering
+    # read another, and the loop had been open since the library moved out.
+    path = data_path("state", "tuning.json")
     try:
         with open(path) as fh:
             return json.load(fh).get("cutting", {}).get(key, fallback)

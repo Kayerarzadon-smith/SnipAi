@@ -1320,3 +1320,27 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 /* how much of the timeline is marked, said in the bar as well as on the track */
 .tl-hint { font-size:11px; color:#ff4d6d; font-weight:600; margin-left:10px; }
 .tl-hint b { color:#fff; }
+
+/* Live edit's transport. The raw player carries no native controls -- those
+   played the source rather than the edit, reported the source's length as the
+   cut's, and took the space bar off the app's own stop. */
+.live-transport {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-soft);
+  background: rgba(0, 0, 0, .28);
+}
+.lt-play {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); cursor: pointer; padding: 0;
+}
+.lt-play:hover { border-color: var(--accent); color: var(--accent); }
+.lt-play svg { width: 11px; height: 13px; fill: currentColor; }
+.lt-time { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; flex: none; }
+.lt-sep { color: var(--text-faint); margin: 0 5px; }
+.lt-line {
+  font-size: 12px; color: var(--text-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

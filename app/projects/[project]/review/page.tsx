@@ -344,6 +344,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   // because the edit is an instruction over the source, not a baked file.
   const [liveMode, setLiveMode] = useState(false);
   const [liveIdx, setLiveIdx] = useState(0);
+  // The raw player has no control bar of its own any more, so whether it is
+  // running has to be state -- a ref's .paused does not re-render the button.
+  const [livePlaying, setLivePlaying] = useState(false);
   const liveIdxRef = useRef(0);
   const beatsRef = useRef<Beat[]>([]);
   /** the loaded project, for the per-frame loop -- reading state there would
@@ -843,6 +846,61 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     return t && t.label === b.label ? { start: t.start, end: t.end } : { start: b.start, end: b.end };
   }
 
+  /** The nearest point in the EDIT to a raw source time.
+   *
+   *  The player runs the source; the edit is a set of ranges over it. Most of
+   *  the source is not in the edit -- the dead air before the first take, the
+   *  ground between two takes, a stretch cut out of the middle of a line -- so
+   *  "where the playhead is" and "where playback should start" are different
+   *  questions.
+   *
+   *  Containment is checked before order, because the beat list is in EDIT
+   *  order and a reorder makes it disagree with source order.
+   */
+  function liveSeekTarget(t: number): { index: number; time: number } | null {
+    const beats = beatsRef.current;
+    if (!beats.length) return null;
+    for (let i = 0; i < beats.length; i++) {
+      const { start, end } = rangeFor(beats[i]);
+      if (t >= start && t < end) {
+        const hole = (beats[i].holes ?? []).find(([hf, ht]) => t >= hf && t < ht - 0.02);
+        return { index: i, time: hole ? hole[1] : t };
+      }
+    }
+    // Not inside any line. Take the next one that starts after here, so
+    // pressing play in the gap between two takes moves forward rather than
+    // replaying the one just finished.
+    let best = -1;
+    for (let i = 0; i < beats.length; i++) {
+      const { start } = rangeFor(beats[i]);
+      if (start > t && (best < 0 || start < rangeFor(beats[best]).start)) best = i;
+    }
+    const i = best >= 0 ? best : 0;
+    return { index: i, time: rangeFor(beats[i]).start };
+  }
+
+  /** Play the edit from wherever the edit currently is.
+   *
+   *  The raw <video> used to carry its own controls, so pressing play played
+   *  the SOURCE from 0:00 -- 74 seconds of dead air on img-9817 before the
+   *  first line, against a timeline that said 1:37.6. The control bar also
+   *  read the source's length as the length of the cut, and it took the space
+   *  bar for itself, so the app's own stop did nothing. There are no native
+   *  controls on it now; this is the transport, and it is the only one.
+   */
+  function playLive() {
+    const v = rawRef.current;
+    if (!v) return;
+    if (!v.paused) { v.pause(); return; }
+    const target = liveSeekTarget(v.currentTime);
+    if (!target) return;
+    liveIdxRef.current = target.index;
+    setLiveIdx(target.index);
+    if (Math.abs(v.currentTime - target.time) > 0.02) v.currentTime = target.time;
+    stopAt.current = null;
+    v.play().catch(() => {});
+  }
+
   function playFrom(index: number) {
     followRef.current = true;          // asking for playback asks to follow it
     const beats = beatsRef.current;
@@ -886,6 +944,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       if (e.code === "Space") {
         e.preventDefault();
         if (trimBeat && trim) { playSnippet(); return; }   // audition the open line
+        // Live edit has somewhere specific to start from -- see playLive.
+        if (liveMode) { playLive(); return; }
         const p = cur();                 // whichever player is on screen
         if (!p) return;
         if (p.paused) p.play().catch(() => {}); else p.pause();
@@ -1648,10 +1708,14 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               src={data.hasSource
                 ? `/api/media/${project}/${data.sourceProxy ?? data.source}`
                 : undefined}
-              controls={liveMode}
+              // No native controls: they play the source, not the edit. The
+              // transport below reads the cut's clock instead.
               preload="metadata"
               style={liveMode ? undefined : { display: "none" }}
               onLoadedMetadata={noteAspect}
+              onPlay={() => setLivePlaying(true)}
+              onPause={() => setLivePlaying(false)}
+              onEnded={() => setLivePlaying(false)}
               onTimeUpdate={(e) => {
                 const v = e.target as HTMLVideoElement;
                 setRawHead(v.currentTime);
@@ -1704,6 +1768,15 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                     }
                   }
                 }
+                // Running past the end of a line and picking up the next one
+                // is PLAYBACK, exactly as hole-skipping above is, and it was
+                // the half of this that stayed ungated. Paused, a seek fires
+                // timeupdate too -- so putting the playhead down past the end
+                // of whichever line the player last had threw it forward to
+                // the start of the following one, under the cursor, while the
+                // hand was still on the mouse. Same defect as the holes, same
+                // rule: paused, the playhead is his.
+                if (!skipHoles) return;
                 const { end } = rangeFor(cur);
                 if (v.currentTime >= end) {
                   const next = liveIdxRef.current + 1;
@@ -1717,6 +1790,33 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             {/* Nothing is drawn over the picture. Which line is playing shows
                 in the beat list, which is already highlighting it. */}
             <span className="player-grip" />
+
+            {/* The transport for Live edit. It reads the CUT's clock: the
+                control bar this replaces read the source's, so a 7.9s edit
+                announced itself as 0:13 and a 1:37 edit as 8:46. Scrubbing is
+                the timeline underneath, which is already the working surface
+                and is measured in the same clock. */}
+            {liveMode && data.hasSource && data.beats.length > 0 && (
+              <div className="live-transport">
+                <button
+                  type="button"
+                  className="lt-play"
+                  onClick={playLive}
+                  aria-label={livePlaying ? "Pause" : "Play your cut"}
+                  title={livePlaying ? "Pause — or press space" : "Play your cut — or press space"}
+                >
+                  {livePlaying ? (
+                    <svg viewBox="0 0 12 14" aria-hidden="true"><rect x="1" y="1" width="3.5" height="12" rx="1" /><rect x="7.5" y="1" width="3.5" height="12" rx="1" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 12 14" aria-hidden="true"><path d="M1.5 1.3 11 7 1.5 12.7Z" /></svg>
+                  )}
+                </button>
+                <span className="lt-time mono">
+                  {fmtTime(cutPlayhead ?? 0)}<span className="lt-sep">/</span>{fmtTime(cutDuration)}
+                </span>
+                <span className="lt-line">{data.beats[liveIdx]?.text ?? ""}</span>
+              </div>
+            )}
 
             {videoSrc && (
               <>

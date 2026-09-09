@@ -187,5 +187,10 @@ export function failJob(id: string, error: string): void {
     job.status = "error";
     job.error = error;
     job.finishedAt = new Date().toISOString();
+    // Every other mutator writes through; this one did not. Next gives each
+    // route its own module instance, so a failure recorded only in this
+    // process's Map leaves every OTHER route still reading "running" off
+    // disk -- and refusing the next build with a 409 forever.
+    persist();
   }
 }

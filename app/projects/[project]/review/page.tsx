@@ -116,6 +116,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [spoken, setSpoken] = useState<{ label: string; wordIx: number } | null>(null);
   /** auto-follow gives way the moment you scroll yourself */
   const followRef = useRef(true);
+  const followTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [followTick, setFollowTick] = useState(0);
   const [gfxOpen, setGfxOpen] = useState(false);
   const [gfxCount, setGfxCount] = useState<number | null>(null);
 
@@ -326,12 +328,28 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
      way the moment you scroll yourself -- following someone who is reading
      somewhere else is worse than not following at all. */
   useEffect(() => {
-    const stopFollowing = () => { followRef.current = false; };
-    window.addEventListener("wheel", stopFollowing, { passive: true });
-    window.addEventListener("touchmove", stopFollowing, { passive: true });
+    /* Scrolling yields the list to you, but only for a moment.
+       It used to switch following off for good, so one flick of the wheel to
+       look at something meant the list never came back -- which reads exactly
+       like the feature not working. Four seconds is long enough to read what
+       you scrolled to and short enough that you never have to ask for it
+       back. Same as a video player handing you back the controls. */
+    const yield4s = () => {
+      followRef.current = false;
+      if (followTimer.current) clearTimeout(followTimer.current);
+      followTimer.current = setTimeout(() => {
+        followRef.current = true;
+        // and pull the list back now, rather than waiting for the next line:
+        // on a long line that could be seconds of sitting somewhere else
+        setFollowTick((n) => n + 1);
+      }, 4000);
+    };
+    window.addEventListener("wheel", yield4s, { passive: true });
+    window.addEventListener("touchmove", yield4s, { passive: true });
     return () => {
-      window.removeEventListener("wheel", stopFollowing);
-      window.removeEventListener("touchmove", stopFollowing);
+      window.removeEventListener("wheel", yield4s);
+      window.removeEventListener("touchmove", yield4s);
+      if (followTimer.current) clearTimeout(followTimer.current);
     };
   }, []);
 
@@ -345,7 +363,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const delta = row.getBoundingClientRect().top - want;
     if (Math.abs(delta) < 6) return;                 // already there
     window.scrollBy({ top: delta, behavior: Math.abs(delta) > 400 ? "auto" : "smooth" });
-  }, [spoken?.label]);   // on the LINE changing, not on every word
+  }, [spoken?.label, followTick]);   // the line changing, or following resuming
 
   /** Cut time -> the source frame it shows. The inverse of what the timeline
    *  does, and it has to go through the pieces: a line with a stretch taken
@@ -516,7 +534,12 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   function scrubTo(t: number) {
     const v = rawRef.current;
     if (!v || !data?.hasSource) return;
-    setLiveMode(true);
+    /* Positions the source; it does not take over the screen.
+       This used to switch you to Original footage, and it is called by every
+       scrub, nudge and handle drag -- so touching anything threw you off the
+       cut you were watching. The snippet monitor mirrors this element whether
+       or not it is the one on screen, so the picture you are aiming at is
+       still there. */
     videoRef.current?.pause();
     v.pause();
     stopAt.current = null;
@@ -605,7 +628,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   function playSnippet() {
     const v = rawRef.current;
     if (!v || !trim || !data?.hasSource) return;
-    setLiveMode(true);
+    // heard here, seen in the snippet monitor -- no need to take the screen
     videoRef.current?.pause();
     if (!v.paused) { v.pause(); return; }        // space again stops it
     // same bookkeeping the Play button does, or live playback thinks a
@@ -621,7 +644,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
    *  the in/out points refer to, so it is the only honest preview. */
   function previewTrim() {
     if (!trim || !rawRef.current) return;
-    setLiveMode(true);            // show it, don't just play audio behind a hidden element
+    videoRef.current?.pause();
     const i = (data?.beats ?? []).findIndex((b) => b.label === trimBeat);
     if (i >= 0) { liveIdxRef.current = i; setLiveIdx(i); }
     rawRef.current.currentTime = trim.start;
@@ -742,6 +765,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const i = Math.max(0, Math.min(index, beats.length - 1));
     liveIdxRef.current = i;
     setLiveIdx(i);
+    // this one IS the live-edit transport -- pressing Original footage is how
+    // you get here, so it is the one place the switch is the point
     setLiveMode(true);
     videoRef.current?.pause();
     stopAt.current = null;
@@ -776,9 +801,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       if (e.code === "Space") {
         e.preventDefault();
         if (trimBeat && trim) { playSnippet(); return; }   // audition the open line
-        if (!v) return;
-        setLiveMode(true);
-        if (v.paused) { videoRef.current?.pause(); v.play().catch(() => {}); } else v.pause();
+        const p = cur();                 // whichever player is on screen
+        if (!p) return;
+        if (p.paused) p.play().catch(() => {}); else p.pause();
         return;
       }
       if (k === "l" && !e.metaKey && !e.ctrlKey) {         // shuttle forward
@@ -1003,8 +1028,16 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     setLiveIdx(c.index);
     const src = c.start + Math.max(0, Math.min(c.dur, cutTime - c.at));
     setSelectedClip(c.label);           // the line under the hand is the selected line
+    if (!liveMode && videoRef.current) {
+      // watching the render: scrub the render. Cut time is already its clock.
+      videoRef.current.pause();
+      videoRef.current.currentTime = Math.max(0, cutTime);
+      setPlayhead(cutTime);
+      scrubTo(src);                     // keep the snippet monitor in step
+      return;
+    }
     // if it can be heard, let it run rather than seeking on top of it
-    if (scrubHeard(src)) { setLiveMode(true); setRawHead(src); return; }
+    if (scrubHeard(src)) { setRawHead(src); return; }
     scrubTo(src);
   }
 
@@ -1034,6 +1067,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
           end: Math.round(next.end * 1000) / 1000,
         }),
       });
+      // Cleared before anything awaits: this ref is what tells the NEXT drag
+      // it is a new edit. Leaving it set meant pushHistory fired once per page
+      // load, so every trim after the first was unundoable.
+      trimTimer.current = null;
       if (res.ok) { await load(); learnFromEdits(); applyEditsSoon(); } else { await load(); }
     }, 420);
   }
@@ -1463,7 +1500,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                   : "Make playback smooth"}
               </button>
             )}
-            {data.cutStale && (
+            {/* Edits apply themselves, so this is only worth showing when you
+                have turned that off -- otherwise it is a button asking you to
+                confirm something already under way. */}
+            {data.cutStale && !autoApply && (
               <button
                 className="ui-btn ui-btn-sm ui-btn-primary pm-apply"
                 disabled={buildJob?.status === "running" || !data.hasSource || data.beats.length === 0}
@@ -1472,7 +1512,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               >
                 {buildJob?.status === "running" && buildJob.step === "build"
                   ? "Applying…"
-                  : "Apply edits to the render"}
+                  : "Apply now"}
               </button>
             )}
             <span className="pm-note">

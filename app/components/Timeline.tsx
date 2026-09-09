@@ -81,7 +81,15 @@ export default function Timeline({
   const pps = ZOOMS[zoomIx];
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLCanvasElement | null>(null);
-  const [drag, setDrag] = useState<{ label: string; edge: "start" | "end"; track: "video" | "audio" } | null>(null);
+  /* The anchor is captured at mousedown and never recomputed.
+     The delta used to be measured against the clip's live position, which
+     moves as you trim -- so each frame added the previous frame's move again
+     and the in-point ran away, collapsing the clip to its 0.15s floor before
+     you could let go. Pointer position is absolute; the maths has to be too. */
+  const [drag, setDrag] = useState<{
+    label: string; edge: "start" | "end"; track: "video" | "audio";
+    fromCut: number; fromSrc: number;
+  } | null>(null);
   const [fading, setFading] = useState<{ label: string; edge: "in" | "out" } | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
   /* Moving a clip and scrubbing start from the same gesture: a press on a clip
@@ -259,12 +267,12 @@ export default function Timeline({
         // the audio clip's own on-screen extent, which may sit outside the picture
         const aAt = c.at + (aStart - c.start);
         const aAtEnd = aAt + (aEnd - aStart);
-        const delta = t - (drag.edge === "start" ? aAt : aAtEnd);
-        onTrimAudio(drag.label, drag.edge, (drag.edge === "start" ? aStart : aEnd) + delta);
+        void aAt; void aAtEnd;
+        onTrimAudio(drag.label, drag.edge, drag.fromSrc + (t - drag.fromCut));
         return;
       }
-      const delta = t - (drag.edge === "start" ? c.at : c.at + c.dur);
-      onTrim(drag.label, drag.edge, (drag.edge === "start" ? c.start : c.end) + delta);
+      // absolute, from where the grab started: source + how far the hand moved
+      onTrim(drag.label, drag.edge, drag.fromSrc + (t - drag.fromCut));
     };
     const up = () => setDrag(null);
     window.addEventListener("mousemove", move);
@@ -274,6 +282,30 @@ export default function Timeline({
       window.removeEventListener("mouseup", up);
     };
   }, [drag, cutTimeAt, placed, onTrim]);
+
+  /* Dragging a clip's corner ramps it in or out.
+     The grips were drawn, they were draggable, and `fading` was set and then
+     read by nothing -- so the fade handle did nothing at all. The length is
+     how far the pointer sits from the clip's own edge, capped at half the
+     clip so a ramp cannot run past its own middle. */
+  useEffect(() => {
+    if (!fading) return;
+    const move = (e: MouseEvent) => {
+      const c = placed.find((x) => x.label === fading.label);
+      if (!c) return;
+      const t = cutTimeAt(e.clientX);
+      const from = fading.edge === "in" ? t - c.at : c.at + c.dur - t;
+      const capped = Math.max(0, Math.min(from, c.dur / 2));
+      onFade(fading.label, fading.edge, Math.round(capped * 100) / 100);
+    };
+    const up = () => setFading(null);
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [fading, placed, cutTimeAt, onFade]);
 
   /* Cmd/Ctrl + wheel zooms, keeping whatever is under the pointer under the
      pointer -- zooming to the container's left edge throws you off the part
@@ -728,12 +760,12 @@ export default function Timeline({
                 <span
                   className="tl-handle tl-handle-l"
                   title="drag to trim the in-point"
-                  onMouseDown={(e) => { if (e.shiftKey) return; e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "start", track: "video" }); }}
+                  onMouseDown={(e) => { if (e.shiftKey) return; e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "start", track: "video", fromCut: cutTimeAt(e.clientX), fromSrc: c.start }); }}
                 />
                 <span
                   className="tl-handle tl-handle-r"
                   title="drag to trim the out-point"
-                  onMouseDown={(e) => { if (e.shiftKey) return; e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "end", track: "video" }); }}
+                  onMouseDown={(e) => { if (e.shiftKey) return; e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "end", track: "video", fromCut: cutTimeAt(e.clientX), fromSrc: c.end }); }}
                 />
               </div>
             ))}
@@ -789,12 +821,12 @@ export default function Timeline({
                   <span
                     className="tl-handle tl-handle-l"
                     title="drag the audio in-point"
-                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "start", track: "audio" }); }}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "start", track: "audio", fromCut: cutTimeAt(e.clientX), fromSrc: (c.audioStart ?? c.start) }); }}
                   />
                   <span
                     className="tl-handle tl-handle-r"
                     title="drag the audio out-point"
-                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "end", track: "audio" }); }}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "end", track: "audio", fromCut: cutTimeAt(e.clientX), fromSrc: (c.audioEnd ?? c.end) }); }}
                   />
                 </div>
               );

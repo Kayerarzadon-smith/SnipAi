@@ -133,7 +133,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { project: s
   if (!Array.isArray(body.beats)) {
     return NextResponse.json({ error: "beats must be an array" }, { status: 400 });
   }
-  const clean: { label: string; start: number; end: number; text?: string }[] = [];
+  /* Undo restores a beat list. Rebuilding each beat from a fixed list of
+     fields silently dropped everything else on it -- holes, fades, detached
+     audio -- so pressing undo once after cutting a stretch out threw away
+     work that had nothing to do with the thing being undone. The validated
+     fields are checked and normalised; everything else on the beat is carried
+     through untouched. */
+  const clean: Record<string, unknown>[] = [];
   for (const [i, raw] of body.beats.entries()) {
     const b = raw as { label?: unknown; start?: unknown; end?: unknown; text?: unknown };
     if (typeof b?.label !== "string" || !b.label) {
@@ -152,9 +158,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { project: s
     if (b.text !== undefined && typeof b.text !== "string") {
       return NextResponse.json({ error: `beat ${i} (${b.label}): text must be a string` }, { status: 400 });
     }
-    clean.push({ label: b.label, start: b.start, end: b.end, ...(b.text === undefined ? {} : { text: b.text }) });
+    clean.push({
+      ...(raw as Record<string, unknown>),          // holes, fades, detached audio
+      label: b.label,
+      start: b.start,
+      end: b.end,
+      ...(b.text === undefined ? {} : { text: b.text }),
+    });
   }
-  existing.beats = clean;
-  saveBeats(project, existing);
+  existing.beats = clean as unknown as typeof existing.beats;
+  saveBeats(project, existing, "undo");
   return NextResponse.json({ ok: true });
 }

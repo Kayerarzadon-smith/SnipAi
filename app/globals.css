@@ -1304,3 +1304,12 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 .beat.playing .txt-live .wd { opacity: .62; }
 .beat.playing .txt-live .wd.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .txt-live .wd { transition: none; } }
+
+/* the automatic re-render, and its off switch */
+.auto-apply { display:inline-flex; align-items:center; gap:7px; font-size:11.5px;
+              color:var(--text-muted); cursor:pointer; user-select:none; }
+.auto-apply input { accent-color:var(--accent); cursor:pointer; }
+.auto-apply:hover { color:var(--text); }
+/* how much of the timeline is marked, said in the bar as well as on the track */
+.tl-hint { font-size:11px; color:#ff4d6d; font-weight:600; margin-left:10px; }
+.tl-hint b { color:#fff; }

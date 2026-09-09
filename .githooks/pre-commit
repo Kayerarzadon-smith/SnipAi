@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# SnipAi QA gate. ~2 seconds.
+#
+# It blocks on a guard failure that is NEW — something this commit introduced,
+# or a known problem that has got worse. The existing backlog lives in
+# audits/.qa-baseline and does not stand in your way; `./scripts/qa --accept`
+# re-baselines after you fix something.
+#
+# It deliberately does NOT run the type check or the test suite. Those belong
+# in ./scripts/qa before you push, not in the way of every commit.
+#
+# Genuinely need to commit past it:  git commit --no-verify
+cd "$(git rev-parse --show-toplevel)" || exit 0
+[ -x ./scripts/qa ] || exit 0
+
+out=$(./scripts/qa --fast 2>&1)
+strip() { sed $'s/\033\[[0-9;]*m//g'; }
+
+red=$(printf '%s\n' "$out" | grep $'\033\[31m' | strip | sed 's/^ *//' | sort -u)
+base=$(sort -u audits/.qa-baseline 2>/dev/null)
+new=$(comm -23 <(printf '%s\n' "$red") <(printf '%s\n' "$base") | sed '/^$/d')
+
+if [ -n "$new" ]; then
+  printf '\n\033[1mQA: this commit introduces something new.\033[0m\n\n'
+  printf '%s\n' "$new" | sed "s/^/  $(printf '\033[31m')/;s/\$/$(printf '\033[0m')/"
+  printf '\n  Fix it, or `./scripts/qa --accept` to take it on knowingly,\n'
+  printf '  or `git commit --no-verify` this once.\n\n'
+  exit 1
+fi
+
+[ -n "$red" ] && printf '\033[2mQA: %s known issue(s) still open — see audits/LEDGER.md\033[0m\n' "$(printf '%s\n' "$red" | wc -l | tr -d ' ')"
+exit 0

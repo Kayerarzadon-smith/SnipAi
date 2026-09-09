@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+# SnipAi QA — the mechanical layer. Everything a machine can prove without
+# judgment. The judgment layer is `/qa` in Claude Code, which runs this first.
+#
+#   ./scripts/qa --fast          guards only, a few seconds (the commit hook)
+#   ./scripts/qa                 fast + types + tests + reproduced bugs + sweeps
+#   ./scripts/qa --deep          the above plus knip (slow, memory hungry)
+#   ./scripts/qa --regressions   only the failing-test bug board
+#   ./scripts/qa --watch         re-run the fast pass whenever source changes
+#
+# Scope is the SnipAi app: app/, lib/, native/, scripts/, tests/ and the root
+# config. ugc-edit-system/ is the pipeline SnipAi drives, not SnipAi -- add
+# --with-pipeline to any of the above to include it.
+#
+# Exit 0 = nothing to report. Exit 1 = something above needs a person.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+
+WITH_PIPELINE=0
+ARGS=()
+for a in "$@"; do
+  case "$a" in --with-pipeline) WITH_PIPELINE=1 ;; *) ARGS+=("$a") ;; esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+MODE="${1:-full}"
+case "$MODE" in --fast) MODE=fast;; --deep) MODE=deep; ;; --full|"") MODE=full;;
+  --regressions) MODE=regressions;; --watch) MODE=watch;; --accept) MODE=accept;;
+  full) ;; *) MODE=full;; esac
+
+# The commit hook blocks on NEW red guards, not on the backlog. This file is the
+# accepted backlog: regenerate it with `./scripts/qa --accept` after you have
+# fixed something, or deliberately decided to live with something.
+BASELINE=audits/.qa-baseline
+strip_ansi() { sed $'s/\033\[[0-9;]*m//g'; }
+red_lines() { grep $'\033\[31m' | strip_ansi | sed 's/^ *//' | sort -u; }
+
+B=$'\033[1m'; DIM=$'\033[2m'; RED=$'\033[31m'; YEL=$'\033[33m'; GRN=$'\033[32m'; OFF=$'\033[0m'
+# Two levels, and the difference matters: `bad` is something to stop for and
+# sets the exit code (the commit hook and the bundler read it); `note` is worth
+# knowing and does not fail a build.
+err=0; warn=0
+hdr() { printf "\n%s== %s ==%s\n" "$B" "$1" "$OFF"; }
+bad() { printf "  %s%s%s\n" "$RED" "$1" "$OFF"; err=1; }
+note(){ printf "  %s%s%s\n" "$YEL" "$1" "$OFF"; warn=1; }
+ok()  { printf "  %s%s%s\n" "$GRN" "$1" "$OFF"; }
+
+# Every recursive grep below is pinned to these paths. Never search "." here:
+# node_modules, .next, .git, .venv and the video library live under it, and on a
+# machine where the library is large that turns a 5-second check into minutes.
+SEARCH=(app lib native scripts tests)
+WATCHED=(app lib native tests scripts)
+for c in *.command; do [ -e "$c" ] && SEARCH+=("$c"); done
+if [ "$WITH_PIPELINE" = 1 ]; then
+  SEARCH+=(ugc-edit-system/tools ugc-edit-system/.claude ugc-edit-system/CLAUDE.md \
+           ugc-edit-system/README.md ugc-edit-system/SETUP.md)
+  for c in ugc-edit-system/*.command; do [ -e "$c" ] && SEARCH+=("$c"); done
+  WATCHED+=(ugc-edit-system/tools)
+fi
+
+# ---------------------------------------------------------------- fast guards
+# These are the checks worth paying for on every commit: each one catches
+# something that has actually shipped broken before.
+guards() {
+  if [ "$WITH_PIPELINE" = 1 ]; then
+  hdr "learned parameters in range"
+  python3 - <<'PY'
+import json, os
+p = "ugc-edit-system/state/tuning.json"
+d = os.environ.get("SNIPAI_DATA")
+if d and os.path.exists(os.path.join(d, "state", "tuning.json")):
+    p = os.path.join(d, "state", "tuning.json")
+if not os.path.exists(p):
+    print("  \033[2mno tuning.json yet\033[0m"); raise SystemExit(0)
+t = json.load(open(p)).get("cutting", {})
+# snap_lead/snap_tail are silence KEPT at a beat edge. Past ~0.05s this is not a
+# correction, it is a poisoned parameter: it re-adds the dead air the snapper
+# exists to remove. learn_from_edits.py has no upper clamp, so this drifts.
+RANGE = {"snap_lead": (0.0, 0.05), "snap_tail": (0.0, 0.05), "split_gap": (0.1, 2.0)}
+bad = [(k, v, lo, hi) for k, (lo, hi) in RANGE.items()
+       if (v := t.get(k)) is not None and not (lo <= v <= hi)]
+for k, v, lo, hi in bad:
+    print(f"  \033[31m{k} = {v} -- expected {lo}-{hi}; every render since it drifted is wrong\033[0m")
+if not bad:
+    print("  \033[32mcutting parameters within range\033[0m")
+raise SystemExit(1 if bad else 0)
+PY
+  [ $? = 0 ] || warn=1
+
+  hdr "entry points into _superseded/"
+  found=0
+  for s in ugc-edit-system/tools/_superseded/*.py; do
+    [ -e "$s" ] || continue
+    n=$(basename "$s")
+    hits=$(grep -rn "tools/$n" "${SEARCH[@]}" --include=*.sh --include=*.command \
+            --include=*.md --include=*.ts --include=*.tsx --include=*.py 2>/dev/null \
+            | grep -v '_superseded' | grep -v '\.py:.*`tools/')   # a backtick in a docstring is prose, not a call
+    # each hit is red in its own right: the commit gate diffs red lines, so a
+    # summary line would hide a NEW dead entry point behind an old one
+    [ -n "$hits" ] && { printf "%s\n" "$hits" | while IFS= read -r h; do bad "$h"; done; found=1; }
+  done
+  [ "$found" = 0 ] && ok "nothing points into the hole _superseded/ left"
+  fi
+
+  hdr "state written but never read"
+  for f in beatDiagnoses spanCuts deletedBeats statusNote; do
+    # a type declaration is not a read, and neither is the line that writes it
+    reads=$(grep -rn "$f" app lib ugc-edit-system/tools --include=*.ts --include=*.tsx --include=*.py 2>/dev/null \
+      | grep -v "review-action\|beats/route\|lib/types.ts\|lib/reviewState.ts" | wc -l | tr -d ' ')
+    [ "$reads" = "0" ] && note "review-state.$f is written and never read back"
+  done
+}
+
+# ------------------------------------------------------------------- the rest
+types() {
+  hdr "typescript"
+  if npx --no-install tsc --noEmit 2>&1 | sed 's/^/  /'; then ok "no type errors"; else bad "type errors above"; fi
+}
+
+tests() {
+  # ./scripts/test runs `tsc --noEmit` itself before the suite, so QA does not
+  # type-check separately -- on this repo that was twenty seconds of duplicate work
+  hdr "types and tests"
+  out=$(./scripts/test 2>&1); echo "$out" | tail -14 | sed 's/^/  /'
+  echo "$out" | grep -q "skipped" && note "a suite was SKIPPED -- 'all green' does not mean all ran"
+  echo "$out" | grep -q "fail 0" || bad "test failures above"
+}
+
+regressions() {
+  hdr "reproduced bugs (a failing test here is a bug still open)"
+  ts=(tests/regressions/*.test.mts); py=(ugc-edit-system/tests/regressions/test_*.py)
+  [ -e "${ts[0]}" ] || { printf "  %sno regression tests yet%s\n" "$DIM" "$OFF"; return; }
+  if [ -e "${ts[0]}" ]; then
+    node --import ./tests/register.mts --test "tests/regressions/"*.test.mts 2>&1 \
+      | grep -vE "MODULE_TYPELESS_PACKAGE_JSON|Reparsing as ES module|To eliminate this warning|trace-warnings" \
+      | grep -E "^(not ok|ok|# (pass|fail))" | sed 's/^/  /'
+  fi
+  if [ -e "${py[0]}" ] && [ "$WITH_PIPELINE" = 1 ]; then
+    # run each file directly: unittest discovery needs an importable start dir,
+    # and these are deliberately standalone reproductions, not a package
+    PY=ugc-edit-system/.venv/bin/python
+    [ -x "$PY" ] || PY=$(command -v python3)
+    for f in "${py[@]}"; do
+      if "$PY" "$f" >/dev/null 2>&1; then printf "  ok     %s\n" "$(basename "$f")"
+      else printf "  not ok %s\n" "$(basename "$f")"; fi
+    done
+  fi
+  printf "  %sthese are meant to fail. A pass here means that bug is fixed -- update the ledger.%s\n" "$DIM" "$OFF"
+}
+
+sweeps() {
+  hdr "orphaned API routes"
+  found=0
+  while IFS= read -r r; do
+    route=$(dirname "${r#app/api/}")
+    seg=$(echo "$route" | tr '/' '\n' | grep -v '^\[' | tail -1)
+    [ -z "$seg" ] && continue
+    hits=$(grep -rl "api/.*$seg" app lib --include=*.ts --include=*.tsx 2>/dev/null | grep -v "^$r$" | wc -l | tr -d ' ')
+    [ "$hits" = "0" ] && { bad "no caller found for /api/$route"; found=1; }
+  done < <(find app/api -name route.ts | sed 's|^\./||')
+  [ "$found" = 0 ] && ok "every route has at least one caller"
+
+  [ "$WITH_PIPELINE" = 1 ] || return 0
+
+  hdr "python tools nothing invokes"
+  found=0
+  for t in ugc-edit-system/tools/*.py; do
+    n=$(basename "$t"); case "$n" in _*) continue;; esac
+    hits=$(grep -rl "$n" lib app ugc-edit-system/.claude ugc-edit-system/tools/*.sh \
+            ugc-edit-system/*.command scripts 2>/dev/null | wc -l | tr -d ' ')
+    [ "$hits" = "0" ] && { bad "nothing invokes $n"; found=1; }
+  done
+  [ "$found" = 0 ] && ok "every tool has a caller"
+}
+
+deep() {
+  hdr "unused files, exports and dependencies (knip)"
+  if [ ! -d node_modules ]; then note "node_modules missing; run npm install first"; return; fi
+  npx --yes knip@latest --no-exit-code --reporter compact 2>&1 | tail -40 | sed 's/^/  /' \
+    || note "knip failed to run (usually low memory or low disk) -- the sweeps above still hold"
+}
+
+watch() {
+  printf "%sQA is listening.%s Fast pass on every change under: %s\n" "$B" "$OFF" "${WATCHED[*]}"
+  printf "%sCtrl-C to stop.%s\n" "$DIM" "$OFF"
+  local last=""
+  while true; do
+    now=$(find "${WATCHED[@]}" -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.py' -o -name '*.swift' -o -name '*.sh' \) \
+          -newermt '-1 year' -exec stat -f '%m %N' {} + 2>/dev/null | sort | md5)
+    if [ "$now" != "$last" ]; then
+      [ -n "$last" ] && printf "\n%s--- change detected, %s ---%s\n" "$DIM" "$(date '+%H:%M:%S')" "$OFF"
+      err=0; warn=0; guards
+      if [ "$err" = 0 ] && [ "$warn" = 0 ]; then printf "\n%sclean%s\n" "$GRN" "$OFF"
+      else printf "\n%sneeds a look%s\n" "$YEL" "$OFF"; fi
+      last="$now"
+    fi
+    sleep 3
+  done
+}
+
+if [ "$MODE" = accept ]; then
+  guards 2>&1 | red_lines > "$BASELINE"
+  n=$(wc -l < "$BASELINE" | tr -d ' ')
+  printf "%saccepted %s known guard failure(s) into %s%s\n" "$DIM" "$n" "$BASELINE" "$OFF"
+  printf "%sthe commit hook will now block only on something new.%s\n" "$DIM" "$OFF"
+  exit 0
+fi
+
+case "$MODE" in
+  fast)        guards ;;
+  regressions) regressions ;;
+  watch)       watch ;;
+  full)        guards; tests; regressions; sweeps ;;
+  deep)        guards; tests; regressions; sweeps; deep ;;
+  types)       types ;;
+esac
+
+printf "\n"
+if [ "$err" = 0 ] && [ "$warn" = 0 ]; then
+  printf "%snothing mechanical to report%s\n" "$GRN" "$OFF"
+elif [ "$err" = 0 ]; then
+  printf "%snotes above, nothing blocking%s -- %s/qa%s for the judgment layer\n" "$YEL" "$OFF" "$B" "$OFF"
+else
+  printf "%ssee the red items above%s -- then run %s/qa%s for the judgment layer\n" "$RED" "$OFF" "$B" "$OFF"
+fi
+exit "$err"

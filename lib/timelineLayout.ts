@@ -72,11 +72,35 @@ export function layout(
   // or a beat trimmed since the last build) falls back to its own duration.
   // That keeps the timeline honest through structural edits instead of
   // drifting until the next render.
+  /**
+   * Are this beat's rendered pieces still a true picture of it?
+   *
+   * The EDL is written at build time. Trim the beat or cut a stretch out of it
+   * afterwards and those pieces describe a video that no longer matches the
+   * edit -- so laying the beat out from them reports the length of the last
+   * render, which is how a cut could remove ten seconds and leave the header
+   * saying exactly what it said before. That reads as "my edit did not save".
+   *
+   * Pieces are trusted only while they sit inside the beat and clear of every
+   * hole in it. Otherwise the beat is laid out from itself, and the timeline
+   * tells the truth immediately rather than at the next build.
+   */
+  const edlStillFits = (c: Clip, mine: EdlPiece[]) => {
+    for (const e of mine) {
+      if (e.src_start < c.start - 0.05 || e.src_end > c.end + 0.05) return false;
+      for (const [hf, ht] of c.holes ?? []) {
+        if (e.src_start < ht - 0.02 && e.src_end > hf + 0.02) return false;
+      }
+    }
+    return true;
+  };
+
   const pieces: Piece[] = [];
   const placed: Placed[] = [];
   let at = 0;
   clips.forEach((c, index) => {
-    const mine = byBeat.get(c.label);
+    const found = byBeat.get(c.label);
+    const mine = found && found.length && edlStillFits(c, found) ? found : undefined;
     const start = at;
     if (mine && mine.length) {
       for (const e of mine) {
@@ -206,11 +230,27 @@ export function resolveSpanDelete(
       if (last && r[0] <= last[1] + 0.005) last[1] = Math.max(last[1], r[1]);
       else merged.push([r[0], r[1]]);
     }
-    const gone = merged.reduce((n, r) => n + (r[1] - r[0]), 0);
-    const had = Math.max(0, clip.end - clip.start);
-    // nothing meaningful left of the line: it is a deletion, not a trim
-    if (had - gone < 0.15) out.push({ label, drop: true });
-    else out.push({ label, holes: [...(clip.holes ?? []), ...merged] });
+    /* Is there anything left of this line?
+     *
+     * Measured against what actually survives, which means counting the holes
+     * ALREADY in it. Judging by the beat's full length instead said "plenty
+     * left" for a line that was mostly gone, sent holes where it should have
+     * sent a deletion, and the server refused them -- and because a span is
+     * applied atomically, refusing one line threw away the whole cut. That is
+     * a drag across the timeline doing nothing at all, with the reason buried
+     * in a toast. */
+    const all = [...(clip.holes ?? []), ...merged].sort((a, b) => a[0] - b[0]);
+    const union: [number, number][] = [];
+    for (const h of all) {
+      const last = union[union.length - 1];
+      if (last && h[0] <= last[1] + 0.005) last[1] = Math.max(last[1], h[1]);
+      else union.push([h[0], h[1]]);
+    }
+    const removed = union.reduce(
+      (n, [f, t]) => n + Math.max(0, Math.min(t, clip.end) - Math.max(f, clip.start)), 0);
+    const kept = Math.max(0, clip.end - clip.start) - removed;
+    if (kept < 0.15) out.push({ label, drop: true });
+    else out.push({ label, holes: union });
   }
   return out;
 }

@@ -5,9 +5,12 @@
   "scripts": {
     "dev": "next dev -p 4737 -H 127.0.0.1",
     "build": "next build",
+    "postbuild": "./scripts/qa --fast",
     "start": "next start -p 4737 -H 127.0.0.1",
     "lint": "next lint",
-    "test": "./scripts/test"
+    "test": "./scripts/test",
+    "qa": "./scripts/qa",
+    "qa:watch": "./scripts/qa --watch"
   },
   "dependencies": {
     "next": "14.2.35",

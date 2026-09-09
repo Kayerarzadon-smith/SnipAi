@@ -80,3 +80,35 @@ describe("deleting a span of the timeline", () => {
       "must land in the surviving run, not 1.5s from the clip's start");
   });
 });
+
+/* A span is applied atomically, so one line resolved wrongly throws away the
+   whole cut. This is how a drag across the timeline could do nothing at all,
+   with the reason buried in a toast that had already faded. */
+describe("a line that is already mostly gone", () => {
+  test("is dropped, not sent as holes the server will refuse", () => {
+    // 4s line with 3.5s already cut out of it: 0.5s survives
+    const c = [clip("a", 10, 14, { holes: [[10.2, 13.7]] })];
+    const pieces = layout(c).pieces;
+    // take another 0.4s of what is left
+    const edits = resolveSpanDelete(pieces, c, 0, 0.4);
+    assert.equal("drop" in edits[0] && edits[0].drop, true,
+      "0.1s would be left, so this is a deletion");
+  });
+
+  test("existing and new holes are merged, not counted twice", () => {
+    const c = [clip("a", 0, 10, { holes: [[2, 4]] })];
+    const pieces = layout(c).pieces;          // 8s of cut: 0-2 and 4-10
+    const edits = resolveSpanDelete(pieces, c, 1.5, 3);   // straddles the hole
+    const h = "holes" in edits[0] ? edits[0].holes : null;
+    assert.ok(h, "still has room, so it is holes not a drop");
+    // the old hole and the new cut touch, so they come back as one range
+    assert.equal(h!.length, 1);
+    assert.equal(h![0][0], 1.5);
+  });
+
+  test("a line with room left is still holes", () => {
+    const c = [clip("a", 0, 10, { holes: [[1, 2]] })];
+    const edits = resolveSpanDelete(layout(c).pieces, c, 5, 6);
+    assert.ok("holes" in edits[0]);
+  });
+});

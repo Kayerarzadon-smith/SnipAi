@@ -41,6 +41,19 @@ registerHooks({
       const hit = firstThatExists(path.resolve(from, specifier));
       if (hit) return { url: pathToFileURL(hit).href, shortCircuit: true };
     }
+    // "next/server" -> "next/server.js". Next's package.json exports map is
+    // written for a bundler; Node's resolver wants the file. Without this the
+    // route handlers cannot be imported at all, and a route handler is just a
+    // function over Request -- exactly the thing worth testing.
+    if (!specifier.startsWith(".") && !specifier.startsWith("@/") &&
+        !specifier.startsWith("node:") && specifier.includes("/") &&
+        !path.extname(specifier)) {
+      try {
+        return nextResolve(specifier + ".js", context);
+      } catch {
+        // fall through to the normal resolution and let it report the problem
+      }
+    }
     return nextResolve(specifier, context);
   },
 });

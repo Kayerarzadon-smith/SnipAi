@@ -478,6 +478,11 @@ export default function Timeline({
           <span className="tl-meta mono">
             {clips.length} clips · {fmt(total)}
           </span>
+          {span && span.to - span.from > 0.02 && (
+            <span className="tl-hint">
+              {(span.to - span.from).toFixed(2)}s marked &mdash; <b>Delete</b> to cut it out
+            </span>
+          )}
           {stripStale && (
             <span className="tl-stale" title="The picture is from the last render; the clips and audio are current.">
               picture out of date
@@ -636,7 +641,17 @@ export default function Timeline({
           </div>
 
           {/* video track */}
-          <div className="tl-track tl-video">
+          <div
+            className="tl-track tl-video"
+            onMouseDown={(e) => {
+              // only the gaps between clips: a press on a clip is the clip's
+              if (e.target !== e.currentTarget) return;
+              e.preventDefault();
+              const t0 = cutTimeAt(e.clientX);
+              setMarking({ anchor: t0, moved: false });
+              setSpan({ from: t0, to: t0 });
+            }}
+          >
             {strip ? (
               <div
                 className="tl-strip"
@@ -663,6 +678,21 @@ export default function Timeline({
                     ? `translateX(${moving.dx}px)` : undefined,
                 }}
                 onMouseDown={(e) => {
+                  /* Shift marks a range instead of moving the clip, and it is
+                     checked BEFORE the handle guard: clips butt together, so
+                     a good part of the picture track is trim handle, and
+                     shift-dragging from one of those spots used to do nothing
+                     at all. A plain drag on picture stays "move this line" --
+                     that is what dragging a clip means everywhere -- while on
+                     the audio track, where nothing is draggable, a plain drag
+                     marks a range. */
+                  if (e.shiftKey) {
+                    e.preventDefault();
+                    const t0 = cutTimeAt(e.clientX);
+                    setMarking({ anchor: t0, moved: false });
+                    setSpan({ from: t0, to: t0 });
+                    return;
+                  }
                   if ((e.target as HTMLElement).closest(".tl-handle")) return;
                   e.preventDefault();
                   onSelect(c.label);
@@ -698,12 +728,12 @@ export default function Timeline({
                 <span
                   className="tl-handle tl-handle-l"
                   title="drag to trim the in-point"
-                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "start", track: "video" }); }}
+                  onMouseDown={(e) => { if (e.shiftKey) return; e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "start", track: "video" }); }}
                 />
                 <span
                   className="tl-handle tl-handle-r"
                   title="drag to trim the out-point"
-                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "end", track: "video" }); }}
+                  onMouseDown={(e) => { if (e.shiftKey) return; e.preventDefault(); e.stopPropagation(); onSelect(c.label); setDrag({ label: c.label, edge: "end", track: "video" }); }}
                 />
               </div>
             ))}

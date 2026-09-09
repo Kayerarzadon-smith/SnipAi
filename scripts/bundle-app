@@ -18,6 +18,14 @@ good() { printf "  %s%s%s\n" "$OK" "$1" "$OFF"; }
 bad()  { printf "  %s%s%s\n\n" "$ERR" "$1" "$OFF"; exit 1; }
 note() { printf "  %s%s%s\n" "$DIM" "$1" "$OFF"; }
 
+# QA gate. A bundle is the one artifact that leaves this machine, so it is the
+# one place the full pass is worth the wait. QA_SKIP=1 to bundle anyway.
+if [ "${QA_SKIP:-0}" != "1" ] && [ -x ./scripts/qa ]; then
+  step "QA"
+  if ./scripts/qa --full; then good "clean"
+  else bad "QA has findings -- read them, then QA_SKIP=1 ./scripts/bundle-app to bundle regardless"; fi
+fi
+
 APP="$ROOT/SnipAi.app"
 RES="$APP/Contents/Resources"
 PYVER="3.11"

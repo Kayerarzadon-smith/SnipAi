@@ -87,3 +87,39 @@ describe("timeline layout", () => {
     });
   });
 });
+
+/* The EDL is written at build time. Once a beat is trimmed or has a stretch
+   cut out of it, those pieces describe a video that no longer matches the
+   edit -- and laying the beat out from them reports the LAST RENDER's length.
+   That is how a cut could remove ten seconds and leave the timeline saying
+   exactly what it said before, which reads as "my edit did not save". */
+describe("stale EDL pieces are not trusted", () => {
+  const edlFor = (label: string, a: number, b: number): EdlPiece[] =>
+    [{ label, src_start: a, src_end: b, dur: b - a }];
+
+  test("a hole punched since the build makes its pieces stale", () => {
+    const c = clip("a", 10, 14, { holes: [[11, 12]] });
+    // the EDL still spans the hole, so it is from before the cut
+    const { total } = layout([c], edlFor("a", 10, 14));
+    assert.equal(total, 3, "must report the edit (4s - 1s), not the render (4s)");
+  });
+
+  test("a beat trimmed since the build makes its pieces stale", () => {
+    const c = clip("a", 10, 12);                    // trimmed in from 14
+    const { total } = layout([c], edlFor("a", 10, 14));
+    assert.equal(total, 2);
+  });
+
+  test("pieces that still fit are used, so a built cut keeps its real length", () => {
+    // build_cut snaps edges inward, so the render is legitimately shorter
+    const c = clip("a", 10, 14);
+    const { total } = layout([c], edlFor("a", 10.2, 13.8));
+    assert.equal(total, 3.6, "the rendered length is the honest one here");
+  });
+
+  test("a hole clear of the pieces still trusts them", () => {
+    const c = clip("a", 10, 14, { holes: [[13.9, 13.95]] });
+    const { total } = layout([c], edlFor("a", 10, 13.8));
+    assert.equal(total, 3.8);
+  });
+});

@@ -106,6 +106,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [undo, setUndo] = useState<{ beat: Beat; at: number } | null>(null);
   const [gfxFor, setGfxFor] = useState<Beat | null>(null);
   const [gfxNonce, setGfxNonce] = useState(0);
+  const [learnedOpen, setLearnedOpen] = useState(false);
+  /** off switch for the automatic re-render, for when you want to cut in peace */
+  const [autoApply, setAutoApply] = useState(true);
+  const buildJobRef = useRef<Job | null>(null);
   /** the footage's own shape, so the player is never a letterbox */
   const [shotAspect, setShotAspect] = useState<string | null>(null);
   /** the line being spoken, and which word of it, right now */
@@ -224,6 +228,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       await load();
       toast(`Cut ${(to - from).toFixed(2)}s off the ${headCut ? "start" : "end"}`);
       learnFromEdits();
+    applyEditsSoon();
       return;
     }
     pushHistory("cutting that bit out");
@@ -271,6 +276,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     await load();
     toast(`Cut out ${(to - from).toFixed(2)}s — the gap closed`);
     learnFromEdits();
+    applyEditsSoon();
   }
 
   /** The triage the old sidebar list was doing: worst line first, then the
@@ -362,6 +368,40 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const all = dataRef.current?.words ?? [];
     return all.filter((w) => w.e > b.start && w.s < b.end);
   }, []);
+
+  /* Edits apply themselves.
+   *
+   * Cutting used to leave the rendered file behind until you noticed the
+   * "picture out of date" badge and pressed Apply. Every edit is a real edit;
+   * having to confirm it a second time is a step that exists for the
+   * renderer's benefit, not yours.
+   *
+   * Debounced, because a render is minutes of ffmpeg and a run of trims is
+   * one edit in your head. It waits for you to stop, skips while a job is
+   * already running, and never queues a second one behind the first. */
+  const rebuildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rebuildWanted = useRef(false);
+  function applyEditsSoon() {
+    if (!autoApply) return;
+    rebuildWanted.current = true;
+    if (rebuildTimer.current) clearTimeout(rebuildTimer.current);
+    rebuildTimer.current = setTimeout(async () => {
+      rebuildTimer.current = null;
+      if (!rebuildWanted.current) return;
+      // a build already running will pick up what is on disk when it starts;
+      // stacking another behind it renders the same edit twice
+      if (buildJobRef.current?.status === "running") { applyEditsSoon(); return; }
+      rebuildWanted.current = false;
+      try {
+        const res = await fetch(`/api/projects/${project}/pipeline`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ step: "build" }),
+        });
+        if (res.status === 202) pollBuild((await res.json()).jobId);
+      } catch { /* the badge still says the picture is behind */ }
+    }, 6000);
+  }
+  useEffect(() => () => { if (rebuildTimer.current) clearTimeout(rebuildTimer.current); }, []);
 
   /* Picking a clip on the timeline and picking its line are the same act.
      The row lights up either way, and scrolls into view when the selection
@@ -612,6 +652,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       const d = r.delta;
       toast(`Trimmed ${d.start >= 0 ? "+" : ""}${d.start}s / ${d.end >= 0 ? "+" : ""}${d.end}s — playing it now`);
       learnFromEdits();
+    applyEditsSoon();
     } else {
       const b = await res.json().catch(() => ({}));
       toast(b.error ?? "could not save the trim");
@@ -660,6 +701,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       .catch(() => {});
   }, [project]);
   useEffect(() => { beatsRef.current = data?.beats ?? []; dataRef.current = data; }, [data]);
+  useEffect(() => { buildJobRef.current = buildJob; }, [buildJob]);
   const defaulted = useRef(false);
   useEffect(() => {
     if (data && !defaulted.current) { defaulted.current = true; if (!data.cutFile && data.hasSource && data.beats.length > 0) setLiveMode(true); }
@@ -992,7 +1034,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
           end: Math.round(next.end * 1000) / 1000,
         }),
       });
-      if (res.ok) { await load(); learnFromEdits(); } else { await load(); }
+      if (res.ok) { await load(); learnFromEdits(); applyEditsSoon(); } else { await load(); }
     }, 420);
   }
 
@@ -1031,6 +1073,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       });
       await load();
       learnFromEdits();
+    applyEditsSoon();
     }, 400);
   }
 
@@ -1122,6 +1165,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const dropped = (body.dropped ?? []).length;
     toast(`Cut ${(to - from).toFixed(2)}s out${dropped ? ` — ${dropped} line${dropped > 1 ? "s" : ""} gone` : ""}`);
     learnFromEdits();
+    applyEditsSoon();
   }
 
   /** Read one line and card it if it earns one.
@@ -1164,14 +1208,27 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const body = await res.json().catch(() => ({}));
     if (!res.ok) { toast(body.error ?? "could not apply that"); return; }
     await load();
+    applyEditsSoon();
     toast(done);
   }
 
-  /** Length of the built cut. Read off the file itself where possible: the
-   *  beat maths comes to 2:17 where the render is 1:58, because build_cut
-   *  snaps every edge inward against the silence map. */
-  const beatsDuration = (data?.beats ?? []).reduce((sum, b) => sum + Math.max(0, b.end - b.start), 0);
-  const cutDuration = cutMediaDuration ?? beatsDuration;
+  /* How long the edit runs.
+   *
+   * This used to prefer the rendered FILE's duration, which is a number about
+   * the last build, not about the edit in front of you. Cut ten seconds out
+   * and the header kept reporting the old length until you re-rendered --
+   * which reads exactly like the edit did not save. It reports the edit now,
+   * and holes come out of it: a line with a stretch removed is shorter, and
+   * the old sum ignored that entirely.
+   *
+   * The rendered file's length is still used for the rendered-cut player,
+   * where it is the honest number. */
+  const beatsDuration = (data?.beats ?? []).reduce((sum, b) => {
+    const holes = (b.holes ?? []).reduce(
+      (n, [f, t]) => n + Math.max(0, Math.min(t, b.end) - Math.max(f, b.start)), 0);
+    return sum + Math.max(0, (b.end - b.start) - holes);
+  }, 0);
+  const cutDuration = liveMode || cutMediaDuration === null ? beatsDuration : cutMediaDuration;
 
   async function clearMarkers() {
     await fetch(`/api/projects/${project}/review-action`, {
@@ -1369,6 +1426,11 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                 {data.graphicsFile ? "Clean cut" : "Rendered cut"}
               </button>
             )}
+            <label className="auto-apply" title="Re-render the cut a few seconds after you stop editing">
+              <input type="checkbox" checked={autoApply}
+                     onChange={(e) => setAutoApply(e.target.checked)} />
+              Apply edits automatically
+            </label>
             {!data.cutFile && data.beats.length > 0 && buildJob?.status !== "running" && (
               <button
                 className="ui-btn ui-btn-sm pm-apply"
@@ -2059,13 +2121,15 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
         </div>
       )}
 
-      {/* The thing he's actually after: proof it got the message, and that
-          the next video starts closer to right. */}
-      {learned && (
+      {/* It learns on every edit, so announcing it on every edit is noise --
+          it interrupts the cutting to tell you about the cutting. It stays
+          available in Settings, where you can read the rules and turn any of
+          them off; this card now only appears when you ask for it. */}
+      {learned && learnedOpen && (
         <div className="learned-card">
           <div className="learned-head">
             <b>SnipAi learned from that</b>
-            <button onClick={() => setLearned(null)} aria-label="dismiss">✕</button>
+            <button onClick={() => { setLearned(null); setLearnedOpen(false); }} aria-label="dismiss">✕</button>
           </div>
           <ul>
             {learned.map((l, i) => <li key={i} className="mono">{l}</li>)}

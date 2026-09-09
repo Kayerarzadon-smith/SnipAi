@@ -393,6 +393,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
 
   useEffect(() => {
     if (!spoken || !followRef.current) return;
+    if (pointerDown.current) return;          // never move the page mid-drag
     const row = document.querySelector(`[data-beat="${spoken.label}"]`) as HTMLElement | null;
     const stage = document.querySelector(".stage") as HTMLElement | null;
     if (!row) return;
@@ -459,12 +460,42 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   }
   useEffect(() => () => { if (rebuildTimer.current) clearTimeout(rebuildTimer.current); }, []);
 
+  /* Is a mouse button down right now?
+   *
+   * Capture phase on window, so it is true before any React handler runs and
+   * before the effects that follow the render those handlers cause. Nothing
+   * may move the page while the hand is on the mouse. */
+  const pointerDown = useRef(false);
+  useEffect(() => {
+    const down = () => { pointerDown.current = true; };
+    const up = () => { pointerDown.current = false; };
+    window.addEventListener("mousedown", down, true);
+    window.addEventListener("mouseup", up, true);
+    window.addEventListener("dragend", up, true);
+    return () => {
+      window.removeEventListener("mousedown", down, true);
+      window.removeEventListener("mouseup", up, true);
+      window.removeEventListener("dragend", up, true);
+    };
+  }, []);
+
   /* Picking a clip on the timeline and picking its line are the same act.
      The row lights up either way, and scrolls into view when the selection
-     came from the timeline -- so the two halves of the screen never disagree
-     about which line you are working on. */
+     came from the keyboard -- so the two halves of the screen never disagree
+     about which line you are working on.
+
+     NOT while you are dragging. Every clip, trim handle and fade grip on the
+     timeline calls onSelect on MOUSEDOWN, so this effect fired the moment a
+     drag began and smooth-scrolled the page to re-centre the row -- pulling
+     the timeline out from under the cursor mid-drag, for the whole length of
+     the animation. "The screen won't stay put. I cannot work this way."
+
+     The rule is simply: the page does not move itself while the hand is on
+     the mouse. Keyboard selection (arrows, N) still brings the row into view,
+     which is the case this was written for. */
   useEffect(() => {
     if (!selectedClip) return;
+    if (pointerDown.current) return;
     const row = document.querySelector(`[data-beat="${selectedClip}"]`);
     if (!row) return;
     const r = row.getBoundingClientRect();

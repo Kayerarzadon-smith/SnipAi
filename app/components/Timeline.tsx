@@ -468,14 +468,21 @@ export default function Timeline({
 
   // keep the playhead in view while it runs
   useEffect(() => {
-    if (scrubbing) return;          // never fight the hand that's dragging
+    /* Never fight the hand that's dragging.
+     *
+     * This checked `scrubbing` only, which is set when you drag the PLAYHEAD.
+     * Dragging a trim handle, moving a clip, pulling a fade grip or marking a
+     * range are four other ways to have hold of the timeline, and during
+     * playback this fired for all of them -- jumping scrollLeft by half a
+     * screen while the clip you were dragging was under the cursor. */
+    if (scrubbing || drag || moving || fading || marking) return;
     if (playCutTime === null || !scrollRef.current) return;
     const el = scrollRef.current;
     const x = playCutTime * pps;
     if (x < el.scrollLeft + 40 || x > el.scrollLeft + el.clientWidth - 40) {
       el.scrollLeft = Math.max(0, x - el.clientWidth / 2);
     }
-  }, [playCutTime, pps]);
+  }, [playCutTime, pps, scrubbing, drag, moving, fading, marking]);
 
   const ticks = useMemo(() => {
     const step = pps > 120 ? 1 : pps > 50 ? 2 : pps > 22 ? 5 : 10;

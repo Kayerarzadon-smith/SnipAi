@@ -1,0 +1,21 @@
+#!/bin/bash
+# What is still on the docket. Run it, or let the session-start hook print it.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+BOLD=$'\033[1m'; DIM=$'\033[2m'; ACC=$'\033[35m'; WARN=$'\033[33m'; OFF=$'\033[0m'
+[ -f DOCKET.md ] || { echo "no DOCKET.md"; exit 1; }
+
+section() {   # $1 heading, $2 colour
+  awk -v h="## $1" -v c="$2" -v o="$OFF" '
+    $0 == h {inside=1; next}
+    /^## / && inside {exit}
+    inside && /^\| [RBP][0-9]+ \|/ {
+      n=split($0, f, /\s*\|\s*/); printf "  %s%-4s%s %s\n", c, f[2], o, f[3]
+      if (f[4] != "") printf "       %s\n", f[4]
+    }' DOCKET.md
+}
+printf "\n%sOpen%s — things to build\n" "$BOLD" "$OFF"; section "Open" "$ACC"
+printf "\n%sBlocked%s — waiting on something that is not code\n" "$BOLD" "$OFF"; section "Blocked — not on code" "$WARN"
+printf "\n%sParked%s\n" "$BOLD" "$OFF"; section "Parked" "$DIM"
+done_n=$(awk '/^## Done/{d=1} d && /^\| /{n++} END{print n-2}' DOCKET.md)
+printf "\n  %s%s requests delivered. Full list in DOCKET.md%s\n\n" "$DIM" "$done_n" "$OFF"

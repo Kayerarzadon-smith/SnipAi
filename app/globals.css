@@ -576,6 +576,13 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 .import-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .import-size { color: var(--text-faint); }
 .import-status { color: var(--text-muted); min-width: 190px; text-align: right; }
+/* The bar is the row itself filling up, rather than a separate widget: a
+   gigabyte of footage takes minutes, and a number alone does not read as
+   movement. */
+.import-row.uploading { position: relative; }
+.import-row .import-fill { position: absolute; left: 0; bottom: 0; height: 2px;
+                           background: var(--accent); transition: width .25s linear; }
+.import-row.uploading .import-status { color: var(--accent); font-variant-numeric: tabular-nums; }
 .import-row.duplicate .import-status { color: var(--warn); }
 .import-row.duplicate .import-name { color: var(--text-faint); text-decoration: line-through; }
 .import-row.done .import-status { color: var(--good); }

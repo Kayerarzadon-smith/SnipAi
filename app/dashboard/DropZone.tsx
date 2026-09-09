@@ -11,6 +11,10 @@ type Queued = {
   status: "ready" | "duplicate" | "uploading" | "done" | "error" | "rejected";
   duplicateOf?: string;
   message?: string;
+  /** 0-100 while the bytes are moving. fetch() cannot report this at all,
+   *  which is why a 1.8GB import sat on the word "importing" for minutes
+   *  with no way to tell it apart from a hang. */
+  pct?: number;
 };
 
 /** "IMG_9817.MOV" -> "img-9817" */
@@ -27,6 +31,48 @@ function projectNameFor(fileName: string): string {
 
 function mb(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+/**
+ * Send the file as a raw body, with progress.
+ *
+ * XHR rather than fetch, for the one thing XHR still does that fetch cannot:
+ * `upload.onprogress`. Without it there is no honest way to show how far a
+ * multi-gigabyte import has got, and "importing..." is indistinguishable from
+ * a crash -- which is exactly how it read.
+ *
+ * Raw body rather than multipart: the server streams it straight to disk, so
+ * nothing has to hold the file in memory at either end.
+ */
+function upload(
+  project: string,
+  file: File,
+  onProgress: (pct: number) => void
+): Promise<{ ok: boolean; body: { project?: string; error?: string } }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/projects");
+    xhr.setRequestHeader("x-snipai-project", project);
+    // headers are latin-1; a filename with an accent in it must be encoded
+    xhr.setRequestHeader("x-snipai-filename", encodeURIComponent(file.name));
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    // The last byte leaving the browser is not the end: the server is still
+    // writing it. Saying 100% and then sitting there is the same lie in a
+    // smaller window, so the row says what is actually happening.
+    xhr.upload.onload = () => onProgress(100);
+    const done = (ok: boolean, fallback: string) => {
+      let body: { project?: string; error?: string } = {};
+      try { body = JSON.parse(xhr.responseText); } catch { body = { error: fallback }; }
+      resolve({ ok, body });
+    };
+    xhr.onload = () => done(xhr.status >= 200 && xhr.status < 300, `import failed (${xhr.status})`);
+    xhr.onerror = () => done(false, "the connection dropped mid-import");
+    xhr.onabort = () => done(false, "import cancelled");
+    xhr.send(file);
+  });
 }
 
 /**
@@ -127,13 +173,10 @@ export function DropZone({
     for (let i = 0; i < queued.length; i++) {
       const item = queued[i];
       if (item.status === "duplicate" || item.status === "done" || item.status === "rejected") continue;
-      setQueued((q) => q.map((x, n) => (n === i ? { ...x, status: "uploading" } : x)));
-      const form = new FormData();
-      form.append("name", projectNameFor(item.name));
-      form.append("file", item.file);
-      const res = await fetch("/api/projects", { method: "POST", body: form });
-      const ok = res.ok;
-      const body = await res.json().catch(() => ({}));
+      setQueued((q) => q.map((x, n) => (n === i ? { ...x, status: "uploading", pct: 0 } : x)));
+      const { ok, body } = await upload(
+        projectNameFor(item.name), item.file,
+        (pct) => setQueued((q) => q.map((x, n) => (n === i ? { ...x, pct } : x))));
 
       // Dropping footage should be the whole instruction. Kick the pipeline
       // off here so it starts transcribing, drafting and cutting on its own --
@@ -148,7 +191,10 @@ export function DropZone({
       }
       setQueued((q) =>
         q.map((x, n) =>
-          n === i ? { ...x, status: ok ? "done" : "error", message: ok ? undefined : body.error } : x
+          n === i
+            ? { ...x, status: ok ? "done" : "error", pct: undefined,
+                message: ok ? undefined : body.error }
+            : x
         )
       );
     }
@@ -207,12 +253,18 @@ export function DropZone({
           </div>
           {queued.map((q, i) => (
             <div className={`import-row ${q.status}`} key={`${q.name}-${i}`}>
+              {q.status === "uploading" && (
+                <span className="import-fill" style={{ width: `${q.pct ?? 0}%` }} />
+              )}
               <span className="import-name mono">{q.name}</span>
               <span className="import-size mono">{mb(q.file.size)}</span>
               <span className="import-status">
                 {q.status === "duplicate" && `⚠ ${q.message}`}
                 {q.status === "ready" && `→ ${projectNameFor(q.name)}`}
-                {q.status === "uploading" && "importing…"}
+                {q.status === "uploading" &&
+                  (q.pct === undefined ? "importing…"
+                   : q.pct < 100 ? `copying ${q.pct}%`
+                   : "filing it away…")}
                 {q.status === "done" && "✓ imported"}
                 {q.status === "error" && `✕ ${q.message ?? "failed"}`}
                 {q.status === "rejected" && `✕ ${q.message}`}

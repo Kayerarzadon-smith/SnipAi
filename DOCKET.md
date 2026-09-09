@@ -1,0 +1,89 @@
+# The docket
+
+What Kayer has asked for, and what happened to it.
+
+`audits/LEDGER.md` holds defects **I** found in the code. This holds requests
+**he** made out loud — which is the list that was actually going missing. The
+fade handle is the example worth remembering: asked for, built as far as a
+draggable corner, wired to nothing, and it sat dead for weeks because nothing
+was keeping score.
+
+**Status:** `open` · `done` · `partial` (some of it works, the rest is named)
+· `blocked` (waiting on something outside the code — money, a credential, a
+decision) · `parked` (he called it off; kept so it is not re-litigated).
+
+Read this at the start of a session. Update it in the same commit as the work,
+not afterwards. `./scripts/docket` prints what is still open.
+
+---
+
+## Open
+
+| # | What he asked for | Notes |
+|---|---|---|
+| R2 | Products & links | The form writes a file only an uninvoked tool reads |
+| R3 | Teach the take picker what "best" means to him | The machinery is connected and waiting: `takePicks` is still empty, so nothing has taught it. Needs him to override a few picks in **Takes** |
+
+## Blocked — not on code
+
+| # | What he asked for | Waiting on |
+|---|---|---|
+| B1 | Post to TikTok Shop, X, Snapchat, Facebook, Instagram, **Pinterest**, **Trybe**, Amazon Storefront | A developer app and credentials per platform. Eight tiles, all `not_connected` |
+| B2 | Hand the app to a few people | Apple Developer account, $99/yr, for signing and notarisation |
+| B3 | It updates itself | Sparkle, which needs B2 first |
+| B4 | Runs properly on Apple Silicon | A universal build. Works today under Rosetta |
+
+## Parked
+
+| # | What | Why |
+|---|------|-----|
+| P1 | AI overlay — the aged-neck shot, click, freeze, revert | He called it off after seeing the per-image cost. Everything but the generation call is built and committed: `ai_shot.py`, `lib/imagegen.ts`, `scripts/connect-image-provider`. One key away |
+
+## Done
+
+Kept because "did you do X?" is a question worth being able to answer, and
+because several of these were reported twice.
+
+| What | Where it landed |
+|------|-----------------|
+| Reference videos build a house-style template that is actually used | the scorecard's Pacing score reads off it — 38 on the current cut |
+| Drop footage in and it cuts itself, no second step | auto pipeline, live verb and percentage |
+| A real percentage while footage imports | `copying 41%`, and the row fills as a bar |
+| A 1.8GB import stops taking the Mac down with it | streamed to disk: 2169MB → 149MB on a 700MB file |
+| Re-score a cut without re-rendering it | the `check` step, seconds instead of minutes |
+| A real timeline: two tracks, zoom, CRUD, premium UX | `Timeline.tsx` |
+| Zoom with ⌘+scroll, and a toggle | timeline and snippet editor both |
+| Detach audio for J/L cuts | UI, API and builder — the render script is still unrun (see ledger H4) |
+| Extremely high resolution waveforms, cyan | one spike per device pixel |
+| Frame-by-frame filmstrip, not a stretched smear | visible window only, ~1 frame / 44px |
+| Playhead unsnapped from the grid, skinnier, exact | 1px, free-moving |
+| Playhead draggable, and synced to playback | 47 position updates a second |
+| Highlight a region and delete it | snippet editor, and the timeline |
+| Ripple delete across synced audio and video | one drag, resolved and applied as one write |
+| ⌘B to splice | plus `S` |
+| Fade in / out with a draggable handle | **was dead for weeks**; the corner now ramps the clip |
+| Learn rules from what I do repeatedly | and the loop was reconnected after the library moved |
+| Real-time playback in the snippet monitor | canvas mirror, one decoder |
+| Half-size playback window | then made resizable, then made it take the footage's shape |
+| Delete projects properly, five days to change your mind | ⋯ → Delete → Recently deleted |
+| Animated status bar, live percentage, estimated finish, changing verbs | transcribing, snipping, editing, shrinking, rendering |
+| Thumbnail on the queue card | beside the title |
+| Motion graphics and definition cards | six kinds, folded under the timeline |
+| Generate a graphic for one line | about a second, off the existing transcript |
+| A box that takes my voice | in the graphic dialog |
+| Microphone granted without asking mid-sentence | asked for at launch |
+| Sleeker trim row — just cut, slice, save | and 1px handles |
+| Snippet editor as wide as its line, looking like it belongs to it | seamless with the row above |
+| Space plays the snippet | and pressing it again stops |
+| Save trim in the bottom right corner | |
+| Nothing drawn over the picture | filename and LIVE badge removed |
+| 1px between the tracks | |
+| Edits applied instantly, no re-render step | 67ms — you watch the edit, not the last render |
+| Stay on the cut, stop reverting to original footage | renamed **Your cut** / **Rendered file** |
+| The lines carousel with playback, word lit as spoken | yields for 4s if you scroll, then comes back |
+| Select a video track and have the beat row follow | selection linked both ways |
+| Audio while scrubbing | 0.5× to 3×, at the speed of your hand |
+| Restart the app on every change so I can see it land | every session ends bundled and relaunched |
+| Make the app more efficient | standalone server: 250MB → 22MB |
+| Darker theme, no emoji on buttons | |
+| An inventory of everything built | the two published guides |

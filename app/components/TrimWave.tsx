@@ -109,6 +109,9 @@ export default function TrimWave({
     return () => { stop = true; cancelAnimationFrame(raf); };
   }, [monitorFor]);
   const [marking, setMarking] = useState<{ from: number; moved: boolean; startX: number } | null>(null);
+  /* Read on mouseup, so they must not be able to go stale. */
+  const movedRef = useRef(false);
+  const rangeRef = useRef<{ from: number; to: number } | null>(null);
 
   const span = Math.max(0.2, viewEnd - viewStart);
 
@@ -258,18 +261,32 @@ export default function TrimWave({
 
   const pct = (t: number) => `${((t - viewStart) / span) * 100}%`;
 
-  /* Highlighting a region: shift-drag across the wave. */
+  /* Highlighting a region: drag across the wave.
+
+     `moved` and the live range are refs, not state. They used to live on the
+     `marking` object, and `up` read them out of the closure it was registered
+     with -- fine when the component is still, and a coin toss while the
+     snippet is playing, because the playhead re-renders this component around
+     47 times a second and every one of those re-registers these listeners.
+     Catch the wrong closure on mouseup and `moved` still reads false, so the
+     highlight you just dragged is thrown away as if it had been a click. The
+     symptom is the one that is hardest to report: you highlight, you press
+     delete, and nothing happens. */
   useEffect(() => {
     if (!marking || !onSelectRange) return;
     const move = (e: MouseEvent) => {
       const t = timeAt(e.clientX);
       setLocalHead(t);
-      if (Math.abs(e.clientX - marking.startX) < 4) { onScrub(t); return; }
-      if (!marking.moved) setMarking({ ...marking, moved: true });
-      onSelectRange({ from: Math.min(marking.from, t), to: Math.max(marking.from, t) });
+      if (!movedRef.current && Math.abs(e.clientX - marking.startX) < 4) { onScrub(t); return; }
+      movedRef.current = true;
+      const range = { from: Math.min(marking.from, t), to: Math.max(marking.from, t) };
+      rangeRef.current = range;
+      onSelectRange(range);
     };
     const up = () => {
-      if (marking && !marking.moved) onSelectRange(null);     // a plain click clears
+      // a plain click clears; a drag keeps what it drew
+      if (!movedRef.current) onSelectRange(null);
+      else if (rangeRef.current) onSelectRange(rangeRef.current);
       setMarking(null);
       setLocalHead(null);          // hand back to playback
     };
@@ -366,6 +383,8 @@ export default function TrimWave({
           // Drag to highlight, click to scrub. Telling them apart by movement
           // means neither needs a modifier key to discover.
           if (onSelectRange) {
+            movedRef.current = false;
+            rangeRef.current = null;
             setMarking({ from: t, moved: false, startX: e.clientX });
           }
           setLocalHead(t);

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "node:path";
 import fs from "node:fs";
-import { checkAvailability, runBuildJob, runTranscribeJob, runSourceProxyJob, runDraftBeatsJob, runAutoPipelineJob } from "@/lib/pipeline";
+import { checkAvailability, runBuildJob, runCheckJob, runTranscribeJob, runSourceProxyJob, runDraftBeatsJob, runAutoPipelineJob } from "@/lib/pipeline";
 import { loadBeats, saveBeats } from "@/lib/beats";
 import { projectDir } from "@/lib/paths";
 import { createJob, failJob, runningJob } from "@/lib/jobs";
 
-type Body = { step: "transcribe" | "draft-beats" | "build" | "source-proxy" | "auto" };
+type Body = { step: "transcribe" | "draft-beats" | "build" | "check" | "source-proxy" | "auto" };
 
 /**
  * Runs one step of the existing pipeline against a real project. Every step
@@ -93,6 +93,16 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
   if (body.step === "draft-beats") {
     const job = createJob(project, "draft-beats");
     runDraftBeatsJob(job.id, project).catch((e) =>
+      failJob(job.id, e instanceof Error ? e.message : String(e)));
+    return NextResponse.json({ jobId: job.id }, { status: 202 });
+  }
+
+  // Re-score the cut that already exists. Cheap next to a rebuild -- it reads
+  // files rather than re-encoding them -- and it is the only way to recover a
+  // check that was computed while one of the two tools was broken.
+  if (body.step === "check") {
+    const job = createJob(project, "check");
+    runCheckJob(job.id, project).catch((e) =>
       failJob(job.id, e instanceof Error ? e.message : String(e)));
     return NextResponse.json({ jobId: job.id }, { status: 202 });
   }

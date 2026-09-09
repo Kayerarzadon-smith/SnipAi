@@ -505,6 +505,43 @@ export async function runBuildJob(jobId: string, project: string): Promise<void>
   finishJob(jobId, cut);
 }
 
+/** The newest render on disk. The scorecard describes a particular cut, so
+ *  re-checking has to name the same file the review screen is playing. */
+export function latestCut(project: string): string | null {
+  const cutsDir = path.join(projectDir(project), "cuts");
+  if (!fs.existsSync(cutsDir)) return null;
+  let best: { name: string; v: number } | null = null;
+  for (const f of fs.readdirSync(cutsDir)) {
+    const v = /-v(\d+)\.(mp4|mov)$/i.exec(f)?.[1];
+    if (v === undefined) continue;
+    if (!best || Number(v) > best.v) best = { name: f, v: Number(v) };
+  }
+  return best?.name ?? null;
+}
+
+/**
+ * Re-run the two checks against the cut that already exists.
+ *
+ * The checks used to run in exactly one place -- the tail of a build -- so a
+ * check that came back wrong stayed wrong until somebody re-rendered. That is
+ * minutes of 4K encoding to recompute two numbers read off files that had not
+ * changed. It also meant a bug in one of the two tools was invisible until the
+ * next build, which is how the pacing metric sat on "needs a built cut to
+ * compare" while the cut was sitting right there.
+ */
+export async function runCheckJob(jobId: string, project: string): Promise<void> {
+  const log = (line: string) => appendLog(jobId, line);
+  const cut = latestCut(project);
+  if (!cut) { failJob(jobId, "nothing has been built yet — there is no cut to check"); return; }
+  try {
+    log(`checking ${cut}...`);
+    await runChecksAndCache(project, cut, path.join(projectDir(project), "cuts", cut), log);
+    finishJob(jobId, cut);
+  } catch (e) {
+    failJob(jobId, e instanceof Error ? e.message : String(e));
+  }
+}
+
 /* ---- the auto pipeline's other phases, as plain steps ---- */
 
 async function stepTranscribe(project: string, log: (l: string) => void): Promise<boolean> {

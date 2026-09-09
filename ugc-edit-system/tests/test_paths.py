@@ -113,3 +113,19 @@ class LearnedValuesAreBounded(unittest.TestCase):
         fresh, through = L.since_last_applied(trims)
         self.assertEqual(through, "2026-01-02T00:00:00Z")
         self.assertIsInstance(fresh, list)
+
+
+class ReferenceIsReadFromTheLibrary(unittest.TestCase):
+    """compare_to_reference defaulted --style to a RELATIVE path, which
+    resolves against the process CWD -- the code root, where reference/ used
+    to live and where a stale copy still sat. The comparison silently measured
+    against yesterday's house style, and the scorecard reported 'needs a built
+    cut' for a cut that had been built."""
+
+    def test_style_default_is_absolute_and_in_the_library(self):
+        import inspect
+        import compare_to_reference
+        src = inspect.getsource(compare_to_reference)
+        self.assertIn('data_path("reference", "house-style.json")', src)
+        self.assertNotIn('default="reference/house-style.json"', src,
+                         "a relative default resolves against the CWD")

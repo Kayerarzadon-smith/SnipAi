@@ -5,6 +5,8 @@ import { projectDir, assertValidProjectName } from "@/lib/paths";
 import { saveBeats } from "@/lib/beats";
 import { summarizeAllProjects } from "@/lib/projectSummary";
 import { runningJob } from "@/lib/jobs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 export async function GET() {
   // the dashboard animates a project's bar only while its job is live
@@ -25,10 +27,44 @@ export async function GET() {
 const VIDEO_EXT_LIST = [".mov", ".mp4", ".m4v", ".avi", ".mkv", ".webm"];
 const VIDEO_EXT = new RegExp(`(${VIDEO_EXT_LIST.join("|").replace(/\./g, "\\.")})$`, "i");
 
+/**
+ * Footage arrives as a raw body, not multipart, and is streamed to disk.
+ *
+ * It used to be `await req.formData()` and then
+ * `Buffer.from(await file.arrayBuffer())` -- the whole file buffered by the
+ * multipart parser, then copied into a second buffer, then written. On a
+ * 1.8GB phone clip that is 3.7GB of resident memory for one import, which on
+ * this machine meant minutes of swapping, an "importing..." that never
+ * finished, and a Mac that fell over. Streaming holds one 64KB chunk at a
+ * time no matter how big the file is.
+ *
+ * The name and filename travel as headers because a raw body cannot carry
+ * fields. They are validated exactly as the form fields were.
+ */
 export async function POST(req: NextRequest) {
-  const form = await req.formData();
-  const name = String(form.get("name") ?? "").trim();
-  const file = form.get("file");
+  const isRaw = !!req.headers.get("x-snipai-filename");
+  let name: string;
+  let originalName: string;
+  let declaredSize = 0;
+  let file: File | null = null;
+
+  if (isRaw) {
+    name = (req.headers.get("x-snipai-project") ?? "").trim();
+    // a filename can hold anything; it is decoded, then reduced to a basename
+    try { originalName = decodeURIComponent(req.headers.get("x-snipai-filename") ?? ""); }
+    catch { originalName = req.headers.get("x-snipai-filename") ?? ""; }
+    declaredSize = Number(req.headers.get("content-length") ?? 0);
+  } else {
+    const form = await req.formData();
+    name = String(form.get("name") ?? "").trim();
+    const f = form.get("file");
+    if (!(f instanceof File)) {
+      return NextResponse.json({ error: "missing file" }, { status: 400 });
+    }
+    file = f;
+    originalName = f.name;
+    declaredSize = f.size;
+  }
 
   if (!name || !/^[a-z0-9-]+$/.test(name)) {
     return NextResponse.json({ error: "project name must be lowercase kebab-case" }, { status: 400 });
@@ -37,19 +73,16 @@ export async function POST(req: NextRequest) {
   if (name.length > 64) {
     return NextResponse.json({ error: "project name must be 64 characters or fewer" }, { status: 400 });
   }
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "missing file" }, { status: 400 });
-  }
   // Only footage. A stray .txt used to create a whole project around a file
   // nothing downstream can read.
-  if (!VIDEO_EXT.test(file.name)) {
+  if (!VIDEO_EXT.test(originalName)) {
     return NextResponse.json(
-      { error: `${file.name} isn't a video — accepted: ${VIDEO_EXT_LIST.join(", ")}` },
+      { error: `${originalName || "that file"} isn't a video — accepted: ${VIDEO_EXT_LIST.join(", ")}` },
       { status: 400 }
     );
   }
-  if (file.size === 0) {
-    return NextResponse.json({ error: `${file.name} is empty` }, { status: 400 });
+  if (declaredSize === 0 && !isRaw) {
+    return NextResponse.json({ error: `${originalName} is empty` }, { status: 400 });
   }
 
   assertValidProjectName(name);
@@ -62,11 +95,15 @@ export async function POST(req: NextRequest) {
     fs.mkdirSync(path.join(dir, sub), { recursive: true });
   }
 
-  const safeFileName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const safeFileName = path.basename(originalName).replace(/[^a-zA-Z0-9._-]/g, "_");
   const destPath = path.join(dir, "raw", safeFileName);
   try {
-    const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(destPath, buf);
+    const body = isRaw ? req.body : file!.stream();
+    if (!body) throw new Error("no body to read");
+    // Node's stream, so backpressure is real: the socket stops being read
+    // while the disk catches up, instead of the whole file piling up in RAM.
+    await pipeline(Readable.fromWeb(body as Parameters<typeof Readable.fromWeb>[0]),
+                   fs.createWriteStream(destPath));
   } catch (err) {
     // don't leave an empty shell project on the dashboard
     fs.rmSync(dir, { recursive: true, force: true });
@@ -75,7 +112,14 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-  const buf = fs.statSync(destPath);
+  const stat = fs.statSync(destPath);
+  // A connection dropped halfway leaves a short file that looks like footage
+  // and fails four steps later inside ffmpeg. Catch it here, where it can
+  // still be described as what it is.
+  if (stat.size === 0) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    return NextResponse.json({ error: `${safeFileName} arrived empty` }, { status: 400 });
+  }
 
   saveBeats(name, {
     source: `raw/${safeFileName}`,
@@ -83,5 +127,5 @@ export async function POST(req: NextRequest) {
     beats: [],
   });
 
-  return NextResponse.json({ project: name, rawFile: safeFileName, sizeBytes: buf.size }, { status: 201 });
+  return NextResponse.json({ project: name, rawFile: safeFileName, sizeBytes: stat.size }, { status: 201 });
 }

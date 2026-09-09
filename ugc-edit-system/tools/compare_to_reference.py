@@ -12,13 +12,20 @@ beats are sitting twice as long as the reference's; deciding what to drop or
 tighten is yours.
 """
 import argparse, json, os, statistics, sys
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import data_path  # noqa: E402
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--project", required=True)
-    ap.add_argument("--style", default="reference/house-style.json")
+    # Absolute, from the library. A relative default resolves against the
+    # process CWD, which is the code root -- where reference/ used to live and
+    # where a stale copy still sat, so the comparison silently measured
+    # against yesterday's house style, or nothing at all.
+    ap.add_argument("--style", default=data_path("reference", "house-style.json"))
     a = ap.parse_args()
 
     ref = json.load(open(a.style))

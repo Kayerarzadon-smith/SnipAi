@@ -1,0 +1,75 @@
+#!/bin/bash
+# Connect an image provider, without the key ever being seen by anyone but you.
+#
+# Typed at this prompt, not pasted into a chat window and not passed as an
+# argument -- an argument lands in your shell history and in the process list,
+# where anything on the machine can read it. The key is written to your
+# library, readable only by you, outside the repo and outside the app bundle,
+# so it is never committed and never handed on with a project.
+set -uo pipefail
+
+BOLD=$'\033[1m'; DIM=$'\033[2m'; OK=$'\033[32m'; ERR=$'\033[31m'; OFF=$'\033[0m'
+step() { printf "\n%s==> %s%s\n" "$BOLD" "$1" "$OFF"; }
+good() { printf "  %s%s%s\n" "$OK" "$1" "$OFF"; }
+bad()  { printf "  %s%s%s\n\n" "$ERR" "$1" "$OFF"; exit 1; }
+note() { printf "  %s%s%s\n" "$DIM" "$1" "$OFF"; }
+
+LIB="${SNIPAI_DATA:-$HOME/Movies/SnipAi}"
+STATE="$LIB/state"
+FILE="$STATE/providers.json"
+
+PROVIDER="${1:-openai}"
+case "$PROVIDER" in
+  openai) NAME="OpenAI gpt-image-1"; WHERE="https://platform.openai.com/api-keys"; PREFIX="sk-" ;;
+  gemini) NAME="Gemini Flash Image"; WHERE="https://aistudio.google.com/apikey"; PREFIX="" ;;
+  bfl)    NAME="FLUX.1 Kontext";     WHERE="https://api.bfl.ai";                  PREFIX="" ;;
+  *) bad "unknown provider '$PROVIDER' — use: openai, gemini or bfl" ;;
+esac
+
+step "Connecting $NAME"
+note "Key page: $WHERE"
+note "It is typed here and not shown. Nothing is echoed."
+printf "\n  Paste the key, then press return: "
+IFS= read -rs KEY
+printf "\n"
+[ -n "${KEY:-}" ] || bad "nothing entered"
+KEY="$(printf '%s' "$KEY" | tr -d '[:space:]')"
+
+if [ -n "$PREFIX" ] && [ "${KEY#"$PREFIX"}" = "$KEY" ]; then
+  bad "that does not look like an $NAME key (expected it to start with '$PREFIX')"
+fi
+
+step "Checking it works"
+# A free endpoint on purpose: listing models proves the key without generating
+# an image, so finding out you typed a character wrong costs nothing.
+case "$PROVIDER" in
+  openai) CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 20 \
+             -H "Authorization: Bearer $KEY" https://api.openai.com/v1/models) ;;
+  gemini) CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 20 \
+             -H "x-goog-api-key: $KEY" https://generativelanguage.googleapis.com/v1beta/models) ;;
+  bfl)    CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 20 \
+             -H "x-key: $KEY" https://api.bfl.ai/v1/get_result?id=probe) ;;
+esac
+case "$CODE" in
+  200|404|422) good "the key works" ;;
+  401|403) bad "the provider rejected that key (HTTP $CODE). Check it was copied whole." ;;
+  000) bad "could not reach the provider — check the network" ;;
+  *) note "unexpected response (HTTP $CODE) — saving anyway, the app will report any refusal" ;;
+esac
+
+step "Saving"
+mkdir -p "$STATE" || bad "could not create $STATE"
+umask 177                       # 0600: yours to read, nobody else's
+tmp="$FILE.tmp.$$"
+printf '{\n "provider": "%s",\n "key": "%s"\n}\n' "$PROVIDER" "$KEY" > "$tmp" || bad "could not write"
+mv "$tmp" "$FILE"
+chmod 600 "$FILE"
+good "written to $FILE"
+note "permissions $(stat -f '%Sp' "$FILE") — only your account can read it"
+note "outside the repo and outside SnipAi.app, so it is never committed or shipped"
+
+step "Done"
+printf "  %sRestart SnipAi%s and AI shots will generate.\n" "$BOLD" "$OFF"
+printf "  Cost lands on your %s account, roughly %s.\n\n" "$NAME" \
+  "$([ "$PROVIDER" = openai ] && echo '2c to 19c per shot' || echo '4c per shot')"
+printf "  %sTo disconnect:%s rm %s\n\n" "$BOLD" "$OFF" "$FILE"

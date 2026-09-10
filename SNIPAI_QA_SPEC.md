@@ -47,13 +47,20 @@ list against the word timings in `work/transcript.json` — gives the wrong
 answer. Whisper starts words 200–400ms early and folds pauses and restarts
 into the preceding word's duration, so a "word" spanning 1.02s is a word, a
 hesitation and often a restart; a removal overlapping it may have removed
-nothing audible. Measure the audio instead:
+nothing audible. Measure the audio instead. **Two checks, because they look in different
+places and neither one alone answers the question.** Both run from the repo
+root:
 
-    python3 tools/verify_removals.py --project ~/Movies/SnipAi/projects/<name>
+    python3 ugc-edit-system/tools/verify_removals.py --project ~/Movies/SnipAi/projects/<name>
+    python3 qa/verify_edges.py --project ~/Movies/SnipAi/projects/<name>
 
-It measures every removed stretch against that project's own speech level and
-fails if any carries speech. Report what it says, not what the timestamps
-imply.
+The first measures every stretch removed from the **middle** of a line against
+that project's own speech level. The second measures the beat **edges** — the
+in and out points, where `snap()` works and where the only clipping this app
+has actually shipped happened (the "s" of *this*, the "ce" of *face*).
+`verify_removals` is blind to the edges and says so when it finishes.
+
+Report what they say, not what the timestamps imply.
 
 **About that caption.** An earlier version of this document listed four phases
 against fixed percentage bands. There are no fixed bands, and there is no
@@ -311,6 +318,16 @@ patience warns proportionally sooner.)
 ### Only one heavy job at a time
 Transcription and rendering each want the whole machine. A second request is refused with a message naming what's already running.
 
+### A build knows which pipeline made it
+A render is a snapshot of the edit *and* of the cutting that produced it. The
+app already says when a file no longer matches the edit; it now also says when
+the file was built by an older version of the cutting — *"that file was built
+by an older version of the cutting"*, and the next step reads **Rebuild — the
+cutting has improved since this was built**. A build with no stamp at all is
+from before this existed, so it counts as older. This is quieter than the
+edit-mismatch line on purpose: the file is not wrong about your decisions, it
+just predates a fix.
+
 ### A broken project stays visible
 If a project's edit file becomes unreadable, it **still appears on the queue**, saying what's wrong. It must never silently vanish, and it must never take other projects down with it.
 
@@ -366,4 +383,4 @@ The app serves itself at `http://127.0.0.1:4737` and you can open that in a brow
 
 **To test against throwaway data instead of the real library**, set `SNIPAI_DATA` to an empty folder before launching. Strongly recommended.
 
-Automated checks, all currently passing: `./scripts/test` (152 unit tests) and `./scripts/qa --full`. Note that "all green" is printed alongside a separate **bug board** count — `1 still open` is expected and is a deliberate open item, not a failure.
+Automated checks, all currently passing: `./scripts/test` (165 unit tests) and `./scripts/qa --full`. Note that "all green" is printed alongside a separate **bug board** count — `1 still open` is expected and is a deliberate open item, not a failure.

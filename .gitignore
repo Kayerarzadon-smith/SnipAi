@@ -20,3 +20,15 @@ native/wksnap
 ugc-edit-system/state/jobs.json
 ugc-edit-system/projects/*/.snapshots/
 .build-cache/
+
+# Test residue. The suite builds scratch projects here (zz-*, _test_*) and
+# leaves them; they are fixtures mid-flight, not source.
+ugc-edit-system/projects/
+
+# QA run output, regenerated every run
+qa/last-run.json
+qa/last-api.json
+qa-rebuild.log
+# the five screenshots attached to specific bugs are tracked; nightly sweeps
+# are 2.4MB a time against a 6.4MB repo, and there is one every night
+qa-screenshots/*-nightly/

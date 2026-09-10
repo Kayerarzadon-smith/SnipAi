@@ -26,6 +26,7 @@ export default function Timeline({
   peakRate,
   peaksError,
   onRetryPeaks,
+  pictureStale,
   stripUrlFor,
   stripCovers,
   playCutTime,
@@ -51,6 +52,9 @@ export default function Timeline({
   peakRate: number;
   /** why there is no waveform, if there is not going to be one */
   peaksError?: string | null;
+  /** the rendered file no longer matches the edit — the Review screen knows
+   *  this properly, from the beats file against the render */
+  pictureStale?: boolean;
   onRetryPeaks?: () => void;
   /** builds a filmstrip URL for a window of the cut, at a frame count that
    *  suits the zoom -- a fixed strip stretched across the whole timeline
@@ -127,12 +131,26 @@ export default function Timeline({
   // Once the beat list and the EDL disagree, the rendered pictures no longer
   // sit where the clips do. Say so rather than showing a strip that quietly
   // lies about which frame is where.
-  const stripStale = useMemo(() => {
+  /* The frames behind the clips come from the last render, so they are wrong
+     the moment the edit moves on.
+     
+     This used to be inferred from the EDL: stale if a beat exists that the EDL
+     has never heard of, or the other way round. That only notices a line ADDED
+     or REMOVED -- trim one and the labels still match, so the badge stayed
+     hidden over pictures just as out of date. And it went quiet altogether
+     once the timeline stopped trusting an EDL older than the edit, which is
+     exactly when the warning is most deserved.
+     
+     `pictureStale` is the answer the Review screen already has, from the
+     beats file against the rendered file. The label check stays as the
+     fallback for any caller that does not pass it. */
+  const inferredStale = useMemo(() => {
     if (!edl || !edl.length) return false;
     const known = new Set(clips.map((c) => c.label));
     const inEdl = new Set(edl.map((e) => baseLabel(e.label, known)));
     return clips.some((c) => !inEdl.has(c.label)) || [...inEdl].some((l) => !known.has(l));
   }, [clips, edl]);
+  const stripStale = pictureStale ?? inferredStale;
   const width = Math.max(320, total * pps);
 
   const cutTimeAt = useCallback(
@@ -528,7 +546,10 @@ export default function Timeline({
             </span>
           )}
           {stripStale && (
-            <span className="tl-stale" title="The picture is from the last render; the clips and audio are current.">
+            <span
+              className="tl-stale"
+              title="These frames are from the last render, so they show the edit as it was. The clips and audio are your edit as it is now — rebuild to make the pictures match."
+            >
               picture out of date
             </span>
           )}

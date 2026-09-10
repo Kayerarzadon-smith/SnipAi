@@ -43,7 +43,7 @@ else printf "  %s%s still open%s%s (%s fixed) -- ./scripts/qa --regressions\n" "
 # work in the app. scripts/qa ran the first of these with `|| true`, which
 # meant it could report the bug and pass anyway.
 printf "\n%s== guards ==%s\n" "$BOLD" "$OFF"
-for g in scripts/guard-rebuild.py scripts/guard-open-panel.py; do
+for g in scripts/guard-rebuild.py scripts/guard-open-panel.py scripts/guard-ledger.py; do
   python3 "$g" || fail=1
 done
 

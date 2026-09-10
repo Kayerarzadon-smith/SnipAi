@@ -31,3 +31,41 @@ export function readEdl(project: string, hasCut: boolean): EdlPiece[] {
     return [];
   }
 }
+
+/**
+ * The same list, for the timeline — which is asking a different question.
+ *
+ * The Queue card sits next to a filename and reports how long THAT FILE is, so
+ * it wants the EDL as written even when the edit has moved on; the card says
+ * "that file was rendered before your latest edit" beside it. The timeline is
+ * the surface you edit on, so it has to show the EDIT. On a project where the
+ * two have diverged those are different numbers, and both are right.
+ *
+ * Pieces record the beat they were cut from — but only since build_cut started
+ * writing of_start/of_end, and layout() compares them per beat where it can.
+ * Without that field there is no way to tell a piece that still describes its
+ * beat from one left over from before the beat was edited, and no measurement
+ * separates them: a healthy beat can render at 0.15 of its span, which is
+ * lower than the fragment that caused the bug.
+ *
+ * So for an older EDL the question is answered once, coarsely: if the edit has
+ * been touched since this was written, none of it can be trusted to describe
+ * the edit. That is the same choice layout() makes for a piece that no longer
+ * fits, made with less information, and it errs toward showing the edit rather
+ * than the last render. It corrects itself at the next build, which an edit
+ * schedules anyway.
+ */
+export function readEdlForTimeline(project: string, hasCut: boolean): EdlPiece[] {
+  const pieces = readEdl(project, hasCut);
+  if (!pieces.length) return pieces;
+  if (pieces.some((p) => typeof p.of_start === "number")) return pieces;
+  try {
+    const dir = projectDir(project);
+    const built = fs.statSync(path.join(dir, "work", "edl.json")).mtimeMs;
+    const edited = fs.statSync(path.join(dir, "beats.json")).mtimeMs;
+    if (edited > built) return [];
+  } catch {
+    // no stat, no claim
+  }
+  return pieces;
+}

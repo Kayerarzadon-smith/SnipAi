@@ -123,3 +123,58 @@ describe("stale EDL pieces are not trusted", () => {
     assert.equal(total, 3.8);
   });
 });
+
+/* A piece left over from before its beat was edited must not describe it.
+   
+   QA on 2026-09-10: qa-clip's timeline read `10 clips · 0:14.8` while the
+   player read `0:33.4` for the same edit at the same moment, and the last 18.6
+   seconds of the cut could not be clicked because the timeline did not extend
+   that far. The beat `between-eyes-its` spans 5.02s; the EDL still held a
+   0.345s fragment from an earlier version of it, the fragment sat inside the
+   beat and clear of its holes, so it "fitted" and the beat was drawn at
+   0.345s.
+   
+   Coverage cannot decide this. On img-9817 a healthy beat covers 0.15 of its
+   span and on img-9823 0.20, against qa-clip's 0.07 and 0.17 -- the two
+   populations overlap, because pause trimming legitimately removes most of a
+   line that is mostly pause. So the builder records the beat it cut, and the
+   layout compares it. */
+describe("an EDL piece has to be a picture of the beat it is laid against", () => {
+  test("a fragment from an older version of the beat is not trusted", () => {
+    const stale: EdlPiece[] = [
+      { label: "between-eyes-its", src_start: 0.178, src_end: 0.523, dur: 0.345,
+        of_start: 0.178, of_end: 0.523 },   // the beat as it was THEN
+    ];
+    const { total, placed } = layout([clip("between-eyes-its", 0, 5.02)], stale);
+    assert.equal(total, 5.02, "the beat is 5.02s now, whatever the last render was");
+    assert.equal(placed[0].dur, 5.02);
+  });
+
+  test("a piece that does record this beat is trusted, however little it covers", () => {
+    // 0.15 of its span, which is a real ratio from img-9817 and not a defect
+    const good: EdlPiece[] = [
+      { label: "swear-by-glowing", src_start: 10, src_end: 11.98, dur: 1.98,
+        of_start: 10, of_end: 23.16 },
+    ];
+    const { total } = layout([clip("swear-by-glowing", 10, 23.16)], good);
+    assert.equal(total, 1.98, "the render is the truth when it describes this beat");
+  });
+
+  test("a millisecond of rounding is not a changed beat", () => {
+    const edl: EdlPiece[] = [
+      { label: "a", src_start: 10, src_end: 11, dur: 1, of_start: 9.9999, of_end: 12.0001 },
+    ];
+    assert.equal(layout([clip("a", 10, 12)], edl).total, 1);
+  });
+
+  /* Every EDL written before the builder recorded this has no of_start, and
+     those must keep working exactly as they did -- the fallback for them is in
+     readEdl, not here. */
+  test("an EDL with no record of what it cut behaves as it always did", () => {
+    const old: EdlPiece[] = [
+      { label: "a-0", src_start: 10, src_end: 10.8, dur: 0.8 },
+      { label: "a-1", src_start: 11.4, src_end: 12, dur: 0.6 },
+    ];
+    assert.equal(layout([clip("a", 10, 12)], old).total, 1.4);
+  });
+});

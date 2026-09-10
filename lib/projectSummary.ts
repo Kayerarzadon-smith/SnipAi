@@ -74,7 +74,11 @@ function nextStepFor(stages: PipelineStage[], cutStale: boolean): string {
      approval says. The Queue used to pair the new beat count with the old file
      and call it finished, which is how someone posts a video still containing
      the line they deleted. */
-  if (cutStale) return "Rebuilding to match your edit";
+  // Named as the next step, not as a promise. An edit made in this session
+  // schedules its own rebuild, but one made before the app was last closed
+  // did not -- and saying "Rebuilding" while nothing is running is the same
+  // class of lie as calling a stale file ready to post.
+  if (cutStale) return "Rebuild to match your edit";
   if (!pending) return "Ready to post";
   switch (pending.key) {
     case "footage": return "Drop in raw footage";

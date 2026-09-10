@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCutStale } from "@/lib/cutFreshness";
-import { readEdl } from "@/lib/edl";
+import { readEdlForTimeline } from "@/lib/edl";
 import { loadBeats, findCutFile, findGraphicsFile } from "@/lib/beats";
 import { loadReviewState } from "@/lib/reviewState";
 import {
@@ -67,7 +67,8 @@ export async function GET(_req: NextRequest, { params }: { params: { project: st
   // The EDL describes a RENDER. With no cut on disk it is either left over
   // from a build that was deleted, or from beats that have since changed --
   // either way it would lay the timeline out against a file that isn't there.
-  const edl = readEdl(project, !!cutFile);
+  // the timeline is the editing surface, so it shows the EDIT
+  const edl = readEdlForTimeline(project, !!cutFile);
   // A 720p copy of the source with dense keyframes. Same timeline, same
   // timestamps -- but seeking lands ~13x faster, which is the difference
   // between Live edit hitching at every cut and playing straight through.

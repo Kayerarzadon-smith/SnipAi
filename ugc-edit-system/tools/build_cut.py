@@ -410,7 +410,16 @@ def main():
             label, s, e, sil, holes.get(label, []),
             detached=label in detached,
             trim_min=a.trim_min, keep=a.keep, words=words)
-        pieces.extend(got)
+        # Carry the beat's span AS BEATS.JSON HAD IT (s0/e0, before padding and
+        # before snap) on every piece it produced. The app lays the timeline
+        # out from these pieces, and until now it had no way to tell a piece
+        # that still describes its beat from one left over from before the beat
+        # was edited -- so a 0.345s fragment "fitted" a 5.02s line and the line
+        # was drawn at 0.345s. Recording what was cut makes that exact instead
+        # of a guess; there is no threshold that works, because a healthy beat
+        # can legitimately render at 0.15 of its span when the pause trimming
+        # has a lot to take out.
+        pieces.extend((pl, px, py, round(s0, 3), round(e0, 3)) for pl, px, py in got)
         report.append((label, s, e, round(e - s, 3), round(e - s - removed, 3), n))
 
     total = sum(p[2] - p[1] for p in pieces)
@@ -420,8 +429,11 @@ def main():
     for l, s, e, d0, d1, n in report:
         print(f"  {l:20s} {s:8.2f}-{e:8.2f}  {d0:5.2f} -> {d1:5.2f}  trims {n}")
 
-    json.dump([{"label": l, "src_start": x, "src_end": y, "dur": round(y - x, 3)}
-               for l, x, y in pieces], open(os.path.join(work, "edl.json"), "w"), indent=1)
+    json.dump([{"label": l, "src_start": x, "src_end": y, "dur": round(y - x, 3),
+                # the beat this came from, as it was when this was built
+                "of_start": bs, "of_end": be}
+               for l, x, y, bs, be in pieces],
+              open(os.path.join(work, "edl.json"), "w"), indent=1)
 
     # Which pipeline cut this. The app already knows whether a render matches
     # the EDIT (lib/cutFreshness.ts, 86a90d4); it had no way to know that the
@@ -454,7 +466,7 @@ def main():
             return base_label(piece_label, {l for l, _, _ in beats})
 
         at, beat_at, beat_dur = 0.0, {}, {}
-        for l, x, y in pieces:
+        for l, x, y, _bs, _be in pieces:
             base = base_of(l)
             beat_at.setdefault(base, at)
             beat_dur[base] = beat_dur.get(base, 0.0) + (y - x)
@@ -494,13 +506,13 @@ def main():
     # which piece is the first / last of its beat, so a fade lands on the
     # outside edges of the line rather than on every internal pause trim
     first_of, last_of = {}, {}
-    for i, (l, x, y) in enumerate(pieces):
+    for i, (l, x, y, _bs, _be) in enumerate(pieces):
         base = base_label(l, {b[0] for b in beats})
         first_of.setdefault(base, i)
         last_of[base] = i
 
     lines, concat = [], []
-    for i, (l, x, y) in enumerate(pieces):
+    for i, (l, x, y, _bs, _be) in enumerate(pieces):
         out = os.path.join(work, "clips", f"p{i:02d}_{l}.mp4")
         if a.proxy:
             vopts = ('-vf "scale=-2:720" -c:v libx264 -preset ultrafast -crf 26 '

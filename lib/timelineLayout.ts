@@ -11,7 +11,12 @@ export type Clip = { label: string; start: number; end: number; text?: string;
                      audioStart?: number; audioEnd?: number;
                      fadeIn?: number; fadeOut?: number;
                      holes?: [number, number][] };
-export type EdlPiece = { label: string; src_start: number; src_end: number; dur: number };
+export type EdlPiece = {
+  label: string; src_start: number; src_end: number; dur: number;
+  /** The beat this piece was cut from, as beats.json had it AT BUILD TIME.
+   *  Absent on any EDL written before build_cut started recording it. */
+  of_start?: number; of_end?: number;
+};
 
 /** A run of rendered film: where it sits in the cut, and where it came from. */
 export type Piece = {
@@ -87,6 +92,27 @@ export function layout(
    */
   const edlStillFits = (c: Clip, mine: EdlPiece[]) => {
     for (const e of mine) {
+      /* The exact question, when the EDL can answer it: is this still the beat
+         that was cut?
+
+         Everything below asks whether a piece FITS inside the beat, and a
+         piece left over from before the beat was edited fits perfectly well.
+         On qa-clip a 0.345s fragment fitted a 5.02s line, so the line was
+         drawn at 0.345s, the timeline totalled 14.8s against the player's
+         33.4s, and the last 18.6 seconds of the edit could not be clicked.
+
+         Asking instead how MUCH of the beat is covered does not work, and the
+         footage says so: on img-9817 a healthy beat covers as little as 0.15
+         of its span, and on img-9823 0.20 -- overlapping qa-clip's 0.07 and
+         0.17 exactly. There is no threshold between them, because the pause
+         trimming legitimately removes most of a line that is mostly pause.
+
+         So the builder records what it cut, and this compares it. 5ms, because
+         both numbers are rounded to milliseconds. */
+      if (typeof e.of_start === "number" && typeof e.of_end === "number") {
+        if (Math.abs(e.of_start - c.start) > 0.005) return false;
+        if (Math.abs(e.of_end - c.end) > 0.005) return false;
+      }
       // A piece that cannot describe any real footage -- a negative or
       // non-finite duration, an inverted range -- is not a picture of this
       // beat, whatever it claims. Trusting it laid the beat out at a negative

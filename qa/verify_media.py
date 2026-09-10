@@ -66,8 +66,14 @@ def silent_stretches(path, floor="-50dB", min_dur=1.5):
     saying out loud: a QA check that measures the wrong thing manufactures
     defects, which is more expensive than missing one.
     """
+    # -vn -map 0:a:0 because without them ffmpeg fully decodes the video to
+    # measure the audio. On a 2160x3840 cut that is the difference between
+    # about two seconds and not finishing at all -- and this is the check
+    # Part 6 of the spec ranks first, so it is the one a tester is most
+    # likely to abandon.
     p = subprocess.run(
-        [ffmpeg(), "-i", path, "-af", f"silencedetect=noise={floor}:d={min_dur}",
+        [ffmpeg(), "-i", path, "-vn", "-map", "0:a:0",
+         "-af", f"silencedetect=noise={floor}:d={min_dur}",
          "-f", "null", "-", "-loglevel", "info", "-nostats"],
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     txt = p.stderr or ""
@@ -80,13 +86,38 @@ def silent_stretches(path, floor="-50dB", min_dur=1.5):
     return out
 
 
-def black_frames(path):
-    """Frames that are entirely black. A cut should never produce one."""
-    p = subprocess.run(
-        [ffmpeg(), "-i", path, "-vf", "blackdetect=d=0.08:pix_th=0.10",
-         "-f", "null", "-", "-loglevel", "info", "-nostats"],
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    return re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", p.stderr or "")
+def black_frames(path, duration=None, chunk=60.0):
+    """Frames that are entirely black. A cut should never produce one.
+
+    Unlike the silence pass this one really does have to decode the video, and
+    a 2160x3840 h264 decodes at about 25fps on four cores -- roughly real time
+    for a 30fps cut. `-an` keeps it from decoding the audio as well, and the
+    file is walked in chunks so that a long cut cannot sit in one command for
+    minutes on end. Chunk boundaries are input seeks, so a reported black
+    stretch is accurate to the chunk, not to the millisecond -- fine, because
+    the question is whether there is one at all.
+    """
+    windows = [(None, None)]
+    if duration and duration > chunk:
+        windows = [(t, min(chunk, duration - t))
+                   for t in [i * chunk for i in range(int(duration // chunk) + 1)]
+                   if duration - t > 0.05]
+    found = []
+    for start, dur in windows:
+        cmd = [ffmpeg(), "-nostdin"]
+        if start is not None:
+            cmd += ["-ss", f"{start:.3f}"]
+        cmd += ["-i", path]
+        if dur is not None:
+            cmd += ["-t", f"{dur:.3f}"]
+        cmd += ["-an", "-vf", "blackdetect=d=0.08:pix_th=0.10",
+                "-f", "null", "-", "-loglevel", "info", "-nostats"]
+        p = subprocess.run(cmd, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        off = start or 0.0
+        for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", p.stderr or ""):
+            found.append((f"{float(a) + off:.3f}", f"{float(b) + off:.3f}"))
+    return found
 
 
 def main():
@@ -164,7 +195,7 @@ def main():
            f"{sum((e if e is not None else total) - s0 for s0, e in gaps):.1f}s silent of {total:.1f}s")
 
     print("looking for black frames...", flush=True)
-    blacks = black_frames(cut)
+    blacks = black_frames(cut, info["duration"])
     record("no black frames at the joins", "pass" if not blacks else "fail",
            f"{len(blacks)} black stretch(es): {blacks[:3]}")
 

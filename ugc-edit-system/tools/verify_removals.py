@@ -22,14 +22,23 @@ interior removals came back between -35 and -57 dB mean, where that project's
 speech sits at -19 to -29 and its true pauses at -68 to -73. Nothing audible
 was removed, and the timestamps that said otherwise were Whisper's.
 
+This checks the gaps BETWEEN the pieces of a beat -- the interior holes. It
+does NOT check a beat's in-point or out-point, and the edges are where snap()
+works and where the only clipping this project has actually shipped happened
+(the "s" of "this", the "ce" of "face", 10ab9c3). Run qa/verify_edges.py for
+those. Neither tool alone answers "did the build clip a word".
+
 Exit 1 if any removal carries speech.
 """
 import argparse
+import array
 import json
+import math
 import os
-import re
 import subprocess
 import sys
+import tempfile
+import wave
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -56,26 +65,54 @@ def ffmpeg_bin():
         return "ffmpeg"
 
 
-def level(src, start, dur):
-    """mean and max dBFS of one stretch of the source's audio.
+def decode_audio(src):
+    """The whole source's audio, mono, decoded ONCE.
 
-    -ss goes BEFORE -i so the decoder starts at the stretch. With it after,
-    ffmpeg decodes from zero and volumedetect reports the WHOLE FILE -- every
-    range comes back the same number, which looks like a measurement and is
-    not. -map 0:a:0 because -vn alone left the video stream selected on this
-    footage and volumedetect then printed nothing at all.
+    Every measurement below indexes into this buffer by sample. The previous
+    version of this function seeked per fragment with `-ss` before `-i` and
+    read volumedetect off the result. That seek lands ~85ms late on this
+    footage -- up to 55 dB of error measured on an 80ms window, against the
+    8 dB margin this whole check turns on. A few tens of milliseconds is
+    exactly the size of fragment that matters here, and no keyframe seek can
+    resolve it. Same method as qa/verify_edges.py, so the two agree.
     """
+    fd, wav = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        p = subprocess.run(
+            [ffmpeg_bin(), "-nostdin", "-v", "error", "-i", src,
+             "-map", "0:a:0", "-ac", "1", "-ar", "48000", "-y", wav],
+            capture_output=True, text=True)
+        if p.returncode != 0:
+            print(p.stderr.strip()[:400])
+            return None, None
+        w = wave.open(wav)
+        d = array.array("h")
+        d.frombytes(w.readframes(w.getnframes()))
+        rate = w.getframerate()
+        w.close()
+        return d, rate
+    finally:
+        try:
+            os.unlink(wav)
+        except OSError:
+            pass
+
+
+def level(audio, sr, start, dur):
+    """mean and peak dBFS of one stretch of the source's audio, by sample
+    index. No seek, so nothing can drift."""
     if dur <= 0:
         return None, None
-    out = subprocess.run(
-        [ffmpeg_bin(), "-nostdin", "-ss", f"{start:.3f}", "-i", src,
-         "-t", f"{dur:.3f}", "-map", "0:a:0", "-af", "volumedetect",
-         "-f", "null", "-"],
-        capture_output=True, text=True).stderr
-    mean = re.findall(r"mean_volume:\s*(-?[\d.]+) dB", out)
-    peak = re.findall(r"max_volume:\s*(-?[\d.]+) dB", out)
-    return (float(mean[-1]) if mean else None,
-            float(peak[-1]) if peak else None)
+    i0 = max(0, int(round(start * sr)))
+    i1 = min(len(audio), int(round((start + dur) * sr)))
+    if i1 - i0 < 8:
+        return None, None
+    seg = audio[i0:i1]
+    rms = math.sqrt(sum(x * x for x in seg) / len(seg)) / 32768.0
+    pk = max(abs(x) for x in seg) / 32768.0
+    return (20 * math.log10(rms) if rms > 0 else -120.0,
+            20 * math.log10(pk) if pk > 0 else -120.0)
 
 
 def base_label(label, known):
@@ -108,6 +145,11 @@ def main():
         return 2
     known = {b["label"] for b in beats["beats"]}
 
+    audio, sr = decode_audio(src)
+    if audio is None:
+        print("  could not decode this project's audio")
+        return 2
+
     by = {}
     for e in edl:
         by.setdefault(base_label(e["label"], known), []).append(e)
@@ -127,7 +169,8 @@ def main():
     # depends on the mic, the room and how close he was sitting that day.
     # The longest kept pieces are the ones most certainly full of talking.
     longest = sorted(edl, key=lambda e: -e["dur"])[:4]
-    speech = [m for m, _ in (level(src, e["src_start"], min(e["dur"], 2.0)) for e in longest)
+    speech = [m for m, _ in (level(audio, sr, e["src_start"], min(e["dur"], 2.0))
+                             for e in longest)
               if m is not None]
     if not speech:
         print("  could not measure this project's speech level")
@@ -141,7 +184,7 @@ def main():
 
     bad = []
     for label, f, t in removals:
-        mean, peak = level(src, f, t - f)
+        mean, peak = level(audio, sr, f, t - f)
         if mean is None:
             continue
         flag = ""
@@ -156,9 +199,13 @@ def main():
               "The build is cutting words in half.")
         for label, f, t, mean in bad:
             print(f"    {label}: {f:.3f}-{t:.3f} at {mean:.1f} dB")
+        print("  Interior holes only -- run qa/verify_edges.py for the beat "
+              "edges as well.")
         return 1
     print(f"\n  All {len(removals)} removals are below the speech floor. "
           "Nothing audible was cut out of a line.")
+    print("  This says nothing about the beat EDGES -- run qa/verify_edges.py "
+          "for those.")
     return 0
 
 

@@ -22,7 +22,11 @@ from collections import Counter, defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _paths import data_path  # noqa: E402
+from _paths import data_path, data_write_path  # noqa: E402
+# Read through the fallback so a fresh library still starts from the shipped
+# defaults; write through data_write_path so the corrections land in the
+# LIBRARY. Resolving the write target with data_path() put them inside
+# SnipAi.app on any library that had no state/tuning.json yet.
 TUNING = data_path("state", "tuning.json")
 PROJECTS = data_path("projects")
 
@@ -274,7 +278,7 @@ def save(tuning, overrides, path=None):
     tuning.setdefault("evidence", {})["overrides_seen"] = len(overrides)
     tuning["evidence"]["last_analysis"] = stamp
     tuning["updated"] = stamp
-    target = path or TUNING
+    target = path or data_write_path("state", "tuning.json")
     tmp = target + ".tmp"
     with open(tmp, "w") as fh:
         json.dump(tuning, fh, indent=1)

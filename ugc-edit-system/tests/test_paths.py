@@ -51,12 +51,19 @@ class DataPathsResolveToTheLibrary(unittest.TestCase):
         """The server exports SNIPAI_DATA; the tools must follow it."""
         import importlib
         import _paths
+        saved = os.environ.get("SNIPAI_DATA")
         os.environ["SNIPAI_DATA"] = "/tmp/some-other-library"
         try:
             importlib.reload(_paths)
             self.assertEqual(_paths.data_root(), "/tmp/some-other-library")
         finally:
-            del os.environ["SNIPAI_DATA"]
+            # Restore, do not delete. Deleting it left every test after this
+            # one running against a different library than the suite was
+            # started with.
+            if saved is None:
+                os.environ.pop("SNIPAI_DATA", None)
+            else:
+                os.environ["SNIPAI_DATA"] = saved
             importlib.reload(_paths)
 
 
@@ -91,6 +98,77 @@ class TuningIsReadFromTheLibrary(unittest.TestCase):
         self.assertFalse(os.path.abspath(value).startswith(
             os.path.join(CODE_ROOT, "state")),
             f"{what} points inside the code bundle: {value}")
+
+
+class LearningWritesIntoTheLibraryNotTheBundle(unittest.TestCase):
+    """data_path()'s docstring promised a copy-on-write -- "copied into the
+    library the first time anything writes to it" -- and there was no copy
+    anywhere in the file. So on a library with no state/tuning.json yet,
+    data_path returned the copy beside the CODE and learn_from_edits.save()
+    wrote there: inside SnipAi.app/Contents/Resources/pipeline/state/. Every
+    learned correction is then lost on the next ./scripts/bundle-app, the
+    library never gains the file, and once the app is signed the write fails
+    outright.
+
+    The old test here only checked where tuning is READ from, which passes on
+    any machine whose library already has the file -- exactly the machines
+    where the bug is invisible."""
+
+    def setUp(self):
+        import importlib
+        import shutil
+        import tempfile
+        self.tmp = tempfile.mkdtemp(prefix="snipai-fresh-lib-")
+        os.makedirs(os.path.join(self.tmp, "projects"))
+        # Put back whatever was there, rather than deleting: a suite run with
+        # SNIPAI_DATA already set in the shell must come out of this test with
+        # the same environment it went in with.
+        self.saved = os.environ.get("SNIPAI_DATA")
+        os.environ["SNIPAI_DATA"] = self.tmp
+        import _paths
+        importlib.reload(_paths)
+        self._paths = _paths
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def tearDown(self):
+        # learn_from_edits resolves its paths at IMPORT time, so leaving it
+        # holding this test's temp library silently repairs the very assertion
+        # TuningIsReadFromTheLibrary makes further down the file -- a green
+        # suite that means nothing. Reload it back to the real environment.
+        import importlib
+        import learn_from_edits
+        if self.saved is None:
+            os.environ.pop("SNIPAI_DATA", None)
+        else:
+            os.environ["SNIPAI_DATA"] = self.saved
+        importlib.reload(self._paths)
+        importlib.reload(learn_from_edits)
+
+    def test_a_fresh_library_is_still_where_writes_go(self):
+        target = self._paths.data_write_path("state", "tuning.json")
+        self.assertTrue(os.path.abspath(target).startswith(self.tmp + os.sep),
+                        f"a write target outside the library: {target}")
+        self.assertFalse(os.path.abspath(target).startswith(CODE_ROOT + os.sep),
+                         f"a write target inside the code bundle: {target}")
+
+    def test_the_shipped_copy_is_seeded_rather_than_edited_in_place(self):
+        """The copy-on-write the docstring always claimed. If the app ships a
+        starting point, the library gets its own copy of it before anyone
+        writes -- so the writer edits the user's file, not the bundle's."""
+        beside = os.path.join(CODE_ROOT, "state", "tuning.json")
+        if not os.path.exists(beside):
+            self.skipTest("no shipped tuning.json to seed from")
+        target = self._paths.data_write_path("state", "tuning.json")
+        self.assertTrue(os.path.exists(target), "the shipped copy was not seeded")
+        self.assertNotEqual(os.path.abspath(target), os.path.abspath(beside))
+
+    def test_the_learner_saves_into_the_library(self):
+        import importlib
+        import learn_from_edits
+        importlib.reload(learn_from_edits)
+        written = learn_from_edits.save({"cutting": {"snap_tail": 0.2}}, [])
+        self.assertTrue(os.path.abspath(written).startswith(self.tmp + os.sep),
+                        f"learned corrections written outside the library: {written}")
 
 
 class LearnedValuesAreBounded(unittest.TestCase):

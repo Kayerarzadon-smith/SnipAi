@@ -6,7 +6,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 BOLD=$'\033[1m'; OK=$'\033[32m'; ERR=$'\033[31m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+WARN=$'\033[33m'
 fail=0
+# what did not run, so the final line cannot claim it did
+skipped=""
 
 printf "\n%s== types ==%s\n" "$BOLD" "$OFF"
 if npx tsc --noEmit -p tsconfig.json; then printf "  %sclean%s\n" "$OK" "$OFF"
@@ -48,11 +51,26 @@ printf "\n%s== pipeline ==%s\n" "$BOLD" "$OFF"
 VENV=ugc-edit-system/.venv/bin/python
 if [ ! -x "$VENV" ]; then
   printf "  %sskipped -- no venv at %s%s\n" "$DIM" "$VENV" "$OFF"
+  skipped="$skipped the pipeline suite (no venv)"
 else
-  ( cd ugc-edit-system && .venv/bin/python -m unittest discover -s tests -q ) || fail=1
+  pyout=$( cd ugc-edit-system && .venv/bin/python -m unittest discover -s tests -q 2>&1 ) || fail=1
+  printf "%s\n" "$pyout" | tail -3
+  # unittest reports its own skips as "OK (skipped=N)". A test that declined to
+  # run is not a test that passed, and this runner was calling both green.
+  n=$(printf "%s" "$pyout" | sed -n 's/.*skipped=\([0-9]*\).*/\1/p' | tail -1)
+  [ -n "${n:-}" ] && [ "$n" != 0 ] && skipped="$skipped $n pipeline test(s)"
 fi
 
 printf "\n"
-if [ "$fail" = 0 ]; then printf "%s%sall green%s\n\n" "$BOLD" "$OK" "$OFF"
-else printf "%s%ssomething is broken -- do not ship%s\n\n" "$BOLD" "$ERR" "$OFF"; fi
+if [ "$fail" != 0 ]; then
+  printf "%s%ssomething is broken -- do not ship%s\n\n" "$BOLD" "$ERR" "$OFF"
+elif [ -n "$skipped" ]; then
+  # "all green" over a suite that never ran is the runner lying about its own
+  # coverage. scripts/qa --full already said so; this one did not, and the two
+  # disagreed about the same run.
+  printf "%s%sgreen, but not everything ran:%s%s\n" "$BOLD" "$WARN" "$OFF" "$skipped"
+  printf "  %s\"all green\" would have meant less than it looked%s\n\n" "$DIM" "$OFF"
+else
+  printf "%s%sall green%s\n\n" "$BOLD" "$OK" "$OFF"
+fi
 exit "$fail"

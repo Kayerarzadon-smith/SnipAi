@@ -29,7 +29,7 @@ These are corrupting output or losing data today.
 | S2 | `lib/jobs.ts:184` — `failJob` never persists | open |
 | C1 | `Timeline.tsx:266` — the in-point drag runs away and collapses the clip | open |
 | C2 | `review/page.tsx:1017` — every trim after the first is unundoable | open |
-| T1 | `scripts/test:26` — a skipped suite reads as "all green" | open |
+| T1 | `scripts/test:26` — a skipped suite reads as "all green" | fixed |
 
 Out of scope but still true, and still costing you output quality: the pipeline's
 `snap_tail` is poisoned to 0.881 (P1/P2 below). One line of JSON to reset;
@@ -96,7 +96,7 @@ is worth doing before fixing them.
 
 | ID | Where | Defect | Status |
 |----|-------|--------|--------|
-| T1 | `scripts/test:26` | A skipped suite still prints "all green". Note: the venv's `bin/python` is a symlink out to a system framework — it reads as missing from some contexts and is fine on the machine itself (`lib/paths.ts:30` documents this). Fix the reporting, not the detection | open |
+| T1 | `scripts/test:26` | A skipped suite still prints "all green". Note: the venv's `bin/python` is a symlink out to a system framework — it reads as missing from some contexts and is fine on the machine itself (`lib/paths.ts:30` documents this). Fix the reporting, not the detection | fixed — reports what did not run, and counts unittest's own skips too |
 
 ## Unused / dead
 

@@ -26,7 +26,7 @@ These are corrupting output or losing data today.
 | ID | Where | Status |
 |----|-------|--------|
 | S1 | `api/projects/[project]/pipeline/route.ts:136` — undo strips holes, fades, detached audio | wontfix |
-| S2 | `lib/jobs.ts:184` — `failJob` never persists | open |
+| S2 | `lib/jobs.ts:184` — `failJob` never persists | fixed |
 | C1 | `Timeline.tsx:266` — the in-point drag runs away and collapses the clip | open |
 | C2 | `review/page.tsx:1017` — every trim after the first is unundoable | open |
 | T1 | `scripts/test:26` — a skipped suite reads as "all green" | fixed |
@@ -42,7 +42,7 @@ the clamp that stops it recurring is a pipeline change.
 | ID | Where | Defect | Status | Test |
 |----|-------|--------|--------|------|
 | S1 | `pipeline/route.ts:136` | Beat rebuilt from a 4-field whitelist; undo drops `holes`, `audioStart`/`audioEnd`, `fadeIn`/`fadeOut` | **wontfix 2026-09-09** — merging from disk on undo would make every cut permanent. The live loss needs GET to drop a field; it does not (6 fields pinned round-tripping in `tests/undo-round-trip.test.mts`) | `tests/regressions/S1-*.test.mts` (kept red on purpose) |
-| S2 | `lib/jobs.ts:184` | `failJob` is the one mutator that doesn't `persist()`; failed builds stay "running" everywhere else and then 409 the next build | open | `tests/regressions/S2-*.test.mts` |
+| S2 | `lib/jobs.ts:184` | `failJob` is the one mutator that doesn't `persist()`; failed builds stay "running" everywhere else and then 409 the next build | fixed — `failJob` calls `persist()`; its regression test is green | `tests/regressions/S2-*.test.mts` |
 | S3 | `projects/route.ts:68` | Upload buffered whole, twice, no size cap; a 1.4GB original OOMs and the catch then deletes the new project dir. Same at `references/route.ts:60` | open | no — needs a large-file harness |
 | S4 | `lib/pipeline.ts:149`, `lib/jobs.ts:164` | Unbounded stdout accumulation over a 6-hour cap, and unbounded `job.log` re-serialised every 2s | open | no |
 | S5 | `peaks/route.ts:39`, `beats/[label]/candidates/route.ts:26` | CWD-relative `projects/<name>` where every other caller passes an absolute path; take picker 422s after migration | open | yes, not yet written |

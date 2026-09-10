@@ -87,6 +87,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [buildJob, setBuildJob] = useState<Job | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  /* The edit file is there and unreadable -- which is a different thing from
+     the project not existing, and the Queue has already said so on its card. */
+  const [problem, setProblem] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [trimBeat, setTrimBeat] = useState<string | null>(null);
   const [gfxScanning, setGfxScanning] = useState<string | null>(null);
@@ -854,6 +857,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       dataRef.current = fresh;
       setData(fresh);
       setNotFound(false);
+    } else if (res.status === 422) {
+      // the project is there; its edit file is not readable
+      const b = await res.json().catch(() => ({} as { problem?: string }));
+      setProblem(b.problem ?? "this project's edit file cannot be read");
     } else if (res.status === 404 || res.status === 400) {
       // otherwise this sits on "Loading…" forever for a project that isn't there
       setNotFound(true);
@@ -1590,6 +1597,25 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     toast("Saved to your preferences");
   }
 
+  if (problem) {
+    return (
+      <section>
+        <div className="empty-state">
+          <b>{project}</b> is here, but its edit file can&apos;t be read.
+          <div className="mono" style={{ marginTop: 10, color: "var(--text-faint)" }}>{problem}</div>
+          <div style={{ marginTop: 14, fontSize: "12.5px", color: "var(--text-faint)" }}>
+            The footage and every earlier version are untouched — the beat list is one
+            file. Put a version back from History, or repair{" "}
+            <span className="mono">projects/{project}/beats.json</span> by hand.
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <Link href="/dashboard" style={{ color: "var(--accent)" }}>Back to the queue</Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (notFound) {
     return (
       <section>
@@ -1992,6 +2018,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             peakRate={peaks?.rate ?? 400}
             peaksError={peaksError}
             onRetryPeaks={loadPeaks}
+            pictureStale={data.cutStale}
             stripUrlFor={
               data.cutFile
                 ? (from, to, frames) =>

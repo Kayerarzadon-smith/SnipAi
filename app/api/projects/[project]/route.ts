@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCutStale } from "@/lib/cutFreshness";
 import { readEdlForTimeline } from "@/lib/edl";
-import { loadBeats, findCutFile, findGraphicsFile } from "@/lib/beats";
+import { readBeats, findCutFile, findGraphicsFile } from "@/lib/beats";
 import { loadReviewState } from "@/lib/reviewState";
 import {
   computeWordCutoffMetric,
@@ -28,15 +28,26 @@ export async function GET(_req: NextRequest, { params }: { params: { project: st
 
   // an invalid name throws out of projectDir(); catch it here so it reads as
   // a bad request rather than a server crash
-  let beats;
+  let read;
   try {
-    beats = loadBeats(project);
+    read = readBeats(project);
   } catch {
     return NextResponse.json({ error: "invalid project name" }, { status: 400 });
   }
-  if (!beats) {
+  /* A project whose beats.json is MISSING is not a project. One whose
+     beats.json is BROKEN is a project with a problem, and the Queue already
+     says so on its own card -- "beats.json is not valid JSON: Expected
+     property name...". Answering 404 for that one made Open lead to "No
+     project called qa-second", one click after being told it exists and its
+     edit file is malformed. That is the silent vanishing the spec exists to
+     prevent, reached by a different road. */
+  if (!read.ok && read.missing) {
     return NextResponse.json({ error: `no project '${project}'` }, { status: 404 });
   }
+  if (!read.ok) {
+    return NextResponse.json({ project, problem: read.why }, { status: 422 });
+  }
+  const beats = read.data;
   const state = loadReviewState(project);
 
   // What draft_beats.py concluded about each beat. Without this the review

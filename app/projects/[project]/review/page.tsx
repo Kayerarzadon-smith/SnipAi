@@ -96,6 +96,11 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [trim, setTrim] = useState<{ start: number; end: number } | null>(null);
   const [trimSaving, setTrimSaving] = useState(false);
   const [peaks, setPeaks] = useState<{ rate: number; peaks: number[]; rms?: number[] } | null>(null);
+  /* Why there is no waveform, when there is no waveform. The fetch swallowed
+     its own failure, so the audio track sat on "audio envelope loading…" for
+     good -- no message, no retry, and nothing to tell a slow read of a 500MB
+     file from one that had already failed twice. */
+  const [peaksError, setPeaksError] = useState<string | null>(null);
   const [rawHead, setRawHead] = useState<number | null>(null);
   const [cutMediaDuration, setCutMediaDuration] = useState<number | null>(null);
   const [learned, setLearned] = useState<string[] | null>(null);
@@ -211,6 +216,24 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     // and the queue went on advertising it as ready to post.
     if (u.changed !== false) applyEditsSoon();
   }
+  /** The timeline's audio track. A long source takes a while to read, so this
+   *  is fetched once up front -- and says so when it cannot be had. */
+  const loadPeaks = useCallback(async () => {
+    setPeaksError(null);
+    try {
+      const r = await fetch(`/api/projects/${project}/peaks`);
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({} as { error?: string }));
+        setPeaksError(b.error ?? `the waveform could not be read (${r.status})`);
+        return;
+      }
+      const d = await r.json();
+      setPeaks({ rate: d.rate, peaks: d.peaks, rms: d.rms });
+    } catch {
+      setPeaksError("the waveform could not be read");
+    }
+  }, [project]);
+
   const [snipPad, setSnipPad] = useState(1);
   const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
 
@@ -838,13 +861,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   }, [project]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    // the timeline's audio track needs this; fetch it once, up front
-    fetch(`/api/projects/${project}/peaks`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setPeaks({ rate: d.rate, peaks: d.peaks, rms: d.rms }))
-      .catch(() => {});
-  }, [project]);
+  useEffect(() => { void loadPeaks(); }, [loadPeaks]);
   useEffect(() => { beatsRef.current = data?.beats ?? []; dataRef.current = data; }, [data]);
   useEffect(() => { buildJobRef.current = buildJob; }, [buildJob]);
   const defaulted = useRef(false);
@@ -1338,7 +1355,26 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   }
 
   /** Drop a line, no questions. One undo, offered in the toast. */
+  /* Lines currently being deleted. A second click while the first request is
+     still out sent a second delete for a beat that no longer existed, so an
+     impatient double-press ended with the error toast "no beat
+     'under-eyes-its'" -- an internal label, presented as a failure -- followed
+     by the success toast for the delete that did work. The spec asks for this
+     exact test, and already states the rule for the importer: double-clicking
+     must act once, not twice. */
+  const deleting = useRef(new Set<string>());
+
   async function deleteBeat(b: Beat) {
+    if (deleting.current.has(b.label)) return;
+    deleting.current.add(b.label);
+    try {
+      await deleteBeatOnce(b);
+    } finally {
+      deleting.current.delete(b.label);
+    }
+  }
+
+  async function deleteBeatOnce(b: Beat) {
     pushHistory(`deleting “${b.text ?? b.label}”`);
     const res = await fetch(`/api/projects/${project}/beats`, {
       method: "POST",
@@ -1954,6 +1990,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
             peaks={peaks?.peaks ?? null}
             rms={peaks?.rms ?? null}
             peakRate={peaks?.rate ?? 400}
+            peaksError={peaksError}
+            onRetryPeaks={loadPeaks}
             stripUrlFor={
               data.cutFile
                 ? (from, to, frames) =>

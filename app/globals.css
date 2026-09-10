@@ -1348,3 +1348,12 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 /* The rendered file no longer matches the edit beside it. Not an error -- the
    rebuild is usually already running -- but it must not read as finished. */
 .stale-cut { color: var(--warn, #d08a2c); }
+
+/* The waveform is not coming. Said once, with a way out, instead of a
+   "loading…" that never resolves. */
+.tl-audio-failed { color: var(--warn, #d08a2c); display: inline-flex; align-items: center; gap: 8px; }
+.tl-audio-retry {
+  border: 1px solid currentColor; background: transparent; color: inherit;
+  font: inherit; font-size: 11px; padding: 1px 7px; border-radius: 999px; cursor: pointer;
+}
+.tl-audio-retry:hover { background: rgba(255, 255, 255, .08); }

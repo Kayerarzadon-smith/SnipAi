@@ -24,6 +24,8 @@ export default function Timeline({
   peaks,
   rms,
   peakRate,
+  peaksError,
+  onRetryPeaks,
   stripUrlFor,
   stripCovers,
   playCutTime,
@@ -47,6 +49,9 @@ export default function Timeline({
   peaks: number[] | null;
   rms?: number[] | null;
   peakRate: number;
+  /** why there is no waveform, if there is not going to be one */
+  peaksError?: string | null;
+  onRetryPeaks?: () => void;
   /** builds a filmstrip URL for a window of the cut, at a frame count that
    *  suits the zoom -- a fixed strip stretched across the whole timeline
    *  smears every face the moment you zoom in */
@@ -838,7 +843,18 @@ export default function Timeline({
                 </div>
               );
             })}
-            {!peaks && <span className="tl-audio-empty">audio envelope loading…</span>}
+            {/* "loading…" forever is the app failing quietly, which is the one
+                thing it is meant never to do. Say which of the two it is. */}
+            {!peaks && (peaksError
+              ? <span className="tl-audio-empty tl-audio-failed">
+                  {peaksError}
+                  {onRetryPeaks && (
+                    <button type="button" className="tl-audio-retry" onClick={onRetryPeaks}>
+                      try again
+                    </button>
+                  )}
+                </span>
+              : <span className="tl-audio-empty">audio envelope loading…</span>)}
             {span && span.to - span.from > 0.001 && (
               <div className="tl-span" style={{ left: span.from * pps, width: (span.to - span.from) * pps }}>
                 <span className="tl-span-len mono">{(span.to - span.from).toFixed(2)}s · delete</span>

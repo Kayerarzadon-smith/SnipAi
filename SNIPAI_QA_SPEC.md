@@ -41,6 +41,20 @@ Two things about the product shape you need to hold in your head:
 
 **Step 3 is the whole product.** Steps 5–6 are for correcting what it got wrong.
 
+**Do not judge word cutoffs from the transcript.** The single worst thing this
+app can do is cut a word in half, and the obvious check — compare the edit
+list against the word timings in `work/transcript.json` — gives the wrong
+answer. Whisper starts words 200–400ms early and folds pauses and restarts
+into the preceding word's duration, so a "word" spanning 1.02s is a word, a
+hesitation and often a restart; a removal overlapping it may have removed
+nothing audible. Measure the audio instead:
+
+    python3 tools/verify_removals.py --project ~/Movies/SnipAi/projects/<name>
+
+It measures every removed stretch against that project's own speech level and
+fails if any carries speech. Report what it says, not what the timestamps
+imply.
+
 **About that caption.** An earlier version of this document listed four phases
 against fixed percentage bands. There are no fixed bands, and there is no
 fixed set of four — that was wrong, and a tester who checks against it will

@@ -140,6 +140,14 @@ off ffmpeg. Don't try to fix this with brew -- it will fail the same way.
         transcribes the finished cut and fails if any phrase repeats.
         Always run this before posting.
 
+    verify_removals.py --project projects/<name>
+        listens to every stretch the build removed from the MIDDLE of a line
+        and fails if any of them carries speech. Use this, not the transcript,
+        to answer "did it cut a word in half": Whisper starts words early and
+        folds pauses into the preceding word's duration, so a removal
+        overlapping a word span often removed nothing but air. On img-9817 all
+        13 interior removals sit 20-40 dB below that project's speech.
+
     compare_to_reference.py --project projects/<name>
         checks a built cut against reference/house-style.json -- length, cut
         count, beat length -- and names the longest beats. A check, not a fixer.

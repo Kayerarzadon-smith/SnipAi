@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { projectDir } from "./paths";
+import { projectDir, CODE_ROOT } from "./paths";
 
 /**
  * Does the rendered file still describe the edit?
@@ -33,4 +33,46 @@ export function isCutStale(project: string, cutFile: string | null): boolean {
   } catch {
     return false;                      // no stat, no claim
   }
+}
+
+/**
+ * Was this file rendered by an older pipeline than the one installed?
+ *
+ * isCutStale answers "does the file match the EDIT". This answers the other
+ * half: the edit can be untouched and the file still wrong, because the
+ * CUTTING changed underneath it. Both of Kayer's cuts were built before
+ * WORD_RESCUE (10ab9c3) and still carry the two clipped consonants that fix
+ * removed -- and nothing on screen said so, so the Queue offered them and a
+ * tester measuring them files a bug that is already fixed.
+ *
+ * The build stamps work/pipeline.json with the version it ran; the current
+ * version ships beside the pipeline in pipeline-version.json. A build with no
+ * stamp is a build from before stamping existed, which is by definition older
+ * -- so absence reads correctly and no project has to be migrated.
+ */
+function currentPipelineVersion(): number {
+  try {
+    const raw = fs.readFileSync(path.join(CODE_ROOT, "pipeline-version.json"), "utf8");
+    const v = Number(JSON.parse(raw).version);
+    return Number.isFinite(v) ? v : 0;
+  } catch {
+    return 0;                          // no manifest, no claim
+  }
+}
+
+function builtPipelineVersion(project: string): number {
+  try {
+    const raw = fs.readFileSync(path.join(projectDir(project), "work", "pipeline.json"), "utf8");
+    const v = Number(JSON.parse(raw).version);
+    return Number.isFinite(v) ? v : 0;
+  } catch {
+    return 0;                          // unstamped: built before this existed
+  }
+}
+
+export function isPipelineBehind(project: string, cutFile: string | null): boolean {
+  if (!cutFile) return false;          // nothing rendered cannot be out of date
+  const current = currentPipelineVersion();
+  if (current <= 0) return false;      // we do not know, so we do not say
+  return builtPipelineVersion(project) < current;
 }

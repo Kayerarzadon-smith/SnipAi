@@ -108,6 +108,15 @@ export default function DashboardPage() {
                         that file was rendered before your latest edit
                       </div>
                     )}
+                    {/* Your edit is fine; the cutting is not what built this.
+                        Said more quietly than the line above, because the file
+                        is not wrong about your decisions -- it just predates a
+                        fix and can carry something the code no longer does. */}
+                    {!p.cutStale && p.pipelineStale && (
+                      <div className="sub stale-cut">
+                        that file was built by an older version of the cutting
+                      </div>
+                    )}
                     {p.removedSeconds !== null && (
                       <div className="cut-stat mono">
                         {dur(p.sourceSeconds)} → {dur(p.cutSeconds)}

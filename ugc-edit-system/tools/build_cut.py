@@ -252,6 +252,32 @@ def walk_pieces(label, s, e, sil, holes, detached=False, trim_min=0.35, keep=0.3
     return pieces, removed, n
 
 
+PIPELINE_VERSION_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pipeline-version.json")
+
+
+def pipeline_version():
+    """The cutting behaviour this code implements. Bumped whenever a change
+    makes previously rendered files wrong rather than merely different."""
+    try:
+        with open(PIPELINE_VERSION_FILE) as fh:
+            return int(json.load(fh)["version"])
+    except Exception:
+        return 0
+
+
+def stamp_pipeline_version(work):
+    """Record the pipeline that produced this render, beside the EDL."""
+    import datetime
+    try:
+        with open(os.path.join(work, "pipeline.json"), "w") as fh:
+            json.dump({"version": pipeline_version(),
+                       "built": datetime.datetime.now().isoformat(timespec="seconds")},
+                      fh, indent=1)
+    except OSError:
+        pass                 # a build that cannot write its stamp still built
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -396,6 +422,16 @@ def main():
 
     json.dump([{"label": l, "src_start": x, "src_end": y, "dur": round(y - x, 3)}
                for l, x, y in pieces], open(os.path.join(work, "edl.json"), "w"), indent=1)
+
+    # Which pipeline cut this. The app already knows whether a render matches
+    # the EDIT (lib/cutFreshness.ts, 86a90d4); it had no way to know that the
+    # CUTTING changed underneath a build that nobody has touched since. Both
+    # of Kayer's cuts predate WORD_RESCUE and still sit on the Queue offering
+    # themselves, carrying two clipped consonants the code no longer produces.
+    # An unstamped work/ is a build from before this existed, which is exactly
+    # what "older than the current pipeline" means, so absence reads correctly
+    # and nothing has to be migrated.
+    stamp_pipeline_version(work)
 
     if fades:
         print(f"{len(fades)} beat(s) with fades")

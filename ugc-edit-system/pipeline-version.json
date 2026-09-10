@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "changed": "2026-09-09",
+  "why": "WORD_RESCUE: a beat boundary landing inside a short word is nudged clear of it (10ab9c3). A cut built before this can carry a clipped consonant that the code no longer produces."
+}

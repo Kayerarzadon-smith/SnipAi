@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { isCutStale } from "./cutFreshness";
+import { isCutStale, isPipelineBehind } from "./cutFreshness";
 import { layout } from "./timelineLayout";
 import { readEdl } from "./edl";
 import path from "node:path";
@@ -38,6 +38,11 @@ export type ProjectSummary = {
   /** The edit has changed since the file was rendered, so the file is a video
    *  of a previous decision. The Queue must not call that ready to post. */
   cutStale: boolean;
+  /** The edit is untouched but the CUTTING changed since this was rendered,
+   *  so the file can carry a defect the code no longer produces. Weaker than
+   *  cutStale -- the file is not wrong about the edit, only out of date about
+   *  the pipeline -- and never shown when cutStale already is. */
+  pipelineStale: boolean;
   removedSeconds: number | null;
   /** name + byte size of the footage already in this project, so an upload
    * can warn before importing the same file twice under a different name. */
@@ -68,7 +73,8 @@ function computeStages(opts: {
   ];
 }
 
-function nextStepFor(stages: PipelineStage[], cutStale: boolean): string {
+function nextStepFor(stages: PipelineStage[], cutStale: boolean,
+                    pipelineStale = false): string {
   const pending = stages.find((s) => !s.done);
   /* A file that no longer matches the edit is not ready to post, whatever the
      approval says. The Queue used to pair the new beat count with the old file
@@ -79,6 +85,10 @@ function nextStepFor(stages: PipelineStage[], cutStale: boolean): string {
   // did not -- and saying "Rebuilding" while nothing is running is the same
   // class of lie as calling a stale file ready to post.
   if (cutStale) return "Rebuild to match your edit";
+  // Same reasoning one step weaker: the edit is fine, the cutting improved.
+  // Not a blocker, but "Ready to post" is the wrong thing to say about a file
+  // carrying a defect the current code would not produce.
+  if (pipelineStale && !pending) return "Rebuild — the cutting has improved since this was built";
   if (!pending) return "Ready to post";
   switch (pending.key) {
     case "footage": return "Drop in raw footage";
@@ -156,6 +166,7 @@ export function summarizeProject(name: string): ProjectSummary | null {
     sourceSeconds !== null && cutSeconds !== null ? Math.max(0, sourceSeconds - cutSeconds) : null;
 
   const cutStale = isCutStale(name, cutFile);
+  const pipelineStale = !cutStale && isPipelineBehind(name, cutFile);
 
   const stages = computeStages({
     hasRawFootage,
@@ -178,10 +189,11 @@ export function summarizeProject(name: string): ProjectSummary | null {
     flaggedBeatLabels: Array.from(new Set(flaggedBeatLabels)),
     progressPct,
     stages,
-    nextStep: nextStepFor(stages, cutStale),
+    nextStep: nextStepFor(stages, cutStale, pipelineStale),
     sourceSeconds: sourceSeconds === null ? null : Math.round(sourceSeconds * 10) / 10,
     cutSeconds: cutSeconds === null ? null : Math.round(cutSeconds * 10) / 10,
     cutStale,
+    pipelineStale,
     removedSeconds: removedSeconds === null ? null : Math.round(removedSeconds * 10) / 10,
     rawFiles,
   };
@@ -195,7 +207,8 @@ function brokenProject(name: string, why: string): ProjectSummary {
     cutFile: null, hasRawFootage: fs.existsSync(path.join(projectDir(name), "raw")),
     hasTranscript: false, scorecardOverall: null, flaggedBeatLabels: [],
     progressPct: 0, stages: [], nextStep: why,
-    sourceSeconds: null, cutSeconds: null, cutStale: false, removedSeconds: null, rawFiles: [],
+    sourceSeconds: null, cutSeconds: null, cutStale: false, pipelineStale: false,
+    removedSeconds: null, rawFiles: [],
     problem: why,
   };
 }

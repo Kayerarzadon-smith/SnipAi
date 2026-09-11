@@ -439,14 +439,21 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const row = spoken && document.querySelector(`[data-beat="${spoken.label}"]`);
     const stage = document.querySelector(".stage");
     const v = liveMode ? rawRef.current : videoRef.current;
+    /* Both edges of each box, because following now asks for the least
+       movement that brings the line into view and is bounded by the room the
+       player has -- neither of which can be worked out from one edge. */
+    const s = stage?.getBoundingClientRect();
+    const r = row ? row.getBoundingClientRect() : null;
     applyScrollRequest(followScroll({
       // no row for it is the same as nothing being spoken: there is nowhere to go
       spokenLabel: row ? spoken!.label : null,
       following: isFollowing(Date.now(), yieldedAt.current),
       pointerDown: pointerDown.current,
       playing: !!v && !v.paused,
-      stageBottom: stage ? stage.getBoundingClientRect().bottom : null,
-      rowTop: row ? row.getBoundingClientRect().top : 0,
+      stageTop: s ? s.top : null,
+      stageBottom: s ? s.bottom : null,
+      rowTop: r ? r.top : 0,
+      rowBottom: r ? r.bottom : 0,
       viewportHeight: window.innerHeight,
     }));
   }, [spoken?.label]);   // the line changing, and nothing else

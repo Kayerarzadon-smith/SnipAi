@@ -52,7 +52,7 @@ const src = fs.readFileSync(PAGE, "utf8");
 function onScreen(over: Partial<Parameters<typeof followScroll>[0]> = {}) {
   return {
     spokenLabel: "beat_07", following: true, pointerDown: false, playing: true,
-    stageBottom: 420, rowTop: 700, viewportHeight: 800, ...over,
+    stageTop: 120, stageBottom: 420, rowTop: 800, rowBottom: 857, viewportHeight: 800, ...over,
   };
 }
 
@@ -80,11 +80,19 @@ test("C22: the page never scrolls to a place the player is not in", () => {
 });
 
 test("C22: with the player in view and the video running, the line still comes to the playhead", () => {
-  // The feature is not being deleted. Playback the person started may carry the
-  // spoken line up under the player -- that is what it is for.
+  /* The feature is not being deleted. Playback the person started may carry the
+     spoken line up under the player -- that is what it is for.
+
+     AMENDED 2026-09-11 (ledger C28). This asserted the exact target
+     `rowTop - (stageBottom + 12)`, and that expectation was the defect: it is
+     a destination, not a distance, so twenty lines into a cut it asked for a
+     1,700px scroll and took the player off the top of the window with it. The
+     tester measured the stage leaving the viewport 3.3 seconds into playback
+     and never coming back. What this test is for is that following still
+     happens at all; HOW FAR is C28's file, which asserts the value against the
+     geometry it was measured in. */
   const req = followScroll(onScreen());
   assert.equal(req.kind, "by", "following stopped working entirely");
-  if (req.kind === "by") assert.equal(req.top, 700 - (420 + 12));
 });
 
 test("C22: a hand on the mouse still freezes the page", () => {

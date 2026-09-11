@@ -6,6 +6,7 @@ import Timeline, { layout } from "@/app/components/Timeline";
 import { resolveSpanDelete, liveClock } from "@/lib/timelineLayout";
 import { followScroll, revealScroll, isFollowing, type ScrollRequest } from "@/lib/follow";
 import { verdictCopy } from "@/lib/verdictCopy";
+import { liveSource, playerNote, type PlayerFiles } from "@/lib/playerCopy";
 import GraphicsPanel from "@/app/components/GraphicsPanel";
 import VoiceInput from "@/app/components/VoiceInput";
 
@@ -1694,6 +1695,17 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   // by default, and the clean cut stays one click away.
   const playFile = showGraphics && data.graphicsFile ? data.graphicsFile : data.cutFile;
   const videoSrc = playFile ? `/api/media/${project}/cuts/${playFile}` : null;
+  /* The player's whole world in one value, so the file it is handed and the
+     sentence above it are answered from the same inputs. */
+  const playerFiles: PlayerFiles = {
+    hasSource: data.hasSource,
+    source: data.source,
+    sourceProxy: data.sourceProxy,
+    cutFile: data.cutFile,
+    graphicsFile: data.graphicsFile,
+    cutStale: data.cutStale,
+    beatCount: data.beats.length,
+  };
 
   return (
     <section>
@@ -1834,23 +1846,13 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                   : "Apply now"}
               </button>
             )}
-            <span className="pm-note">
-              {liveMode
-                ? (data.sourceProxy
-                    ? "Your edit, played straight off the original footage — every trim applies instantly."
-                    : "Your edit, played off the original footage. Cuts may hitch until you make playback smooth.")
-                : !liveMode && showGraphics && data.graphicsFile
-                  ? "Your motion graphics, burned in. “Clean cut” is the same edit without them."
-                : !data.hasSource
-                  ? "The raw footage isn't on this machine — it's still in iCloud. Download it and Live edit will work."
-                  : videoSrc
-                  ? data.cutStale
-                    ? "This file was rendered before your latest trims — rebuild to bake them in."
-                    : "The rendered file, matching your current edit."
-                  : data.beats.length === 0
-                    ? "No beats drafted yet, so there is no edit to play."
-                    : "Nothing rendered yet — Live edit plays the cut without waiting for a render."}
-            </span>
+            {/* What is on screen and what this sentence says about it come
+                from one place now (`lib/playerCopy.ts`). They used to be two
+                separate expressions over `data.sourceProxy` -- the src below
+                and this caption -- and they disagreed: the caption claimed
+                "straight off the original footage" on exactly the branch
+                where the 720p scrubbing copy is playing. (ledger C35) */}
+            <span className="pm-note">{playerNote(playerFiles, { liveMode, showGraphics }).text}</span>
           </div>
 
           <div
@@ -1865,8 +1867,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
               ref={rawRef}
               // the scrubbing proxy when it exists: identical timeline, far
               // faster seeks, so beat-to-beat playback doesn't hitch
-              src={data.hasSource
-                ? `/api/media/${project}/${data.sourceProxy ?? data.source}`
+              src={liveSource(playerFiles).mediaPath
+                ? `/api/media/${project}/${liveSource(playerFiles).mediaPath}`
                 : undefined}
               // No native controls: they play the source, not the edit. The
               // transport below reads the cut's clock instead.

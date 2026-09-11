@@ -1,6 +1,6 @@
 <svg viewBox="0 0 760 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ttl dsc">
   <title id="ttl">The SnipAi team</title>
-  <desc id="dsc">Five illustrated portraits: Mara the product manager, Desmond the code auditor, Nadia the test driver, Theo the implementer, and Ruth the release engineer.</desc>
+  <desc id="dsc">Five illustrated portraits: Mara the product manager, Desmond the software quality engineer, Nadia the QA engineer, Theo the software engineer, and Ruth the release engineer.</desc>
   <defs>
     <clipPath id="c0"><circle cx="0" cy="0" r="54"/></clipPath>
     <radialGradient id="vig" cx="50%" cy="38%" r="70%">

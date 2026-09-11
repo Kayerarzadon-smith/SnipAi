@@ -13,6 +13,17 @@
 //   --projects-delay MS   how long GET /api/projects takes to answer
 //   --no-health           404 /api/health, like a build older than that route
 //
+// It can also model a server that LIES about itself, which is ledger N12:
+//
+//   --claim-pid N         report pid N instead of its own -- a server naming
+//                         somebody else's process as the one to signal
+//   --server-path P       report P as process.argv[1]. Not a secret: it is
+//                         just where the app is installed, so any local
+//                         process can state the bundle's real one
+//   --launch-token T      report T as SNIPAI_LAUNCH_TOKEN
+//   --host H              bind H rather than 127.0.0.1, so two of these can
+//                         hold one port at once (127.0.0.1 and ::1)
+//
 // Prints "listening <port>" on stdout once it is actually bound, so the
 // caller never has to sleep and guess.
 
@@ -28,6 +39,10 @@ const dataRoot = arg("--data-root", "/tmp/fake-occupant-library");
 const codeRoot = arg("--code-root", "/tmp/fake-occupant-code");
 const projectsDelay = Number(arg("--projects-delay", "0"));
 const withHealth = !flag("--no-health");
+const claimedPid = Number(arg("--claim-pid", String(process.pid)));
+const serverPath = arg("--server-path", "");
+const launchToken = arg("--launch-token", "");
+const host = arg("--host", "127.0.0.1");
 
 const { createServer } = await import("node:http");
 
@@ -44,7 +59,9 @@ const server = createServer((req, res) => {
     res.end(JSON.stringify({
       dataRoot,
       codeRoot,
-      pid: process.pid,
+      pid: claimedPid,
+      serverPath,
+      launchToken,
       pipeline: { version: 3, known: true },
     }));
     return;
@@ -64,6 +81,8 @@ const server = createServer((req, res) => {
 
 // --port 0 lets the kernel choose, and the real port comes back on stdout --
 // which is how a caller gets a port nobody else can be holding.
-server.listen(port, "127.0.0.1", () => {
-  console.log(`listening ${server.address().port}`);
+// ipv6Only matters: without it a bind to :: would take BOTH families on some
+// systems, and the N12 case needs one process per family on one port.
+server.listen({ port, host, ipv6Only: host === "::1" || host === "::" }, () => {
+  console.log(`listening ${server.address().port} pid ${process.pid}`);
 });

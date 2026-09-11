@@ -141,13 +141,22 @@ func fakeOccupantScript() -> String? {
 }
 
 /// Start the fake occupant and wait until it says it is bound.
+///
+/// `host`, `claimPID` and `serverPath` are the N12 case: a process that binds
+/// one address family of a port and answers /api/health with somebody else's
+/// pid and a serverPath anyone can read off the filesystem.
 func startFakeOccupant(script: String, port: Int, dataRoot: String,
-                       projectsDelayMS: Int, withHealth: Bool) -> Process? {
+                       projectsDelayMS: Int, withHealth: Bool,
+                       host: String = "127.0.0.1",
+                       claimPID: Int32? = nil,
+                       serverPath: String = "") -> Process? {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     var args = ["node", script, "--port", "\(port)", "--data-root", dataRoot,
-                "--projects-delay", "\(projectsDelayMS)"]
+                "--projects-delay", "\(projectsDelayMS)", "--host", host]
     if !withHealth { args.append("--no-health") }
+    if let claimed = claimPID { args += ["--claim-pid", "\(claimed)"] }
+    if !serverPath.isEmpty { args += ["--server-path", serverPath] }
     p.arguments = args
     let out = Pipe()
     p.standardOutput = out
@@ -420,6 +429,92 @@ struct LaunchDecisionProbe {
         _ = Darwin.close(holder)
     } else {
         check(false, "no free port for the composition check")
+    }
+
+    print("\n== N12: a server may only nominate ITSELF ==")
+    // The defect this replaces: ownership asked "is the pid it named holding
+    // the port?" and never "is the pid it named the thing that answered?".
+    // Those differ the moment TWO processes hold the port -- which is ordinary,
+    // because 127.0.0.1 and ::1 are different addresses and a process may have
+    // either without the other.
+    //
+    // Deterministic half first: the count rule, with the listener set injected.
+    let bothFamilies: [Int32] = [4242, 5555]
+    func oursAmong(_ id: ServerIdentity?, _ held: [Int32]) -> [Int32] {
+        ourListeningPIDs(port: 4737, identity: id, ourServerPath: ourPath,
+                         ourLaunchToken: ourToken, listening: held)
+    }
+    check(oursAmong(server(launchToken: ourToken), bothFamilies) == [],
+          "a second listener on the port -> nothing is ours to signal, token or no token")
+    check(oursAmong(server(serverPath: ourPath), bothFamilies) == [],
+          "N12 exactly: right serverPath, but a stranger is alongside -> signal nobody")
+    check(oursAmong(server(pid: 5555, launchToken: ourToken), bothFamilies) == [],
+          "naming the OTHER listener's pid is never ownership")
+    check(oursAmong(server(launchToken: ourToken), [4242]) == [4242],
+          "sole listener, our token -> still ours (the fix does not disown us)")
+    // And the three call sites must now agree. listenerIsOurOrphan used to be
+    // the only one carrying this rule; the quit path and restartOrphan called
+    // ourListeningPIDs raw and skipped it.
+    check(ourListeningPIDs(port: 4737, identity: server(serverPath: ourPath),
+                           ourServerPath: ourPath, ourLaunchToken: ourToken,
+                           listening: bothFamilies).isEmpty,
+          "the QUIT path's call answers the same as the launch path's")
+
+    print("\n== N12: the live dual-stack reproduction ==")
+    // One port, two processes, two address families. The bystander is not
+    // SnipAi and says nothing; the impostor holds the address we probe and
+    // hands us the bystander's pid. Before the fix this printed
+    // "Stopping our own server, pid <bystander>" and SIGTERMed it.
+    if let script = fakeOccupantScript(), let port = findFreePort() {
+        let bystander = startFakeOccupant(script: script, port: port,
+                                          dataRoot: "/tmp/not-snipai-at-all",
+                                          projectsDelayMS: 0, withHealth: false,
+                                          host: "::1")
+        if let bys = bystander {
+            let bysPID = bys.processIdentifier
+            let impostor = startFakeOccupant(script: script, port: port,
+                                             dataRoot: real,
+                                             projectsDelayMS: 0, withHealth: true,
+                                             host: "127.0.0.1",
+                                             claimPID: bysPID,
+                                             serverPath: ourPath)
+            if let imp = impostor {
+                let impPID = imp.processIdentifier
+                let held = listeningPIDs(port: port)
+                // The precondition IS the finding. If two processes cannot
+                // share the port on this machine there is nothing to prove
+                // here, and that must be visible rather than pass quietly.
+                check(held.contains(bysPID) && held.contains(impPID),
+                      "two processes hold port \(port) at once: \(held) " +
+                      "(bystander \(bysPID) on ::1, impostor \(impPID) on 127.0.0.1)")
+                let id = fetchServerIdentity(port: port, timeout: 4.0)
+                check(id?.pid == bysPID,
+                      "the probe reached the IPv4 impostor, which named the bystander's pid")
+                check(id?.serverPath == ourPath,
+                      "and stated our bundle's real server path -- which is not a secret")
+
+                let signalled = ourListeningPIDs(port: port, identity: id,
+                                                 ourServerPath: ourPath,
+                                                 ourLaunchToken: ourToken)
+                check(signalled.isEmpty,
+                      "NOTHING is signalled -- would have been [\(bysPID)] before the fix")
+                check(!signalled.contains(bysPID),
+                      "the bystander, which never claimed anything, is not signalled")
+                check(!listenerIsOurOrphan(port: port, identity: id,
+                                           ourServerPath: ourPath, ourLaunchToken: ourToken),
+                      "and the launch path still refuses it too -- all three call sites agree")
+                check(kill(bysPID, 0) == 0, "bystander pid \(bysPID) is still alive")
+                check(kill(impPID, 0) == 0, "impostor pid \(impPID) is still alive")
+                imp.terminate()
+            } else {
+                check(false, "could not start the IPv4 impostor on \(port)")
+            }
+            bys.terminate()
+        } else {
+            check(false, "could not start the IPv6 bystander on \(port)")
+        }
+    } else {
+        check(false, "no fake-occupant script or no free port for the N12 reproduction")
     }
 
     print("\n== path comparison does not cry wolf ==")

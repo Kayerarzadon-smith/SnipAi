@@ -43,9 +43,26 @@ export const dynamic = "force-dynamic";
  *
  * `launchToken` is SNIPAI_LAUNCH_TOKEN, which the native wrapper sets to a
  * fresh UUID when it spawns a server, and is "" for a server a person started.
- * It is an identity nonce and NOT a credential: nothing is authorised by it,
- * and the worst a local process can do by echoing back a token it read here is
- * get itself SIGTERMed on quit instead of somebody else.
+ * It is an identity nonce and NOT a credential: nothing is authorised by it.
+ *
+ * This paragraph used to end "the worst a local process can do by echoing back
+ * a token it read here is get itself SIGTERMed instead of somebody else", and
+ * that was false on 2026-09-11 (ledger N12) -- no token was needed to get a
+ * third party signalled, because the launcher also accepts our own
+ * `serverPath`, which is not a secret but merely where the app is installed.
+ * What is true, and is what `ourListeningPIDs` in native/LaunchDecision.swift
+ * now actually enforces, is that the app will SIGTERM a process only if ALL of:
+ *
+ *   - it identified itself here at all (silence is never ownership); and
+ *   - it named a pid that is the ONE and only listener on the port, which is
+ *     therefore the process that answered -- so a server cannot nominate a
+ *     bystander, and cannot hide behind a second listener on the other address
+ *     family; and
+ *   - it carries THIS launch's token, or was launched from this bundle's own
+ *     server file.
+ *
+ * So the old sentence is true again, for the reason it always claimed: the only
+ * process a liar can get SIGTERMed is itself.
  *
  * `pipeline` is here so the one thing that can silently disable the "cutting
  * has improved" badge is visible from outside the process. A packaged build

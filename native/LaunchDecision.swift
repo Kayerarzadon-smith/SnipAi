@@ -368,6 +368,42 @@ func commandLine(ofPID pid: Int32) -> String {
 ///        path, so it can never match this way, and `npm run dev` in the same
 ///        checkout is therefore never ours -- which is ledger P19 and must
 ///        stay true.
+///   4. And the pid it names must be the ONLY thing listening on the port.
+///
+/// **Rule 4 was added on 2026-09-11 and it is ledger N12.** Without it, the
+/// answer to "who may we signal" was not the same at all three call sites: the
+/// count comparison lived in listenerIsOurOrphan() below, so the LAUNCH path
+/// had it while the quit path (main.swift:275) and the restartOrphan path
+/// (main.swift:526) called this function directly and skipped it. Reproduced
+/// 2026-09-11, and no token was needed to do it, because `serverPath` is not a
+/// secret -- it is just where the app is installed:
+///
+///   - a bystander holding `[::1]:4737`, which claimed nothing and was not
+///     SnipAi at all;
+///   - an impostor holding `127.0.0.1:4737` -- the address we probe -- which
+///     answered /api/health with an empty token, the bundle's real serverPath,
+///     and **the bystander's pid**.
+///
+/// Two processes CAN hold one port at once, one per address family; lsof
+/// reports both and our probe reaches only the IPv4 one. Rule 2 was satisfied
+/// (the named pid really was holding the port -- just not the half we were
+/// talking to), so on quit the app logged "Stopping our own server" and
+/// SIGTERMed the bystander. The process that lied survived; the one that never
+/// spoke was signalled.
+///
+/// Rule 4 is the whole fix, and it is worth seeing why nothing more is needed.
+/// This function returns at most ONE pid, so requiring `ours.count ==
+/// holders.count` forces `holders.count == 1`. One listener, and it is the pid
+/// that answered our probe -- because whatever answered a connection to this
+/// port was, by construction, listening on it. So "the process that answered is
+/// the process it named" follows from counting rather than from any new
+/// machinery to check it. The honest statement turned out to be smaller than
+/// the claim it replaces, which is why this row cost four lines.
+///
+/// What rule 4 gives up, stated plainly: if our own server is on the port and a
+/// stranger is alongside it on the other address family, we now decline to stop
+/// our own server. That leaks a server; the alternative leaks a SIGTERM into
+/// somebody else's process. Failing towards the leak is the right way round.
 func ourListeningPIDs(port: Int,
                       identity: ServerIdentity?,
                       ourServerPath: String,
@@ -376,6 +412,9 @@ func ourListeningPIDs(port: Int,
     guard let identity = identity else { return [] }
     let holders = listening ?? listeningPIDs(port: port)
     guard holders.contains(identity.pid) else { return [] }
+    // Rule 4. Anything else on this port means the thing that answered us is
+    // not provably the thing we would be signalling. N12.
+    guard holders.count == 1 else { return [] }
 
     if !ourLaunchToken.isEmpty && identity.launchToken == ourLaunchToken {
         return [identity.pid]
@@ -389,20 +428,17 @@ func ourListeningPIDs(port: Int,
 
 /// Is everything holding the port a server this app started?
 ///
-/// The count comparison is the point: if even one listener is a stranger's,
-/// this is not ours to restart, however well the one that answered identified
-/// itself. An empty list is not ownership either.
+/// Now exactly "is there anything we may signal", because ourListeningPIDs()
+/// carries the count check itself (N12). It is kept as a named function because
+/// decideLaunch() reads better with it, and deleting it would leave the launch
+/// path phrasing the same question differently from the other two.
 func listenerIsOurOrphan(port: Int,
                          identity: ServerIdentity?,
                          ourServerPath: String,
                          ourLaunchToken: String) -> Bool {
-    let listening = listeningPIDs(port: port)
-    guard !listening.isEmpty else { return false }
-    let ours = ourListeningPIDs(port: port, identity: identity,
-                                ourServerPath: ourServerPath,
-                                ourLaunchToken: ourLaunchToken,
-                                listening: listening)
-    return !ours.isEmpty && ours.count == listening.count
+    return !ourListeningPIDs(port: port, identity: identity,
+                             ourServerPath: ourServerPath,
+                             ourLaunchToken: ourLaunchToken).isEmpty
 }
 
 // MARK: - Which library this launch was asked for

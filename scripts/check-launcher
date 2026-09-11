@@ -1,0 +1,88 @@
+#!/bin/bash
+# Compile the launcher's server-ownership rule and run its probe. (ledger N4)
+#
+#   ./scripts/check-launcher                     the real rule and the real probe
+#   ./scripts/check-launcher RULE.swift PROBE.swift    substitutes, for this
+#                                                      script's own test
+#
+# Exit 0 = the rule still decides the way it is supposed to. Exit 1 = it does
+# not, or it no longer compiles, or there is no compiler to ask.
+#
+# WHY THIS EXISTS
+#
+# native/LaunchDecision.swift is the only thing standing between a sandboxed
+# run and Kayer's real library: it decides whether the app adopts, refuses or
+# restarts whatever already holds port 4737 (ledger N1, P19). It is Swift, so
+# no node test can reach it, and until this script nothing automated compiled
+# it at all -- `decideLaunch` could have been changed to return `.adopt` in
+# every case and every gate would have stayed green until somebody happened to
+# rebundle. That is the same hole as T5, sitting under the code that keeps a
+# sandboxed run out of his footage.
+#
+# WHY IT IS ITS OWN FILE
+#
+# So the gate can be tested. tests/regressions/N4-launcher-rule-is-gated.test.mts
+# runs this script against a deliberately broken rule and against a probe that
+# fails, and asserts it goes red -- which is impossible if the same fifteen
+# lines are buried inside scripts/test, because a test cannot run scripts/test
+# from inside scripts/test.
+#
+# A MISSING TOOLCHAIN IS A FAILURE, NOT A SKIP
+#
+# Deliberately. SnipAi is a macOS app whose launcher scripts/bundle-app builds
+# with this same swiftc, so there is no environment that can legitimately
+# produce this app and cannot compile this file. The alternative -- skip when
+# swiftc is absent -- is a skip that can be silently permanent, which is
+# exactly how the pipeline suite went unexercised, and scripts/test already
+# prints one always-on "not everything ran" warning that nobody reads (T4's
+# residual). A second one would finish the job of making that line invisible.
+# If the compiler is missing, the compiler's own error is printed and the run
+# is red; `xcode-select --install` is the fix.
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+
+OK=$'\033[32m'; ERR=$'\033[31m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+
+RULE="${1:-native/LaunchDecision.swift}"
+PROBE="${2:-tests/native/launch-decision-probe.swift}"
+
+for f in "$RULE" "$PROBE"; do
+  [ -f "$f" ] || { printf "  %s%s is missing -- the ownership rule cannot be checked%s\n" \
+                     "$ERR" "$f" "$OFF"; exit 1; }
+done
+
+# Never inside the repo and never anywhere near ~/Movies/SnipAi. mktemp -d
+# honours TMPDIR, which on macOS is a per-user dir the system reaps.
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/snipai-launcher.XXXXXX") || exit 1
+trap 'rm -rf "$BUILD"' EXIT
+
+# `swiftc | sed` hands the shell sed's status, and swiftc can fail while a
+# chain still reports success -- scripts/bundle-app:143 learned that the hard
+# way and checks the file too. Both here.
+swiftc -o "$BUILD/probe" "$RULE" "$PROBE" 2>&1 | sed 's/^/  /'
+if [ "${PIPESTATUS[0]}" != 0 ] || [ ! -x "$BUILD/probe" ]; then
+  printf "  %sthe launcher does not compile -- the ownership rule is unchecked%s\n" "$ERR" "$OFF"
+  exit 1
+fi
+
+# Safe to run while the real app is up: the probe binds only ephemeral ports in
+# 4900-4960 and never 4737, starts its fake occupants with node, and writes no
+# files. The one-argument form is the decision table; the live form that talks
+# to a real server is only reached with a port argument, which is never passed
+# from a gate.
+out=$("$BUILD/probe" 2>&1); status=$?
+summary=$(printf '%s\n' "$out" | grep -E "checks passed$" | tail -1)
+
+if [ "$status" = 0 ]; then
+  printf "  %s%s%s %s(native/LaunchDecision.swift: adopt / refuse / restart)%s\n" \
+    "$OK" "${summary:-the probe passed}" "$OFF" "$DIM" "$OFF"
+  exit 0
+fi
+
+# Show the failures, not all fifty lines: scripts/qa shows only the tail of
+# this runner's output when it fails, and a wall of "ok" would push the FAIL
+# lines off the top of it.
+printf '%s\n' "$out" | grep -E "FAIL|checks passed$" | sed "s/^ *//; s/^/  ${ERR}/; s/$/${OFF}/"
+printf "  %sthe server-ownership rule no longer decides correctly -- a launch could adopt a server on the wrong library (ledger N1)%s\n" \
+  "$ERR" "$OFF"
+exit 1

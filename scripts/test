@@ -47,6 +47,25 @@ for g in scripts/guard-rebuild.py scripts/guard-open-panel.py scripts/guard-ledg
   python3 "$g" || fail=1
 done
 
+# The third thing no unit test can see, and the most expensive to be wrong
+# about: the Swift rule that decides whether the app adopts a server already
+# holding port 4737, or refuses because that server is serving a different
+# library (ledger N1, P19). Nothing automated compiled it until 2026-09-11, so
+# `decideLaunch` could have been changed to `.adopt` in every case and every
+# gate would have stayed green until the next rebundle (ledger N4).
+#
+# It goes in THIS runner rather than in scripts/qa because this is the gate
+# that runs on every push, and scripts/qa --full runs this file -- so one copy
+# covers the push, the QA pass, and through scripts/qa's exit code
+# scripts/bundle-app, which is the last gate before an artifact leaves the
+# machine. In scripts/qa alone it would have caught a broken ownership rule
+# only at bundle time, which is the lateness N4 is complaining about.
+#
+# ~14s of the runner's time. The thing it protects is footage that does not
+# exist anywhere else.
+printf "\n%s== launcher ==%s\n" "$BOLD" "$OFF"
+./scripts/check-launcher || fail=1
+
 printf "\n%s== pipeline ==%s\n" "$BOLD" "$OFF"
 VENV=ugc-edit-system/.venv/bin/python
 if [ ! -x "$VENV" ]; then

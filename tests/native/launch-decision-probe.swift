@@ -11,9 +11,15 @@ import Foundation
 //
 // The second form is the reproduction the ledger asks for: a server on a port
 // with a different data root, and proof the app neither adopts nor kills it.
-// It is a probe rather than a node test because the code under test is Swift;
-// `./scripts/qa` does not compile it, so it is run deliberately and its output
-// pasted into the commit.
+// It is a probe rather than a node test because the code under test is Swift.
+//
+// The first form is no longer run by hand: `scripts/check-launcher` compiles
+// and runs it on every `./scripts/test`, and therefore on every
+// `./scripts/qa --full` and every `scripts/bundle-app` (ledger N4). Hand-run
+// with its output pasted into a commit message was the defect -- the rule
+// could have stopped being enforced and nothing would have said so. Keep this
+// file cheap enough to stay in that gate: it is ~14s today, nearly all of it
+// the live sections below.
 
 var failures = 0
 var checks = 0

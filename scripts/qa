@@ -119,7 +119,10 @@ types() {
 
 tests() {
   # ./scripts/test runs `tsc --noEmit` itself before the suite, so QA does not
-  # type-check separately -- on this repo that was twenty seconds of duplicate work
+  # type-check separately -- on this repo that was twenty seconds of duplicate work.
+  # It also runs ./scripts/check-launcher, which is the only thing that compiles
+  # the Swift server-ownership rule (ledger N4) -- do not add a second copy here,
+  # a failure arrives through this exit code like everything else in that runner.
   hdr "types and tests"
   # Keep the status. This used to be `out=$(./scripts/test 2>&1)` followed by
   # `grep -q "fail 0"`, which threw the exit code away and decided on a string

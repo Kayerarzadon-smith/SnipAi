@@ -1226,8 +1226,20 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
    inside a phone that is not the phone it will play on. The aspect now comes
    from the video itself (set on load), and the width follows the window until
    you drag it, so it is responsive by default and yours to override. */
+/* The ratio is the PICTURE's, not the box's. It used to sit on `.player`,
+   which fixed the whole box's height before a single child was laid out: the
+   video at `height: 100%` then filled that height exactly, so `.live-transport`
+   -- the next flow child -- began one pixel past the bottom edge and was
+   clipped away by the `overflow: hidden` on this same rule. Clipped content
+   paints nothing and hit-tests as nothing, while getBoundingClientRect still
+   reports where it WOULD have been, so the Play button looked present,
+   measured present, answered AXPress, and took no mouse click for as long as
+   the transport existed. (ledger C30)
+
+   With the ratio on the picture the box has no fixed height at all, so it is
+   the sum of its parts and a control added next to the Play button cannot be
+   laid out outside it. */
 .stage .player { width: clamp(160px, 22vw, 340px); max-width: 100%;
-                 aspect-ratio: var(--shot-aspect, 9 / 16);
                  border-radius: 18px; background: #000;
                  resize: horizontal; overflow: hidden; min-width: 120px; }
 /* the drag corner, drawn so it looks like a handle rather than a scrollbar */
@@ -1242,9 +1254,13 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 .stage .player:hover .player-grip { opacity: .9; }
 /* cover, now that the frame matches the footage: contain would still hairline
    a band on any clip whose aspect differs slightly from the first one loaded */
-.stage .player video { width: 100%; height: 100%; max-height: none;
+.stage .player video { width: 100%; height: auto; max-height: none;
+                       aspect-ratio: var(--shot-aspect, 9 / 16);
                        object-fit: cover; background: #000; display: block; }
-.stage .player .empty { aspect-ratio: auto; height: 100%; max-height: none; }
+/* the empty state takes the same shape the picture would have, so the box does
+   not change size when a render appears */
+.stage .player .empty { aspect-ratio: var(--shot-aspect, 9 / 16); height: auto;
+                        max-height: none; }
 .phone-note { text-align: center; font-size: 10.5px; color: var(--text-faint);
               margin-top: 6px; letter-spacing: .02em; }
 .tl-keys { font: inherit; font-size: 10.5px; color: var(--tl-text); opacity: .6; cursor: pointer;

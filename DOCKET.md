@@ -23,17 +23,28 @@ One milestone open at a time. Nothing below gets touched until the one above
 it meets its exit line. New ideas go in **Open**, not into whichever milestone
 is live — they get pulled in when this list is re-sequenced, not on the spot.
 
-**Re-sequenced 2026-09-11** — he needs TikToks posted this weekend. Drop-in
-auto-cut is the product; watching it inside SnipAi's own player is not on that
-path — pull the finished file from Finder (`~/Movies/SnipAi/projects/<name>/cuts/`)
-and preview it in QuickTime until M-app is done.
+**Re-sequenced 2026-09-11, updated same night.** He needs TikToks posted this
+weekend. Drop-in auto-cut is the product.
+
+**Overnight session 2026-09-11:** S18 and S19 fixed and test-verified (not
+against real footage — synthetic fixtures; see their commits). E1's fix is
+written and its mechanism confirmed against real measured data, but not yet
+proven against a real render — this session's connection to the Mac could not
+finish extracting even 2.3s from a real 1.5GB source without timing out twice.
+**What's still needed before M0 and M0.5 can close: someone actually drops a
+raw clip into the dashboard and lets it run.** That exercises the real upload
+path, the real pipeline, and the real E1 fix, natively on the Mac rather than
+through this session's connection to it — which is exactly what this
+connection could not do reliably tonight. Also fixed in passing: T2's real
+cause (`guard-ledger.py` was silently forcing `fail=1` on every run) — `M1` is
+mostly done as a result, `scripts/test` now prints an honest verdict.
 
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
-| M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard today produces a finished cut in `cuts/`, no terminal touched. **Already likely true** — S3's OOM risk was fixed by commit `7d31529` before the ledger caught up; confirm on one real new clip | S3 (fixed, confirm) |
-| M0.5 | Stop shipping clipped audio | `python3 qa/verify_edges.py` reports 0 of 34 | E1 |
-| M-app | Make it watchable inside SnipAi itself | Open `img-9817` in the native window, press play, watch all of it | S18, S19 |
-| M1 | Make the test/QA verdict trustworthy | A clean run prints one verdict; a deliberately broken run goes red | T2, T3, T4 |
+| M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Not yet run tonight** — needs a real clip through the real dashboard | S3 (fixed) |
+| M0.5 | Stop shipping clipped audio | `python3 qa/verify_edges.py` reports 0 of 34. **Fix written, needs the same real run as M0 to confirm** | E1 |
+| M-app | Make it watchable inside SnipAi itself | Open `img-9817` in the native window, press play, watch all of it | S18 (fixed), S19 (fixed) |
+| M1 | Make the test/QA verdict trustworthy | A clean run prints one verdict; a deliberately broken run goes red. **Root cause (guard-ledger.py) fixed** — T3/T4 (the two-verdicts-in-one-run problem, and the silent pipeline skip) still open | T2 (fixed), T3, T4 |
 | M2 | Build the net under the client | A DOM harness exists; C1 and C2 each have a test that went red → green | C1, C2 |
 | M3 | Finish the three-level review loop | Level 1 → 2 → 3 usable without knowing `m` is a shortcut | H1, H2, H3 |
 | M4 | Decide what SnipAi is (his call, not QA's or dev's) | Every BLOAT row has a keep/cut answer, written down | B1, B2, B5, B6 |

@@ -518,9 +518,19 @@ async function buildCut(
 
   log("PROGRESS 94");
   log(`stitching final cut (${cutFileName})...`);
+  // -c copy means this is a remux, not a re-encode -- +faststart just moves
+  // the moov atom to the front, which costs a second pass over a file this
+  // size but no re-encoding. Every individual clip already writes faststart
+  // (see build_cut.py); this concat step, which produces the actual file in
+  // cuts/, never did. A real cut (img-9817-v6.mp4) shipped with moov at
+  // byte 513655552 of a 513MB file -- nothing can start playing it without
+  // fetching the whole thing first. That is why every video surface in the
+  // app, including the one that plays a build the moment it finishes, sat
+  // black: it was requesting a range this same file's own player could
+  // never satisfy until S18 was fixed either.
   const concat = await runCommand(
     resolvedFfmpeg(),
-    ["-y", "-f", "concat", "-safe", "0", "-i", path.join(projAbs, "work", "concat.txt"), "-c", "copy", cutRelPath],
+    ["-y", "-f", "concat", "-safe", "0", "-i", path.join(projAbs, "work", "concat.txt"), "-c", "copy", "-movflags", "+faststart", cutRelPath],
     { onLine: log }
   );
   if (!concat.ok) {

@@ -1,0 +1,154 @@
+---
+description: Build the whole app — run the full roadmap, milestone by milestone, until every feature works
+argument-hint: "[optional: a milestone to start from, e.g. 'M2', or 'continue']"
+allowed-tools: Task, Bash, Read, Grep, Glob, Write, Edit
+---
+
+You are building SnipAi to done. Not an MVP — Kayer asked for the full app
+with all of his features, and this command runs until there is nothing left
+that can be finished without another company's approval or his credit card.
+
+Start from: $ARGUMENTS  (if empty, or "continue", read `DOCKET.md` and start
+at the first milestone whose exit line is not met.)
+
+---
+
+## What "done" means here
+
+`NOTES.md` has the product intent. In his own words, the thing the app is for:
+
+> **Drop in raw footage and it edits my TikToks.**
+
+Everything else — the review levels, the take picker, the learning loop,
+products, connectors — exists to serve that or to correct it when it gets it
+wrong. When a decision is ambiguous, that sentence is the tiebreaker.
+
+---
+
+## The team
+
+Five agents in `.claude/agents/`. Dispatch them with the Task tool; do not do
+their work yourself. Each refuses the other four's job on purpose.
+
+| Agent | Responsibility | Must never |
+|---|---|---|
+| `snipai-pm` | Sequence. Picks the next row, closes milestones, escalates decisions | Write code; judge whether a defect is real |
+| `snipai-qa` | Read code adversarially. Line-anchored findings with a failure scenario | Run the app; edit anything |
+| `snipai-tester` | Run the real app — dev server AND packaged `SnipAi.app` — as a user | Edit app code |
+| `snipai-dev` | Fix one ledger row: failing test first, then cause, then proof, then commit | Invent scope; touch bloat unasked |
+| `snipai-release` | Clean tree, pushed work, reproducible build, the shippable verdict | Decide what to build; fix defects |
+
+`PROCESS.md` is the authority for the loop, Definition of Ready, Definition of
+Done, and the gates. Read it before dispatching anyone.
+
+---
+
+## Standing orders from Kayer (2026-09-11)
+
+These are decided. Do not re-litigate them, do not ask again.
+
+1. **He wants all of it.** The timeline NLE stays. The graphics subsystem
+   stays. All four undo mechanisms stay. All five settings tabs stay. Ledger
+   rows B1, B2, B5 and B6 are **wontfix — kept by decision**, not oversights.
+   `M4` collapses to deleting only what is *provably* dead (U1-U10), and even
+   then only what QA has confirmed has no caller.
+2. **Graphics won; the rule was wrong.** `ugc-edit-system/CLAUDE.md:30` — "No
+   captions, no graphic overlays, no PIP" — is to be rewritten so overlays are
+   allowed, because the scorecard currently penalises cuts for a feature he
+   deliberately built and wants. Fix the rule, not the feature. Check what
+   else reads that line before changing it: the Pacing/house-style scoring
+   path reads the same doc.
+3. **Work freely; never touch the footage.** Fix, test, commit and push on
+   your own without stopping to ask. But his raw footage is irreplaceable and
+   there is no staging library: any operation that writes into `raw/` or
+   `cuts/`, or that runs a destructive test against a real project, backs the
+   project up first and verifies it byte-identical afterward — exactly as the
+   2026-09-10 tester run did with `img-9817/beats.json`. If you cannot
+   guarantee that for a given step, skip the step and file it.
+
+---
+
+## The order, and why it is this order
+
+Not caution — dependency. Each milestone unlocks the next.
+
+**M0 / M0.5 — the cut path.** A raw clip in, a correct cut out, no clipped
+audio. S18, S19 and E1 are already fixed in code; `snipai-tester` has to
+confirm them against real footage, which has never been done. Everything
+downstream is decoration if this does not work.
+
+**M1 — trustworthy alarms.** T3, T4. A suite that lies is worse than none.
+
+**M2 — the DOM harness.** `jsdom` plus a render helper. This is the highest
+-leverage item in the entire project: **22 client bugs are open and 0 have
+ever been fixed**, not because they are hard but because nothing can test a
+React drag, so no fix can be proven and therefore none get made. Build the
+harness, then burn the client list down — C1, C2, C22 and the rest.
+
+**M3 — the review flow.** H1, H2, H3. Level 3 has a complete backend and no
+UI; Level 2 is reachable only by pressing `m`; Level 1 cannot produce the
+"Needs fixes" status the dashboard already renders. This is the feature
+`NOTES.md` describes as the whole point of the app, and it is a third built.
+
+**M4 — the rest of the defects.** The 16 server rows, the 18 pipeline rows,
+then the provably-dead code per standing order 1.
+
+**M5 — the remaining half-built features.** H4 detached audio, H5 the
+learning loop's ceiling and preview, H7 products & links, H8 voice input in
+the two places `NOTES.md` actually describes.
+
+**M6 — everything that is not blocked on someone else.** For connectors
+(H6/B1): build and test the full posting path against a mock — auth flow,
+token storage, upload, error handling — so that the day a credential arrives
+it is one config value, not a feature. Do not fake a successful post.
+
+---
+
+## Blocked, and honestly so
+
+Say so in every report. Do not quietly skip them.
+
+- **B1 connectors** — needs a developer app and credentials from eight
+  separate companies. TikTok Shop requires business verification. Weeks of
+  *their* process. Only Kayer can start it.
+- **B2 signing** — $99/yr Apple Developer account. Only Kayer can buy it.
+- **B3 auto-update** — needs B2 first.
+- **B4 Apple Silicon** — a universal build; works under Rosetta today.
+
+---
+
+## The loop
+
+```
+PM       picks the next ready row from the open milestone. One row. WIP = 1.
+ |
+DEV      failing test, then the cause, then proof, then commit it alone.
+ |
+QA       reads the diff. New defect -> new row -> back to DEV.
+ |       Same bug shape elsewhere -> also a row.
+ |
+TESTER   runs the real app against the exit condition. If the suite and the
+ |       tester disagree, THE TESTER WINS — say so loudly and file it.
+ |
+RELEASE  clean, green, ledger agrees, pushed, nothing private tracked.
+ |
+PM       exit line met? Close it, open the next milestone. Else next row.
+ '-----> loop
+```
+
+Keep looping across milestone boundaries. Do not stop because a milestone
+closed — that is the signal to open the next one.
+
+## Stop and ask only for
+
+1. A product decision the standing orders above do not already answer.
+2. The same row failing twice — two failures means the diagnosis is wrong,
+   not that the fix needs a third try. Back to QA or TESTER for a real cause.
+3. Anything that would risk the footage and cannot be made safe.
+4. Nothing left but the blocked items.
+
+## Report
+
+Lead with what now works that did not before, in his words, not ids. Then the
+milestone state, then what is blocked and on whom. Match the ledger's voice:
+plain, specific, no padding. Name the id and the exit line it is short of.

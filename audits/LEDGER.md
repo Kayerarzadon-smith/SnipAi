@@ -119,6 +119,7 @@ is worth doing before fixing them.
 | ID | Where | Defect | Status | Test |
 |----|-------|--------|--------|------|
 | E2 | `resolveSpanDelete` / `lib/timelineLayout.ts` | A span delete can leave a **surviving sliver of a line** rather than removing it. Found 2026-09-11 by `qa/gauntlet/looks.mts` from believable input: deleting 1.67-10.48s leaves `b2` at 0.170s; deleting 10.63-15.71s leaves `b4` at 0.236s (seeds 22075, 22077, 22084, 22097 — four in ~120). Two harms, and the second is the worse one. **On screen:** 0.170s is 4.3px at the default zoom (25px/s), under the ~6px a pointer can hit — you cannot grab it to fix or remove it without knowing to zoom in first, which is not a recovery path for damage you did not mean to do. **In the cut:** 170ms of a spoken line is not a line, it is a fragment of one syllable, and it renders into the finished video as a stutter. The arithmetic gauntlet passes all of these clean — `timeline.mts` asks whether the right number of seconds came out, which they did. Decide the rule: below some floor a remnant should be dropped whole rather than kept | open | yes — `qa/gauntlet/looks.mts`, category 022, reproduces at the named seeds |
+| E3 | `ugc-edit-system/CLAUDE.md:30` | **The app scores his cuts against a rule the app itself breaks.** That line says "No captions, no graphic overlays, no PIP", and it is not a comment — it is the measured house-style target the scorecard's Pacing/style scoring reads. Meanwhile the graphics subsystem (~1,300 lines, six card kinds) is live and he uses it. Filed as bloat B2 on the theory one of them had to go. **Kayer decided 2026-09-11: the graphics stay, the rule was wrong.** So this is now a defect, not a decision — rewrite `CLAUDE.md:30` to allow overlays so cuts stop being penalised for a feature he deliberately built and wants. Before changing it, grep for every reader of that doc: the scoring path is the known one, and a house-style template built from reference videos also measures against it | open | yes, not yet written — assert a cut carrying graphics is not marked down for carrying them |
 
 ## Repo hygiene — `snipai-release`
 
@@ -185,12 +186,12 @@ Do not act on these without saying so first.
 
 | ID | What | The argument | Status |
 |----|------|--------------|--------|
-| B1 | The timeline NLE (~a third of the client) | NOTES.md Level 2 asks for "mark roughly where it's wrong, no detailed diagnosis". CLAUDE.md §5 argues pads should be computed off word gaps, not eyeballed. Keep span-delete and the `[`/`]` nudge; question reorder, fades, detached audio, five zoom levels | open |
-| B2 | The graphics subsystem (~1,300 lines) | `CLAUDE.md:30` — "No captions, no graphic overlays, no PIP" — is the measured style target. Either the feature or that line is wrong; both are live | open |
+| B1 | The timeline NLE (~a third of the client) | NOTES.md Level 2 asks for "mark roughly where it's wrong, no detailed diagnosis". CLAUDE.md §5 argues pads should be computed off word gaps, not eyeballed. Keep span-delete and the `[`/`]` nudge; question reorder, fades, detached audio, five zoom levels | **wontfix 2026-09-11 — kept by decision.** Kayer asked for the full app with all of his features; the timeline stays. Not an oversight — a decision, and not to be re-litigated. |
+| B2 | The graphics subsystem (~1,300 lines) | `CLAUDE.md:30` — "No captions, no graphic overlays, no PIP" — is the measured style target. Either the feature or that line is wrong; both are live | **wontfix 2026-09-11 — kept by decision.** Superseded by his call on `CLAUDE.md:30`: the graphics subsystem stays and the house-style rule was the thing that was wrong. See the E3 row — the rule must be rewritten so the scorecard stops penalising a feature he deliberately built and wants. |
 | B3 | *(mostly pipeline)* Nine `.command` scripts, three broken | Collapse to `setup.command` + `launch-snipai.command` | open |
 | B4 | *(pipeline)* The drop-folder watcher | Even repaired, it is a second ingest path that bypasses review — the workflow SnipAi exists to replace | open |
-| B5 | Four independent undo mechanisms | 60 snapshots + 5-day trash + in-page history + the delete toast, for one user editing one JSON file | open |
-| B6 | Five settings tabs | Products feeds nothing; Profile is a hardcoded nameplate | open |
+| B5 | Four independent undo mechanisms | 60 snapshots + 5-day trash + in-page history + the delete toast, for one user editing one JSON file | **wontfix 2026-09-11 — kept by decision.** All four undo mechanisms stay. He asked for everything. |
+| B6 | Five settings tabs | Products feeds nothing; Profile is a hardcoded nameplate | **wontfix 2026-09-11 — kept by decision.** All five settings tabs stay. He asked for everything. |
 
 ---
 

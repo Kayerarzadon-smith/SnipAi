@@ -135,6 +135,28 @@ There are **four screens** and one editor. The left rail is always visible: **Qu
 
 ---
 
+### 2.1a Multi-clip import — the tray, the grouping rule, the join
+
+**Added 2026-09-11 (ledger T17), and deliberately incomplete.** M0.8 shipped
+three features that the spec had no names for, which is why all 13 findings
+from its first real-footage run had to be filed against "Queue". These are the
+names. **The Edge cases tables are not here yet, on purpose:** the expected
+behaviour of the grouping rule is what ledger S37 changes, and writing it now
+would enshrine a rule that proposed five projects for two videos. They land
+with S34 and S37.
+
+| feature name | what it is | where it lives |
+|---|---|---|
+| **the import tray** | the propose-then-confirm surface: dropped clips are staged and transcribed, a grouping is proposed, and **nothing is built until he confirms** | `app/dashboard/DropZone.tsx`, `lib/importBatch.ts`, `app/api/import/**` |
+| **the grouping rule** | decides which dropped clips are one interrupted TikTok and which are separate videos, and reports seams it cannot call in `needsYourEye` | `lib/grouping.ts` |
+| **the join** | joins a group's clips into one `raw/` file losslessly (`-c copy`), refuses when they cannot be copied together, and re-transcribes the joined file | `lib/stitch.ts`, `lib/clipProbe.ts` |
+
+**Note that 2.1 steps 5-7 above are stale** — they describe the pre-tray flow
+(*"Press Import N ... work starts automatically. You do not press anything
+else"*). The tray now proposes and waits. Corrected with T17.
+
+---
+
 ### 2.2 Review screen — the editor
 
 **Where:** **Open** on any project card.

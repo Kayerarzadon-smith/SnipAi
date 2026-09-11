@@ -17,84 +17,260 @@ worse of the two, because it is the ledger claiming a defect is gone while the
 test that defines it says otherwise.
 
 A row marked `wontfix` is exempt: S1 is deliberately red and staying that way.
+
+--------------------------------------------------------------------- ledger T8
+
+This guard spent its life checking a fraction of the board and reporting the
+fraction as the whole: "the ledger agrees with all 5 regression tests" was
+printed on a board of 12 tests, and that sentence was quoted to Kayer as
+assurance. Three separate defects produced it.
+
+ 1. The board side matched only `(S\\d+):`, so every C, N, P, T and E test was
+    invisible.
+ 2. The ledger side matched only `S\\d+` in the id column, so widening (1)
+    alone made it worse -- `rows.get("N1")` came back None and the guard failed
+    a correct tree with "N1 has a test but no row in the ledger".
+ 3. Results were recorded into a dict keyed by id, last write winning. The two
+    tests in `S19-concat-faststart.test.mts` are both titled `S19: ...`, so a
+    failing first and a passing second recorded S19 as passing.
+
+**An id now comes from the FILE NAME, not from the test title.** The board is
+already named `S2-failjob-persists.test.mts`, `N1-server-states-its-data-root
+.test.mts`, `T6-...`: one declaration per file, in the one place that cannot be
+left off. Titles were the wrong source because coverage then depends on how
+somebody worded a sentence -- the six tests added for N1 and T6 carry no id
+prefix at all, so widening both regexes above would still have left them
+invisible, and N1 could have been flipped back to `open` with this guard
+printing green. A guard whose coverage silently depends on a title is the same
+class of defect as the thing it guards. So: a board file whose name does not
+begin with a ledger id is a FAILURE here, not a shrug, and the fix is to
+rename the file.
+
+Results are read from node's **junit** reporter rather than tap, because junit
+is the only built-in reporter that says which FILE each test came from -- tap
+run over several files emits one flat, renumbered list with no file anywhere in
+it. Per file, every test must pass for the id to count as passing (bug 3), and
+a file that reports no test result at all is called out rather than counted as
+green.
+
+The guard also states its own coverage on every run, pass or fail. "Agrees with
+all 5 regression tests" was true and useless; the sentence a human reads has to
+make under-coverage visible.
+
+Two environment variables exist so this can be pointed at a fixture board and a
+fixture ledger by its own regression test (`tests/regressions/T8-*.test.mts`):
+SNIPAI_BOARD_DIR and SNIPAI_LEDGER. Neither is set in normal use.
 """
+import os
 import pathlib
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
-LEDGER = pathlib.Path("audits/LEDGER.md")
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+LEDGER = pathlib.Path(os.environ.get("SNIPAI_LEDGER") or ROOT / "audits" / "LEDGER.md")
+BOARD = pathlib.Path(os.environ.get("SNIPAI_BOARD_DIR") or ROOT / "tests" / "regressions")
+
+# S2, C16, N1, P19, T8, E1, CG1 ... every family the ledger uses.
+ID = r"[A-Z]{1,3}\d+"
+FILE_ID = re.compile(rf"^({ID})-.+\.test\.mts$")
+ROW_ID = re.compile(rf"{ID}\Z")
+STATUS = re.compile(r"(wontfix|fixed|open|regressed)\b")
 
 
-def board():
-    """{id: passed} from the regression suite, run as the runner runs it."""
+def sort_key(tid):
+    """S2 before S18 before S19, and the families kept together."""
+    m = re.match(r"([A-Z]+)(\d+)", tid)
+    return (m.group(1), int(m.group(2))) if m else (tid, 0)
+
+
+def rel(p):
+    try:
+        return str(pathlib.Path(p).resolve().relative_to(ROOT))
+    except ValueError:
+        return str(p)
+
+
+class Board:
+    """What the regression suite reported, per ledger id."""
+
+    def __init__(self):
+        self.passed = {}        # id -> bool  (every test in every file of it)
+        self.files = {}         # id -> [relative paths]
+        self.problems = []      # things that make the board unreadable
+        self.n_files = 0
+        self.n_tests = 0
+        self.n_skipped = 0
+
+    @property
+    def ids(self):
+        return sorted(self.passed, key=sort_key)
+
+
+def run_board():
+    b = Board()
     # the files, not the directory: node refuses a directory import here, and
     # the shell glob scripts/test uses is not expanded by subprocess
-    files = sorted(str(f) for f in pathlib.Path("tests/regressions").glob("*.test.mts"))
+    files = sorted(f for f in BOARD.glob("*.test.mts") if not f.name.startswith("_"))
     if not files:
-        return {}
-    # Node picks its reporter by whether stdout is a TTY: the spec reporter
-    # (the "✔ name" this used to match) when it is, the tap reporter
-    # ("ok N - name") when it is not. subprocess.run's capture_output pipes
-    # stdout, which is never a TTY -- so this saw zero matches on every run,
-    # which reads identically to "the board found nothing" instead of "the
-    # board found six passing tests and one wontfix". Ask for tap explicitly
-    # rather than depend on how the caller happens to be connected.
-    out = subprocess.run(
-        ["node", "--import", "./tests/register.mts", "--test-reporter=tap",
-         "--test", *files],
-        capture_output=True, text=True).stdout
-    seen = {}
-    for line in out.splitlines():
-        m = re.search(r"^(not ok|ok)\s+\d+\s+-\s+(S\d+):", line)
+        b.problems.append(f"no regression tests found in {rel(BOARD)}")
+        return b
+    b.n_files = len(files)
+
+    # A file that declares no id is reported before anything runs: it is the
+    # one failure mode a green suite would otherwise hide.
+    declared = {}
+    for f in files:
+        m = FILE_ID.match(f.name)
         if m:
-            seen[m.group(2)] = m.group(1) == "ok"
-    return seen
+            declared[f.resolve()] = m.group(1)
+            b.files.setdefault(m.group(1), []).append(rel(f))
+        else:
+            b.problems.append(
+                f"{rel(f)} names no ledger id -- rename it <ID>-<slug>.test.mts "
+                f"or this guard cannot check it"
+            )
+
+    # junit, not tap: it is the only built-in reporter that attributes each
+    # result to a file. (tap is still the right choice for `scripts/qa
+    # --regressions`, which wants the titles a person reads -- and note that
+    # neither can be left to default, because node picks its reporter by
+    # whether stdout is a TTY and subprocess.run never gives it one. That
+    # silence is ledger T2 and T7, in two different files.)
+    # NODE_TEST_CONTEXT is set by node in the children of a `node --test` run,
+    # and a child that sees it reports over an internal channel instead of
+    # writing to stdout -- so inheriting it here yields an empty report and a
+    # guard that cannot see the board at all. This guard is run from inside a
+    # test by tests/regressions/T8-*.test.mts; the run it starts is its own.
+    env = {k: v for k, v in os.environ.items() if k != "NODE_TEST_CONTEXT"}
+    out = subprocess.run(
+        [
+            "node",
+            "--import",
+            str(ROOT / "tests" / "register.mts"),
+            "--test-reporter=junit",
+            "--test",
+            *[str(f) for f in files],
+        ],
+        cwd=str(ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+    ).stdout
+    try:
+        report = ET.fromstring(out)
+    except ET.ParseError as e:
+        b.problems.append(f"could not read the test runner's report: {e}")
+        return b
+
+    # per file first, so "every test passed" is an AND and not a last-write
+    results = {}            # resolved path -> {"pass": int, "fail": int, "skip": int}
+    for case in report.iter("testcase"):
+        src = case.get("file")
+        if not src:
+            continue
+        path = pathlib.Path(src).resolve()
+        r = results.setdefault(path, {"pass": 0, "fail": 0, "skip": 0})
+        if case.find("failure") is not None or case.get("failure") is not None:
+            r["fail"] += 1
+        elif case.find("skipped") is not None:
+            r["skip"] += 1
+        elif case.get("name") == path.name:
+            # node emits one testcase named after the FILE when that file ran
+            # no tests (and also when it failed to load, which lands in the
+            # branch above). A file with no tests in it is not a pass, so this
+            # counts as nothing and the file falls out as "reported no result".
+            pass
+        else:
+            r["pass"] += 1
+
+    for path, tid in declared.items():
+        r = results.get(path, {"pass": 0, "fail": 0, "skip": 0})
+        b.n_tests += r["pass"] + r["fail"]
+        b.n_skipped += r["skip"]
+        if r["pass"] + r["fail"] == 0:
+            b.problems.append(
+                f"{rel(path)} is on the board for {tid} but reported no test result"
+                + (f" ({r['skip']} skipped)" if r["skip"] else "")
+            )
+            continue
+        ok = r["fail"] == 0
+        # two files for one id, or two tests in one file: all of them must pass
+        b.passed[tid] = b.passed.get(tid, True) and ok
+    return b
 
 
 def ledger():
-    """{id: status} from the detail table -- the one with the file reference."""
+    """{id: status} from the tables -- a later row wins, the detail table is lower."""
     rows = {}
     try:
         text = LEDGER.read_text()
     except OSError as e:
-        print(f"  could not read {LEDGER}: {e}")
+        print(f"  could not read {rel(LEDGER)}: {e}")
         return None
     for line in text.splitlines():
         cells = [c.strip() for c in line.split("|")]
-        if len(cells) < 4 or not re.fullmatch(r"S\d+", cells[1]):
+        if len(cells) < 4 or not ROW_ID.fullmatch(cells[1]):
             continue
         for c in cells[2:]:
             # statuses are written by hand and get decorated: "open",
             # "**fixed 2026-09-09** -- lib/splitBeat.ts divides instead of
             # copying", "wontfix". Strip the emphasis and read the first word.
             low = re.sub(r"[*_`]", "", c).strip().lower()
-            m = re.match(r"(wontfix|fixed|open)\b", low)
+            m = STATUS.match(low)
             if m:
-                # a later row wins: the detail table sits below the summary
                 rows[cells[1]] = m.group(1)
                 break
     return rows
 
 
+def coverage(board, rows):
+    """What this guard did and did not look at. Printed on every run.
+
+    The old success line -- "the ledger agrees with all 5 regression tests" --
+    was true of a board with 12 tests on it. A guard that reports agreement
+    without reporting its denominator gets quoted as if it covered everything.
+    """
+    if board.ids:
+        print(
+            f"    checked {len(board.ids)} ids across {board.n_files} board "
+            f"file(s) and {board.n_tests} test(s)"
+            + (f", {board.n_skipped} skipped" if board.n_skipped else "")
+            + ": " + " ".join(board.ids)
+        )
+    live = sorted(
+        (i for i, s in rows.items() if s in ("open", "regressed") and i not in board.passed),
+        key=sort_key,
+    )
+    if live:
+        # Deliberately not called a defect count. LEDGER.md settled on one
+        # definition of "how many are left" (the finish-line count) after two
+        # totals circulating stopped anyone trusting the file; this is a
+        # different quantity -- rows with no test here, whatever section they
+        # sit in -- and it must not be mistaken for that one.
+        print(
+            f"    {len(live)} row(s) marked open or regressed have no test on the board; "
+            f"this guard says nothing about those (it is not the defect count)"
+        )
+
+
 def main():
-    tests = board()
+    board = run_board()
     rows = ledger()
     if rows is None:
         return 1
-    if not tests:
-        print("  no regression tests reported a result -- cannot check the ledger")
-        return 1
 
-    wrong = []
-    for tid, passed in sorted(tests.items()):
+    wrong = list(board.problems)
+    for tid in board.ids:
+        passed = board.passed[tid]
         status = rows.get(tid)
         if status is None:
             wrong.append(f"{tid} has a test but no row in the ledger")
         elif status == "wontfix":
             continue
-        elif passed and status == "open":
-            wrong.append(f"{tid} passes, but the ledger still calls it open")
+        elif passed and status in ("open", "regressed"):
+            wrong.append(f"{tid} passes, but the ledger still calls it {status}")
         elif not passed and status == "fixed":
             wrong.append(f"{tid} FAILS, but the ledger calls it fixed")
 
@@ -102,9 +278,11 @@ def main():
         print("  the ledger and the bug board disagree:")
         for w in wrong:
             print(f"    {w}")
-        print("  audits/LEDGER.md is what tells you what to work on next")
+        print(f"  {rel(LEDGER)} is what tells you what to work on next")
+        coverage(board, rows)
         return 1
-    print(f"  the ledger agrees with all {len(tests)} regression tests")
+    print("  the ledger agrees with the bug board")
+    coverage(board, rows)
     return 0
 
 

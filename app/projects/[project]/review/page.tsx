@@ -5,6 +5,7 @@ import TrimWave from "@/app/components/TrimWave";
 import Timeline, { layout } from "@/app/components/Timeline";
 import { resolveSpanDelete, liveClock } from "@/lib/timelineLayout";
 import { followScroll, revealScroll, isFollowing, type ScrollRequest } from "@/lib/follow";
+import { verdictCopy } from "@/lib/verdictCopy";
 import GraphicsPanel from "@/app/components/GraphicsPanel";
 import VoiceInput from "@/app/components/VoiceInput";
 
@@ -1187,9 +1188,17 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       body: JSON.stringify({ kind: "level1", status }),
     });
     await load();
-    // only two verdicts are reachable now: the third was a hand-back to
-    // somebody who does not exist
-    toast(status === "approved" ? "Approved — ready to post" : "Sent back to re-cut");
+    /* What to say about a verdict is `lib/verdictCopy.ts`'s job, and it is a
+       table rather than a ternary on purpose. This line used to read
+       `status === "approved" ? ... : "Sent back to re-cut"` -- two branches
+       over a four-valued enum -- and when the third verdict was removed its
+       sentence stayed on the `else`, where the only caller left is Trash. So
+       Trash announced a re-cut: work being done, by somebody, on a project it
+       had just dropped off the queue without queueing anything at all.
+       (ledger C32) */
+    const said = verdictCopy(status);
+    // the one that takes it off the queue has the most to say, so it stays up longer
+    toast(said.text, said.leavesQueue ? 4600 : 2600);
   }
 
   async function startBuild() { startStep("build"); }

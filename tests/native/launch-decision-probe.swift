@@ -49,6 +49,74 @@ func identified(_ root: String, pid: Int32 = 4242) -> PortOccupant {
     .identified(ServerIdentity(dataRoot: root, codeRoot: "/x/code", pid: pid))
 }
 
+// MARK: - Helpers for the live sections
+
+/// The question the OLD launcher asked to decide the port was free: GET
+/// /api/projects, 1.5s, body must contain "projects". Kept here, in the test
+/// and not in the app, so the fix can be shown failing the way it used to.
+func answersProjectsWithin(port: Int, timeout: TimeInterval) -> Bool {
+    guard let url = URL(string: "http://127.0.0.1:\(port)/api/projects") else { return false }
+    var request = URLRequest(url: url)
+    request.timeoutInterval = timeout
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    var alive = false
+    let sem = DispatchSemaphore(value: 0)
+    URLSession.shared.dataTask(with: request) { data, response, _ in
+        if let http = response as? HTTPURLResponse, http.statusCode == 200,
+           let data = data, let body = String(data: data, encoding: .utf8),
+           body.contains("\"projects\"") {
+            alive = true
+        }
+        sem.signal()
+    }.resume()
+    _ = sem.wait(timeout: .now() + timeout + 0.5)
+    return alive
+}
+
+/// A port nothing is using, found with the check under test.
+func findFreePort(from: Int = 4900, to: Int = 4960) -> Int? {
+    (from...to).first { !portIsOccupied($0) }
+}
+
+/// tests/native/fake-occupant.mjs, wherever this was run from.
+func fakeOccupantScript() -> String? {
+    let cwd = FileManager.default.currentDirectoryPath
+    let candidates = [
+        cwd + "/tests/native/fake-occupant.mjs",
+        cwd + "/fake-occupant.mjs",
+        (CommandLine.arguments[0] as NSString).deletingLastPathComponent
+            + "/tests/native/fake-occupant.mjs",
+    ]
+    return candidates.first { FileManager.default.fileExists(atPath: $0) }
+}
+
+/// Start the fake occupant and wait until it says it is bound.
+func startFakeOccupant(script: String, port: Int, dataRoot: String,
+                       projectsDelayMS: Int, withHealth: Bool) -> Process? {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    var args = ["node", script, "--port", "\(port)", "--data-root", dataRoot,
+                "--projects-delay", "\(projectsDelayMS)"]
+    if !withHealth { args.append("--no-health") }
+    p.arguments = args
+    let out = Pipe()
+    p.standardOutput = out
+    p.standardError = FileHandle.nullDevice
+    do { try p.run() } catch { return nil }
+
+    // Block on its own "listening" line rather than sleeping a guess.
+    let deadline = Date().addingTimeInterval(10)
+    var seen = ""
+    while Date() < deadline {
+        let chunk = out.fileHandleForReading.availableData
+        if chunk.isEmpty { continue }
+        seen += String(data: chunk, encoding: .utf8) ?? ""
+        if seen.contains("listening") { return p }
+    }
+    p.terminate()
+    return nil
+}
+
 @main
 struct LaunchDecisionProbe {
   static func main() {
@@ -103,6 +171,127 @@ struct LaunchDecisionProbe {
         }
     }
     check(true, "no unowned listener is ever restarted (6 combinations)")
+
+    print("\n== N5: identity is asked FIRST, never gated behind a page load ==")
+    // The shape of the bug: a server that identifies itself instantly and is
+    // slow to serve a page. Under the old order it was filed as `.free`.
+    let slowIdentity = ServerIdentity(dataRoot: real, codeRoot: "/x/code", pid: 4242)
+    check(lookUpOccupant(port: 4737,
+                         identify: { _ in slowIdentity },
+                         occupied: { _ in true }) == .identified(slowIdentity),
+          "identifies itself -> identified")
+    check(lookUpOccupant(port: 4737,
+                         identify: { _ in nil },
+                         occupied: { _ in true }) == .unidentified,
+          "silent but holding the port -> unidentified, NOT free")
+    check(lookUpOccupant(port: 4737,
+                         identify: { _ in nil },
+                         occupied: { _ in false }) == .free,
+          "nothing there -> free")
+    // An identified server is never re-read as free even if the port check
+    // disagrees -- identity is the stronger statement, and it is asked first.
+    check(lookUpOccupant(port: 4737,
+                         identify: { _ in slowIdentity },
+                         occupied: { _ in false }) == .identified(slowIdentity),
+          "identity wins over the port check, not the other way round")
+
+    print("\n== N5: portIsOccupied asks the kernel, not a route ==")
+    if let free = findFreePort() {
+        check(!portIsOccupied(free), "an unused port reads as free (\(free))")
+        // Hold it for real, the way a stranger would.
+        let held = socket(AF_INET, SOCK_STREAM, 0)
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = UInt16(truncatingIfNeeded: free).bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(held, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        _ = listen(held, 1)
+        check(bound == 0, "test bound port \(free) itself")
+        check(portIsOccupied(free), "a held port reads as occupied -- with no HTTP asked")
+        _ = Darwin.close(held)
+    } else {
+        check(false, "no free port in 4900-4960 to test with")
+    }
+
+    print("\n== N5 live: a SLOW occupant is identified, not misread as absent ==")
+    // The tester's case, reproduced: /api/health answers at once, /api/projects
+    // takes 4s. Before the fix the app called this port FREE, started a server
+    // that died of EADDRINUSE, logged a pid that was already dead, and hung.
+    guard let script = fakeOccupantScript() else {
+        print("  FAIL  tests/native/fake-occupant.mjs not found -- run this from the repo root")
+        exit(1)
+    }
+    guard let slowPort = findFreePort() else {
+        print("  FAIL  no free port to run the slow occupant on")
+        exit(1)
+    }
+    let otherLibrary = "/tmp/snipai-someone-elses-library"
+    guard let occupantProc = startFakeOccupant(script: script, port: slowPort,
+                                               dataRoot: otherLibrary,
+                                               projectsDelayMS: 4000, withHealth: true) else {
+        print("  FAIL  could not start the fake occupant on \(slowPort)")
+        exit(1)
+    }
+    defer { if occupantProc.isRunning { occupantProc.terminate() } }
+
+    // 1. The old question, asked the old way, gets the wrong answer. This is
+    //    the failing half of the proof and it must keep failing.
+    check(!answersProjectsWithin(port: slowPort, timeout: 1.5),
+          "the OLD gate (GET /api/projects, 1.5s) does not answer -- 'port is free'")
+    // 2. The new question gets the right one.
+    let liveOccupant = lookUpOccupant(port: slowPort)
+    if case .identified(let id) = liveOccupant {
+        check(samePath(id.dataRoot, otherLibrary),
+              "asked directly, it names its library: \(id.dataRoot) (pid \(id.pid))")
+    } else {
+        check(false, "slow occupant was read as \(liveOccupant), not identified")
+    }
+    // 3. And the decision that follows protects the library.
+    let liveAction = decideLaunch(occupant: liveOccupant, expectedDataRoot: sandbox,
+                                  buildMatches: true, listenerIsOurOrphan: false,
+                                  port: slowPort)
+    if case .refuse = liveAction {
+        check(true, "refused to start against a slow stranger's server")
+    } else {
+        check(false, "expected refuse, got \(liveAction)")
+    }
+    check(occupantProc.isRunning, "the slow occupant is still running -- nothing was killed")
+    occupantProc.terminate()
+
+    print("\n== N5 live: something on the port that will not speak at all ==")
+    if let silentPort = findFreePort() {
+        let holder = socket(AF_INET, SOCK_STREAM, 0)
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = UInt16(truncatingIfNeeded: silentPort).bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        _ = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(holder, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        _ = listen(holder, 1)
+        check(lookUpOccupant(port: silentPort) == .unidentified,
+              "a non-HTTP program holding the port is unidentified, not free (N5: this " +
+              "case could not be reached at all before)")
+        let silentAction = decideLaunch(occupant: .unidentified, expectedDataRoot: sandbox,
+                                        buildMatches: false, listenerIsOurOrphan: false,
+                                        port: silentPort)
+        if case .refuse = silentAction {
+            check(true, "refuses instead of starting a server that would fail EADDRINUSE")
+        } else {
+            check(false, "expected refuse, got \(silentAction)")
+        }
+        _ = Darwin.close(holder)
+    } else {
+        check(false, "no free port for the silent-holder case")
+    }
 
     print("\n== path comparison does not cry wolf ==")
     check(samePath("/tmp/x", "/tmp/x"), "identical")

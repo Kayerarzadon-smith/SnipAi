@@ -11,7 +11,12 @@ import AVFoundation
 
 let kPort = 4737
 let kURLString = "http://localhost:\(kPort)/dashboard"
-let kHealthURL = "http://localhost:\(kPort)/api/projects"
+/// NOT the health route. This is "can the server answer a page yet", polled
+/// after we start one of our own; /api/health is the different and older
+/// question of WHO is on the port, and it is asked first (LaunchDecision).
+/// The old name for this constant was `kHealthURL`, which is how the two got
+/// confused into one check in the first place -- ledger N5.
+let kReadyURL = "http://localhost:\(kPort)/api/projects"
 
 /// What the file chooser will let you pick.
 ///
@@ -69,8 +74,14 @@ struct Layout {
 let kLayout = Layout.resolve()
 let kProjectDir = NSString(string: "~/Projects/SnipAi").expandingTildeInPath
 
+/// Is the server we started ready to serve a page yet?
+///
+/// This answers readiness and nothing else. It must never again be used to
+/// decide whether the port is FREE: a 200 proves a server is up, but a
+/// timeout proves only that one did not answer in 1.5 seconds, which a
+/// compiling `next dev` routinely does not (ledger N5, N6).
 func serverIsUp(timeout: TimeInterval = 1.5) -> Bool {
-    guard let url = URL(string: kHealthURL) else { return false }
+    guard let url = URL(string: kReadyURL) else { return false }
     var request = URLRequest(url: url)
     request.timeoutInterval = timeout
     var alive = false
@@ -395,16 +406,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
     /// reconciles them. The short version: the port names nobody, so ask.
     func bootServerThenLoad() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let occupant: PortOccupant = !serverIsUp()
-                ? .free
-                : (fetchServerIdentity(port: kPort).map { PortOccupant.identified($0) } ?? .unidentified)
-
-            // Both of these cost a round trip or a subprocess, and neither
-            // means anything when the port is free -- which is the ordinary
-            // cold launch. Asking anyway put a 2s build check in front of
-            // every start.
+            // Who is there, asked first and asked directly.
+            //
+            // This used to read `!serverIsUp() ? .free : ...`, which gated
+            // identification behind a 1.5s GET of /api/projects: a server too
+            // slow to answer that route -- a cold `next dev` compiling it, for
+            // one -- was never asked /api/health at all, and the port was
+            // filed as empty. The app then said in the log that it had
+            // started a server, printed a pid that was already dead of
+            // EADDRINUSE, and sat on "Starting SnipAi…" for ever. Ledger N5,
+            // with N6 for the timeout.
+            let occupant = lookUpOccupant(port: kPort)
             let free: Bool = { if case .free = occupant { return true }; return false }()
+            switch occupant {
+            case .free:
+                NSLog("SnipAi: port %d is free", kPort)
+            case .identified(let id):
+                NSLog("SnipAi: port %d is held by a SnipAi server (pid %d, library %@)",
+                      kPort, id.pid, id.dataRoot)
+            case .unidentified:
+                NSLog("SnipAi: port %d is held by something that will not identify itself (pids %@)",
+                      kPort, listeningPIDs(port: kPort).map(String.init).joined(separator: ","))
+            }
 
+            // Both of the lookups below cost a round trip or a subprocess,
+            // and neither means anything when the port is free -- which is the
+            // ordinary cold launch. Asking anyway put a 2s build check in
+            // front of every start.
             let action = decideLaunch(
                 occupant: occupant,
                 expectedDataRoot: expectedDataRoot(codeRoot: kLayout.code),
@@ -467,9 +495,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
     /// The alternative -- carrying on against the wrong library -- is the
     /// failure this whole change exists to prevent, so there is deliberately
     /// no "continue anyway" button here.
+    /// Stop, with the reason on screen -- ALL of it.
+    ///
+    /// The label is a one-line NSTextField, so a refusal showed its first line
+    /// -- "Port 4737 is already serving a different SnipAi library." -- and
+    /// dropped the two library roots and the pid, which are the only part that
+    /// tells a person WHICH server to go and quit. They were in the log, and a
+    /// GUI user never sees the log.
     func showRefusal(_ why: String) {
         spinner.stopAnimation(nil)
         spinner.isHidden = true
+        statusLabel.maximumNumberOfLines = 0
+        statusLabel.lineBreakMode = .byWordWrapping
+        statusLabel.usesSingleLineMode = false
+        statusLabel.cell?.wraps = true
+        statusLabel.cell?.isScrollable = false
+        // Monospaced so the two roots line up under one another, and wide
+        // enough to read a path without wrapping mid-directory.
+        statusLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        statusLabel.alignment = .left
+        if let container = window.contentView {
+            let inset: CGFloat = 40
+            statusLabel.frame = NSRect(x: inset, y: container.bounds.height / 2 - 90,
+                                       width: container.bounds.width - inset * 2, height: 180)
+            statusLabel.autoresizingMask = [.width, .minYMargin, .maxYMargin]
+        }
         statusLabel.stringValue = why
     }
 

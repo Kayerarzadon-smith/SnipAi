@@ -158,8 +158,20 @@ func decideLaunch(occupant: PortOccupant,
 ///
 /// nil means "did not answer /api/health" -- which is not the same as "no
 /// server": an older build serves the app perfectly well and has no such
-/// route. The caller distinguishes those two with its own health check.
-func fetchServerIdentity(port: Int, timeout: TimeInterval = 2.0) -> ServerIdentity? {
+/// route. The caller distinguishes those two with portIsOccupied().
+///
+/// The timeout is EIGHT seconds, and that number is the fix for ledger N6.
+/// Next 14 compiles a route the first time it is requested, so a legitimately
+/// running `next dev` can take several seconds to answer this the first time
+/// anyone asks -- the two-second budget this used to have turned a cold dev
+/// server into "did not answer", which is the same wrong answer as "nobody is
+/// there". Nobody pays the eight seconds on an ordinary launch: an unoccupied
+/// port refuses the connection immediately, so this returns nil in
+/// milliseconds. It is paid only by a port that is genuinely held by
+/// something that will not say who it is -- and being slow to refuse in that
+/// case is exactly the right trade, because the alternative is being fast and
+/// wrong about somebody's library.
+func fetchServerIdentity(port: Int, timeout: TimeInterval = 8.0) -> ServerIdentity? {
     guard let url = URL(string: "http://127.0.0.1:\(port)/api/health") else { return nil }
     var request = URLRequest(url: url)
     request.timeoutInterval = timeout
@@ -181,6 +193,66 @@ func fetchServerIdentity(port: Int, timeout: TimeInterval = 2.0) -> ServerIdenti
     task.resume()
     _ = sem.wait(timeout: .now() + timeout + 0.5)
     return identity
+}
+
+/// Is the port taken -- by anyone, answering or not?
+///
+/// This asks the kernel the same question our own server is about to ask it:
+/// can this address be bound? Nothing else is a reliable answer. The launcher
+/// used to decide the port was FREE when `GET /api/projects` failed to answer
+/// inside 1.5s, which is not the same question at all -- a `next dev` that is
+/// still compiling that route, or any program that holds the port without
+/// speaking HTTP, reads as "nobody is there". It then started a server that
+/// died on `EADDRINUSE` while the log said it had started one (ledger N5).
+///
+/// No SO_REUSEADDR: we want to be refused exactly when our server would be.
+/// The socket is closed immediately, so this leaves nothing behind and the
+/// port is still free for the server we start a moment later.
+///
+/// lsof is the second half, not a fallback. A bind to 127.0.0.1 succeeds while
+/// something holds `::1` on the same port -- and the web view loads
+/// `localhost`, which can resolve to either. lsof sees both families, so a
+/// stranger we could technically bind alongside still counts as occupying the
+/// port, and we refuse instead of racing it for the name.
+func portIsOccupied(_ port: Int) -> Bool {
+    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    if fd < 0 { return !listeningPIDs(port: port).isEmpty }
+    defer { _ = Darwin.close(fd) }
+
+    var addr = sockaddr_in()
+    addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    addr.sin_family = sa_family_t(AF_INET)
+    addr.sin_port = UInt16(truncatingIfNeeded: port).bigEndian
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+    let rc = withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    // Any refusal counts, not just EADDRINUSE: whatever stops us binding here
+    // would stop the server we were about to start, so it is in the way.
+    if rc != 0 { return true }
+    return !listeningPIDs(port: port).isEmpty
+}
+
+/// What is on the port -- identity FIRST, liveness second.
+///
+/// The order is the whole point (ledger N5, N6). Identification used to be
+/// gated behind a liveness probe: ask `/api/projects` with a 1.5s budget, and
+/// only if that answered, ask `/api/health` who it is. So a server that was
+/// slow to answer one route was never asked the question that protects the
+/// library, and the launch proceeded as though the port were empty. Asking
+/// who is there first cannot have that failure: a silent port answers nothing
+/// in milliseconds, and a slow one gets the time it needs to identify itself.
+///
+/// The closures are injected so the probe can exercise every combination
+/// without a server, a port, or a wait.
+func lookUpOccupant(port: Int,
+                    identify: (Int) -> ServerIdentity? = { fetchServerIdentity(port: $0) },
+                    occupied: (Int) -> Bool = { portIsOccupied($0) }) -> PortOccupant {
+    if let identity = identify(port) { return .identified(identity) }
+    return occupied(port) ? .unidentified : .free
 }
 
 /// Run a command and hand back its stdout. Foundation's Process directly --

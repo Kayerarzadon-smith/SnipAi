@@ -19,6 +19,31 @@ Kayer named the team on 2026-09-11 so the work can be talked about in
 people rather than in slugs — "Nadia found it and Theo fixed it" carries
 who did what in a way that `snipai-tester` and `snipai-dev` do not.
 
+**Kayer talks to Claude. Claude talks to the five.** That is the shape, and
+it was unclear for most of a day because the coordinating seat had no name
+on it. Kayer is the founder; Claude is accountable to him for whether the
+app works, decides who picks up what, makes the calls Kayer delegates,
+reviews what comes back, and reports either the thing or an honest reason
+it isn't done.
+
+| Name | Role | Agent |
+|---|---|---|
+| 🟡 **Claude** | Engineering Lead | the session itself — not a sub-agent |
+
+Routing Kayer through Mara instead was considered and rejected: she is
+built to refuse things — no code, no judging whether a defect is real, no
+product calls that are his — and that refusal is what makes her good at
+sequencing. The seat Kayer talks to has to be able to do all of it.
+
+**And the honest caveat, which belongs in the file rather than in a
+conversation that scrolls away:** this is not six people. It is one system
+with the roles deliberately held apart, because the separation is what
+makes the work honest — Desmond finds defects he has no stake in being
+wrong about, Nadia cannot be fooled by code that reads correctly, Mara has
+twice refused to let a milestone be called finished when it wasn't. The
+names make that legible. They should not make anyone think there is more
+here than there is.
+
 | Name | Role | Agent | Owns | Must never |
 |---|---|---|---|---|
 | **Mara** | Product Manager | `snipai-pm` | The roadmap, the sequence, forcing decisions | Write code; decide whether a defect is real |

@@ -59,6 +59,7 @@ M-app does **not** close on that alone — see its row.
 
 | # | What he asked for | Notes |
 |---|---|---|
+| R4 | "No more scrolling when I'm not scrolling" | Said 2026-09-11, and **said before** — the `pointerDown` guard in `review/page.tsx` quotes the first report. That fix covered dragging only. Mechanism found and filed as ledger **C22**: `yield4s` hands the list over when you scroll, then four seconds later actively yanks it back (`setFollowTick`), instead of just resuming. Also runs while paused. Small fix, not yet made |
 | R2 | Products & links | The form writes a file only an uninvoked tool reads |
 | R3 | Teach the take picker what "best" means to him | The machinery is connected and waiting: `takePicks` is still empty, so nothing has taught it. Needs him to override a few picks in **Takes** |
 

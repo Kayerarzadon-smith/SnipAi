@@ -22,10 +22,16 @@ who did what in a way that `snipai-tester` and `snipai-dev` do not.
 | Name | Role | Agent | Owns | Must never |
 |---|---|---|---|---|
 | **Mara** | Product Manager | `snipai-pm` | The roadmap, the sequence, forcing decisions | Write code; decide whether a defect is real |
-| **Desmond** | Code Auditor | `snipai-qa` | Reading code adversarially, line-anchored findings | Run the app; edit anything |
-| **Nadia** | Test Driver | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
-| **Theo** | Developer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
+| **Desmond** | Software Quality Engineer | `snipai-qa` | Reading code adversarially, line-anchored findings | Run the app; edit anything |
+| **Nadia** | QA Engineer | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
+| **Theo** | Software Engineer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
 | **Ruth** | Release Engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
+
+Titles are the industry-standard ones rather than descriptions of the
+mechanism, so the roles read the way they would anywhere else. The split
+between Desmond and Nadia is the one worth understanding: **Desmond reads
+code and never runs it; Nadia runs the app and never reads it as an
+author.** Neither can find the other's bugs, which is why both exist.
 
 The names are labels for roles, not claims to be people. Use them in
 reports and commit messages where it reads better; the agent slug is what

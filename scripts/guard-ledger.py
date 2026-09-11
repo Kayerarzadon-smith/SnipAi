@@ -33,14 +33,22 @@ def board():
     files = sorted(str(f) for f in pathlib.Path("tests/regressions").glob("*.test.mts"))
     if not files:
         return {}
+    # Node picks its reporter by whether stdout is a TTY: the spec reporter
+    # (the "✔ name" this used to match) when it is, the tap reporter
+    # ("ok N - name") when it is not. subprocess.run's capture_output pipes
+    # stdout, which is never a TTY -- so this saw zero matches on every run,
+    # which reads identically to "the board found nothing" instead of "the
+    # board found six passing tests and one wontfix". Ask for tap explicitly
+    # rather than depend on how the caller happens to be connected.
     out = subprocess.run(
-        ["node", "--import", "./tests/register.mts", "--test", *files],
+        ["node", "--import", "./tests/register.mts", "--test-reporter=tap",
+         "--test", *files],
         capture_output=True, text=True).stdout
     seen = {}
     for line in out.splitlines():
-        m = re.search(r"^\s*(✔|✖)\s+(S\d+):", line)
+        m = re.search(r"^(not ok|ok)\s+\d+\s+-\s+(S\d+):", line)
         if m:
-            seen[m.group(2)] = m.group(1) == "✔"
+            seen[m.group(2)] = m.group(1) == "ok"
     return seen
 
 

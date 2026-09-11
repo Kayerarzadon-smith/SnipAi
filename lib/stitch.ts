@@ -109,6 +109,41 @@ export function joinBlocker(a: ClipProbe, b: ClipProbe): string | null {
   return null;
 }
 
+/**
+ * Why this group cannot be joined, in a sentence a person can act on, or null
+ * if it can.
+ *
+ * One definition, used twice on purpose: the tray calls it while proposing a
+ * group, so a blocker is on screen BEFORE he confirms, and `joinClips` calls
+ * it again as the refusal it will not proceed past. Two copies of this
+ * sentence would be two chances for the tray to promise an import that then
+ * refuses itself.
+ *
+ * Every branch names the file, the cause, and something he can actually do.
+ * The advice used to be "Re-encode it before joining", which names a thing he
+ * has no button for and no reason to know the meaning of.
+ */
+export function joinRefusal(ordered: ClipProbe[]): string | null {
+  for (let i = 1; i < ordered.length; i++) {
+    const why = joinBlocker(ordered[0], ordered[i]);
+    if (why) {
+      return `${why}. Joining them would mean re-encoding, which on 4K takes hours and costs a generation of quality — so import them as separate projects instead.`;
+    }
+  }
+  /* A clip trimmed without re-encoding hides its head behind an edit list,
+     and the concat demuxer does not honour one -- so the hidden part comes
+     back at the join and everything after it lands late. Measured: two 4s
+     chunks whose edit lists hid 1.1s each joined to 9.34s instead of 8.34s,
+     with 40 non-monotonic-DTS warnings and duplicated audio at the seam. */
+  for (const p of ordered) {
+    const hidden = editListTrimSec(p);
+    if (hidden > 1 / (p.video?.fps || 30)) {
+      return `${p.name} was trimmed after it was filmed — Photos does that without re-encoding — so ${hidden.toFixed(2)}s of it is still in the file, just hidden. Joining would bring that back and push everything after it late. Duplicate it in Photos and import the copy, or import ${p.name} on its own.`;
+    }
+  }
+  return null;
+}
+
 /** A concat-demuxer list. Its `file` directive is single-quoted, so a quote
  *  in a path has to be escaped the way the shell escapes one. */
 export function concatList(paths: string[]): string {
@@ -165,28 +200,12 @@ export async function joinClips(
     return { ok: false, error: "a single clip does not need joining", ordered };
   }
 
-  for (let i = 1; i < ordered.length; i++) {
-    const why = joinBlocker(ordered[0], ordered[i]);
-    if (why) return { ok: false, error: `cannot stream-copy these together: ${why}`, ordered };
-  }
-
-  /* A clip trimmed without re-encoding hides its head behind an edit list,
-     and the concat demuxer does not honour one -- so the hidden part comes
-     back at the join and everything after it lands late. Measured: two 4s
-     chunks whose edit lists hid 1.1s each joined to 9.34s instead of 8.34s,
-     with 40 non-monotonic-DTS warnings and duplicated audio at the seam.
-     Catch it here, by name, rather than after copying a gigabyte and
-     discovering the total does not add up. */
-  for (const p of ordered) {
-    const hidden = editListTrimSec(p);
-    if (hidden > 1 / (p.video?.fps || 30)) {
-      return {
-        ok: false,
-        ordered,
-        error: `${p.name} has been trimmed without re-encoding: ${hidden.toFixed(2)}s is hidden behind an edit list, which a join would bring back. Re-encode it before joining.`,
-      };
-    }
-  }
+  /* Caught here, by name and with a remedy, rather than after copying a
+     gigabyte and discovering the total does not add up. The tray asks the
+     same question while it proposes the group, so this is the second line of
+     defence rather than the first place he hears about it. */
+  const refusal = joinRefusal(ordered);
+  if (refusal) return { ok: false, ordered, error: refusal };
 
   /* Refuse a join the disk cannot hold BEFORE starting it, the way the
      importer refuses an upload it cannot hold. A stream copy is the sum of

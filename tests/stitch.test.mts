@@ -279,8 +279,17 @@ test("a clip trimmed without re-encoding is refused by name, before the copy",
     const out = await joinClips(
       [path.join(dir, "whole.mov"), path.join(dir, "trimmed.mov")], dest);
     assert.equal(out.ok, false);
-    assert.match(out.ok ? "" : out.error, /trimmed\.mov/);
-    assert.match(out.ok ? "" : out.error, /edit list/);
+    const refusal = out.ok ? "" : out.error;
+    assert.match(refusal, /trimmed\.mov/, "it has to name the clip");
+    /* It used to have to say "edit list", which is the thing the person
+       reading it cannot act on. What it owes him is the cause, the size of
+       the problem, and two things he could do about it -- one of which the
+       tray itself can do. */
+    assert.match(refusal, /1\.\d\ds of it is still in the file/, "how much is hidden");
+    assert.match(refusal, /Duplicate it in Photos/, "a remedy outside the app");
+    assert.match(refusal, /import trimmed\.mov on its own/, "a remedy the tray can carry out");
+    assert.doesNotMatch(refusal, /edit list|elst|re-encode it before/i,
+      "no jargon: he has no button marked 'edit list'");
     // refused before doing the work, not after
     assert.equal(fs.existsSync(dest), false);
 

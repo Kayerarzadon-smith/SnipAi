@@ -1,0 +1,148 @@
+# How this gets built
+
+One person, five agents, and a loop. This file is the part that was missing:
+the roles existed, the gates did not, which is how nine features got to
+eighty percent and stopped.
+
+Read `DOCKET.md` for what to build and in what order. Read `audits/LEDGER.md`
+for every known defect. This file is only about *how the work moves*.
+
+---
+
+## The team
+
+Each role refuses the other four's job on purpose. That is the whole design:
+a reviewer who also writes code stops reviewing, and an implementer who also
+picks priorities starts rewriting whatever he already wanted to rewrite.
+
+| Role | Agent | Owns | Must never |
+|---|---|---|---|
+| Product manager | `snipai-pm` | The roadmap, the sequence, forcing decisions | Write code; decide whether a defect is real |
+| Static QA | `snipai-qa` | Reading code adversarially, line-anchored findings | Run the app; edit anything |
+| Dynamic QA | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
+| Implementer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
+| Release engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
+
+**Kayer** is the fifth seat and the only one that can answer a product
+question. When `snipai-pm` puts a BLOAT or HALF-BUILT row in front of him, it
+waits. Nobody guesses on his behalf.
+
+---
+
+## Definition of Ready
+
+A row cannot be worked until all three are true. This is the gate that would
+have caught the fade handle — asked for, built to a draggable corner, wired
+to nothing, dead for weeks because nothing said what finished meant.
+
+1. It has an id in `audits/LEDGER.md` or `DOCKET.md`.
+2. It has a `file:line`, or a reproduction someone has actually run.
+3. It has a stated exit condition — the observable thing that becomes true.
+
+"Improve the timeline" is not ready. "C1: `Timeline.tsx:266` in-point drag
+collapses the clip to 0.15s; done when a drag of any length leaves the clip's
+length unchanged" is ready.
+
+---
+
+## Definition of Done
+
+All seven. Not six. A thing that is six-sevenths done is what this codebase
+already has too much of.
+
+1. The code change is made.
+2. A regression test reproduces the bug and now passes — or the row says
+   explicitly why it is not testable, and that reason survives scrutiny.
+3. `./scripts/test` is green, and its verdict line agrees with its counts.
+4. The ledger row is flipped, with a date and what the fix actually was.
+5. `DOCKET.md` is updated in the *same commit* as the work, not after.
+6. It is committed, with a message that says what changed and why.
+7. The exit condition has been verified **by the role that can verify it** —
+   the test suite for logic, `snipai-tester` for anything a user can see. A
+   green unit test is not evidence that a person can do the thing.
+
+---
+
+## The loop
+
+This runs until the open milestone's exit line is met, then it runs again on
+the next milestone. It is not a ceremony; it is the order the work moves in.
+
+```
+  PM          picks the next ready row from the open milestone. One row.
+   |          Nothing from a later milestone. WIP limit is one.
+   v
+  DEV         reproduces it as a failing test, fixes the cause, proves it,
+   |          commits it alone.
+   v
+  QA          reads the diff. New defect? New ledger row, back to DEV.
+   |          Same bug shape elsewhere in the codebase? Also a row.
+   v
+  TESTER      runs the real app, both surfaces, against the exit condition.
+   |          Disagrees with the test suite? The tester wins — say so loudly.
+   v
+  RELEASE     checklist. Clean tree, green suite, ledger agrees, pushed,
+   |          no stale branches, nothing private tracked.
+   v
+  PM          exit line met? Close the milestone, open the next, say so.
+   |          Not met? Pick the next row. Loop.
+   '--------> back to the top
+```
+
+**Stop conditions.** The loop stops for exactly three things:
+
+- The milestone's exit line is met.
+- A product decision is needed. PM asks Kayer, with a recommendation, and
+  waits. It does not guess and it does not skip ahead.
+- The same row fails twice. Two failed attempts means the diagnosis is wrong,
+  not that the fix needs a third try. Back to QA or TESTER for a real cause.
+
+---
+
+## Gates
+
+Nothing advances past a red gate. Each one exists because something got
+through once.
+
+| Gate | When | What it blocks |
+|---|---|---|
+| `.githooks/pre-commit` → `qa --fast` | every commit | a *new* guard failure, ~2s |
+| `postbuild` → `qa --fast` | `npm run build` | same, on the build path |
+| `./scripts/test` | before every push | types, 173 unit tests, the guards |
+| `scripts/guard-ledger.py` | inside `./scripts/test` | the ledger and the bug board disagreeing |
+| `./scripts/qa --full` | `scripts/bundle-app` | a bundle is the artifact that leaves this machine |
+| GitHub Actions | every push | all of the above, on a machine that is not this one |
+
+`tests/regressions/` is the bug board, not the suite. A test there is written
+to FAIL until its bug is fixed, so it never gates the runner — but the moment
+one goes green with its ledger row still `open`, `guard-ledger.py` fails the
+run. That is deliberate: the ledger going stale is itself a defect.
+
+---
+
+## Retro
+
+After each milestone, `snipai-pm` asks two questions and writes the answers
+into the ledger:
+
+1. **What class of bug was this?** Not "S18 was a 416" — "we trusted a
+   timestamp from a tool that is documented to be imprecise at the edges."
+   E1 and S18 were both that.
+2. **What guard would have caught it, and is it worth building?** Sometimes
+   the answer is no. `scripts/guard-rebuild.py`, `guard-open-panel.py` and
+   `guard-ledger.py` all exist because the answer was yes, and each of them
+   is a bug that cannot happen twice.
+
+---
+
+## What this process deliberately does not have
+
+Listed so nobody helpfully adds them back.
+
+- **No refactor agent.** Cleanup is a milestone with a PM decision behind it,
+  not a standing role. A role whose job is improving code will always find
+  code to improve, and this repo's problem has never been a shortage of
+  building.
+- **No estimates.** One person, one WIP slot. The exit line is the
+  commitment; a date is a guess wearing a suit.
+- **No status meeting.** `./scripts/docket` prints what is open.

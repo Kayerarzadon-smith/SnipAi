@@ -1,0 +1,57 @@
+# The same gates scripts/test runs on Kayer's Mac, run somewhere that is not
+# Kayer's Mac. That is the whole point: every bug this project has paid for
+# twice came from a check that passed in one environment and was never run in
+# another.
+#
+# What this CANNOT check, and why:
+#   - the packaged SnipAi.app (needs macOS, a Swift toolchain and signing)
+#   - the Python pipeline suite (needs the venv, which is a symlink to a
+#     framework that exists on that Mac and nowhere else -- see lib/paths.ts:30)
+# scripts/test already skips the pipeline suite honestly and says so, so a
+# green run here means "the TypeScript half is sound", not "ship it".
+# snipai-release still has to run the real checklist on a real Mac.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned to what is actually verified working on the dev machine.
+          # The test harness relies on Node stripping TypeScript itself
+          # (tests/register.mts) -- do not float this.
+          node-version: "22.23.2"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tests/regressions/S19-concat-faststart.test.mts builds two synthetic
+      # clips and checks the atom order of the concatenated result, so ffmpeg
+      # has to exist. resolvedFfmpeg() falls back to PATH when the venv copy
+      # is absent, which is exactly the case here.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Types, unit tests, guards, bug board
+        run: ./scripts/test
+
+      # scripts/test reports a skipped pipeline suite as "green, but not
+      # everything ran" and exits 0. That is correct there and wrong here:
+      # a CI run should be loud about what it could not cover.
+      - name: Say what CI could not cover
+        if: success()
+        run: |
+          echo "::notice title=Not covered by CI::The packaged SnipAi.app and the Python pipeline suite are not exercised here. snipai-release must run the real checklist on a Mac before anything ships."

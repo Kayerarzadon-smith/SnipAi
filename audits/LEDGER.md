@@ -113,6 +113,28 @@ is worth doing before fixing them.
 | T3 | `scripts/qa --full` | One run, two opposite verdicts: nested section prints "something is broken -- do not ship", the run then ends "notes above, nothing blocking" and exits 0. CI reading the exit code gets a third answer | open |
 | T4 | `scripts/qa` pipeline stage | `skipped -- no venv at ugc-edit-system/.venv/bin/python` in this environment, so the Python pipeline is never exercised. The script is honest about it, but a clean run says far less than it appears to. See T1's note — the venv symlink reads as missing from some contexts. Either make setup guarantee it, or make the skip a hard failure | open |
 
+## Repo hygiene — `snipai-release`
+
+Not app defects. Tracked here anyway because until 2026-09-11 nothing in this
+project owned them, so they were invisible to every run: no agent checked
+them, no gate blocked on them, and the ledger did not know they existed.
+`PROCESS.md` assigns them; `snipai-release` runs the checklist.
+
+| ID | What | Status |
+|----|------|--------|
+| G1 | 9 commits sat unpushed — every fix from the 2026-09-11 session existed only on this Mac | open |
+| G2 | `origin/qa/issues-3-4` and `origin/qa/issues-6-7` still on the remote, both merged into master | open |
+| G3 | Four local branches (`qa/issue-9`, `qa/issues-1-5-8-10`, `qa/issues-3-4`, `qa/issues-6-7`), all merged, all still here | open |
+| G4 | Five overlapping QA/spec docs at the repo root (`QA_BUGREPORT.md`, `QA_BUGREPORT2026-09-10.md`, `QA_REPORT_2026-09-10.md`, plus the spec and test plan), and the nightly run adds one per night with no retention rule | open |
+| G5 | `QA_BUGREPORT.md` carries `/Users/kayer.arzadon-smith/...` paths — a real name in a tracked file, in a repo whose public/private status has not been confirmed | open |
+| G6 | Whether `github.com/Kayerarzadon-smith/SnipAi` is public or private is unverified. If public, `DOCKET.md` is a narrative of everything Kayer has personally asked for, in public | open — needs Kayer, one look at the repo page |
+| G7 | No CI: every gate ran only on this Mac. `.github/workflows/ci.yml` added 2026-09-11; it is inert until the first push | fixed 2026-09-11 — pending its first run |
+
+**Checked and clean 2026-09-11**, so nobody re-audits it: no `.env`, no
+credentials, no `.pem`/`.key` tracked, and no literal API keys anywhere.
+`lib/imagegen.ts` reads provider keys from the environment on purpose, with a
+comment saying why — "a key in one is a key in someone else's".
+
 ## Edit quality — the cut itself
 
 | ID | Where | Defect | Status | Test |

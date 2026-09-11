@@ -48,6 +48,22 @@ export type ClipProbe = {
    */
   rawDurationSec: number | null;
   /**
+   * The VIDEO track's own duration, as played and as stored.
+   *
+   * These are the two numbers that separate a trim from a recording, and
+   * `rawDurationSec - durationSec` cannot: the container's duration is the
+   * max across tracks, so it carries AAC priming and the audio/video length
+   * difference along with any real edit list. Measured per track, a
+   * straight-off-the-phone clip hides NOTHING from its picture (IMG_0062:
+   * video 215.24 both ways, audio 215.31 -> 215.36) while a clip cut with
+   * `ffmpeg -ss -c copy` hides the trim from the picture too (4.83 -> 6.00).
+   *
+   * null when it could not be measured, which is not the same as zero -- the
+   * caller falls back to the container floor rather than assuming a trim.
+   */
+  videoDurationSec: number | null;
+  videoRawDurationSec: number | null;
+  /**
    * When the camera says it was shot, as epoch milliseconds.
    *
    * null when the file carries no usable stamp. "Usable" excludes the
@@ -141,6 +157,8 @@ export function parseFfmpegBanner(stderr: string, file: string): ClipProbe {
     name: path.basename(file),
     durationSec,
     rawDurationSec: null,
+    videoDurationSec: null,
+    videoRawDurationSec: null,
     creationTimeMs,
     video,
     audio,
@@ -154,6 +172,66 @@ export function editListTrimSec(p: ClipProbe): number {
   return Math.max(0, p.rawDurationSec - p.durationSec);
 }
 
+/* An untouched recording ALREADY has edit lists, and they already hide media.
+   `editListTrimSec` sees all of it at once and therefore cannot tell a trim
+   from a recording.
+
+   MEASURED on this machine, because the numbers are the whole argument:
+
+     Kayer's six 4K HEVC clips, straight off the phone (probes.json)
+       container delta 0.05, 0.06, 0.05, 0.05, 0.09, 0.05
+     IMG_0062.MOV, the same clip measured PER TRACK
+       video  215.24 -> 215.24   nothing hidden from the picture
+       audio  215.31 -> 215.36   0.05s of AAC priming
+     a clip cut with `ffmpeg -ss 1.1 -c copy`, a real head trim
+       video    4.83 ->   6.00   1.17s hidden from the picture
+       audio    4.90 ->   6.02   1.12s
+     x264 + AAC re-encode, no trim
+       video    5.93 ->   6.00   0.07s, which is B-frame reorder
+
+   So the picture is where a trim shows and priming does not, and that is a
+   mechanism rather than a magnitude: his clips hide 0.00s of picture, not "a
+   small amount". The only benign video edit list is the reorder delay a
+   B-frame encoder needs, bounded by the reorder depth -- hence one derived
+   allowance below rather than a threshold picked to fit his numbers.
+
+   Why it matters that this is not just a bigger constant: a 0.2s Photos trim
+   would pass any threshold set clear of his 0.09s, and is refused here. */
+
+/** Video reorder depth to allow for. H.264/HEVC hold at most a few frames. */
+const MAX_REORDER_FRAMES = 4;
+/** AAC encoder priming, in samples. 1024 is standard; 2048 is the outlier. */
+const MAX_AAC_PRIMING_SAMPLES = 2048;
+
+/**
+ * Seconds of PICTURE an edit list hides -- the thing a join brings back.
+ *
+ * null when the per-track measurement is unavailable, so a caller can fall
+ * back rather than read a missing measurement as "nothing hidden".
+ */
+export function videoEditListTrimSec(p: ClipProbe): number | null {
+  if (p.videoDurationSec === null || p.videoRawDurationSec === null) return null;
+  return Math.max(0, p.videoRawDurationSec - p.videoDurationSec);
+}
+
+/** The most a B-frame encoder's reorder edit list can inherently hide. */
+export function reorderAllowanceSec(p: ClipProbe): number {
+  return MAX_REORDER_FRAMES * (1 / (p.video?.fps || 30));
+}
+
+/**
+ * The most an untouched recording's edit lists can inherently hide from the
+ * CONTAINER duration -- reorder delay plus AAC priming.
+ *
+ * Only used when the per-track measurement is unavailable. It is the weaker
+ * instrument on purpose: it is a floor over a conflated number, where
+ * `videoEditListTrimSec` measures the thing itself.
+ */
+export function formatOverheadSec(p: ClipProbe): number {
+  const priming = p.audio?.sampleRate ? MAX_AAC_PRIMING_SAMPLES / p.audio.sampleRate : 0;
+  return reorderAllowanceSec(p) + priming;
+}
+
 export async function probeClip(file: string): Promise<ClipProbe> {
   const ffmpeg = resolvedFfmpeg();
   const banner = (args: string[]) =>
@@ -163,5 +241,48 @@ export async function probeClip(file: string): Promise<ClipProbe> {
   const [shown, whole] = await Promise.all([banner([]), banner(["-ignore_editlist", "1"])]);
   const probe = parseFfmpegBanner(`${shown.stderr}\n${shown.stdout}`, file);
   probe.rawDurationSec = parseFfmpegBanner(`${whole.stderr}\n${whole.stdout}`, file).durationSec;
+
+  /* And the picture on its own, which is the measurement that can tell a trim
+     from a recording (see videoEditListTrimSec). The banner cannot answer it
+     -- it reports one duration for the whole file -- so the video stream is
+     demuxed to nowhere and the muxer's clock is read.
+     
+     A stream copy to `-f null` decodes nothing; it is one pass over the
+     file's video packets, seconds on a 612MB 4K clip. The import pays it once
+     per clip, beside a Whisper transcription of the same clip that costs
+     minutes, and it is what stands between him and a refusal on 100% of his
+     footage. */
+  if (probe.video) {
+    const [vShown, vRaw] = await Promise.all([
+      videoClock(file, []),
+      videoClock(file, ["-ignore_editlist", "1"]),
+    ]);
+    probe.videoDurationSec = vShown;
+    probe.videoRawDurationSec = vRaw;
+  }
   return probe;
+}
+
+/**
+ * How long the video track runs, by copying its packets to nowhere and
+ * reading the muxer's final timestamp.
+ *
+ * Deliberately never compared against the CONTAINER duration: this clock is
+ * the last packet's PTS and runs about a frame short of the duration a
+ * written container reports (measured: 9.95 against 10.02 on the same join).
+ * It is only ever differenced against ITSELF with and without the edit list,
+ * where that offset cancels.
+ */
+async function videoClock(file: string, pre: string[]): Promise<number | null> {
+  const r = await runCommand(
+    resolvedFfmpeg(),
+    [...pre, "-hide_banner", "-nostdin", "-i", file, "-map", "0:v:0", "-c", "copy", "-f", "null", "-"],
+    { timeoutMs: 300_000 }
+  );
+  const all = `${r.stderr}\n${r.stdout}`.replace(/\r/g, "\n");
+  let last: number | null = null;
+  for (const m of all.matchAll(/time=(\d+):(\d\d):(\d\d)\.(\d+)/g)) {
+    last = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(`0.${m[4]}`);
+  }
+  return last;
 }

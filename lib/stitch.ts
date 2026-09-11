@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runCommand, resolvedFfmpeg } from "./pipeline";
-import { probeClip, editListTrimSec, type ClipProbe } from "./clipProbe";
+import {
+  probeClip, editListTrimSec, videoEditListTrimSec, reorderAllowanceSec,
+  formatOverheadSec, type ClipProbe,
+} from "./clipProbe";
 
 /**
  * One interrupted TikTok, joined back into one recording. (DOCKET M0.8, R5a)
@@ -135,10 +138,53 @@ export function joinRefusal(ordered: ClipProbe[]): string | null {
      back at the join and everything after it lands late. Measured: two 4s
      chunks whose edit lists hid 1.1s each joined to 9.34s instead of 8.34s,
      with 40 non-monotonic-DTS warnings and duplicated audio at the seam. */
+  /* S34. This refused every clip Kayer owns.
+     
+     It was `editListTrimSec(p) > 1 / fps` -- 0.0333s at 30fps -- against a
+     container delta that is 0.05-0.09s on all six of his 4K clips and 0.0600s
+     on both files in his library. None of them was ever trimmed. It then told
+     him Photos had done it and to "duplicate it in Photos and import the
+     copy", which cannot work: the duplicate carries the same priming, so
+     following the instruction spends the disk and returns him to this wall.
+     
+     The instrument was wrong, not the threshold. A container duration is the
+     max across tracks, so it carries AAC priming and the audio/video length
+     difference along with any real edit list -- widening it to clear 0.09s
+     would pass his clips today and silently accept a 0.2s trim tomorrow,
+     which is worse than the bug. The picture is where a trim shows and
+     priming does not, and measured per track his footage hides 0.00s of
+     picture while an `-ss -c copy` trim hides the whole 1.17s. That is a
+     mechanism, not a magnitude. See clipProbe.ts for the six measurements.
+     
+     The one allowance is B-frame reorder delay, which is a real video edit
+     list on re-encoded material (0.07s on x264 default) and is bounded by the
+     reorder depth rather than chosen.
+     
+     The message no longer ASSERTS a cause, but it still offers the remedy.
+     
+     The old sentence said "was trimmed after it was filmed -- Photos does
+     that" as fact, on clips nothing had touched, which is C36's defect: a
+     guess presented as a diagnosis. What changed is that this branch now
+     fires only when hidden PICTURE is measured, so "something took that out
+     after it was filmed" is a measurement rather than a guess -- and the
+     Photos duplicate is a real remedy when Photos is where the trim came
+     from, because the duplicate is re-encoded and bakes the trim in. So it
+     is offered conditionally instead of prescribed.
+     
+     `tests/stitch.test.mts` already pinned the shape of this sentence -- name
+     the clip, say how much, no jargon, two remedies, one of which the tray can
+     carry out -- and it was right to. That test failed on the first draft of
+     this fix and was NOT edited to agree with it; the sentence was rewritten
+     to honour it. See the S34 row for the one judgement call inside that. */
   for (const p of ordered) {
-    const hidden = editListTrimSec(p);
-    if (hidden > 1 / (p.video?.fps || 30)) {
-      return `${p.name} was trimmed after it was filmed — Photos does that without re-encoding — so ${hidden.toFixed(2)}s of it is still in the file, just hidden. Joining would bring that back and push everything after it late. Duplicate it in Photos and import the copy, or import ${p.name} on its own.`;
+    const hiddenPicture = videoEditListTrimSec(p);
+    /* Fall back to the container floor only when the per-track measurement is
+       missing. Absent is not zero: reading it as "nothing hidden" would let a
+       genuinely trimmed clip through on a probe that simply failed. */
+    const hidden = hiddenPicture ?? editListTrimSec(p);
+    const allowance = hiddenPicture === null ? formatOverheadSec(p) : reorderAllowanceSec(p);
+    if (hidden > allowance) {
+      return `${p.name} has more hidden inside it than a recording carries of its own accord — ${hidden.toFixed(2)}s of it is still in the file, just hidden, so something took that out after it was filmed. A join brings it back and pushes everything after it late. Duplicate it in Photos and import the copy if that is where the trim came from, or import ${p.name} on its own.`;
     }
   }
   return null;
@@ -260,16 +306,42 @@ export async function joinClips(
   const driftSec = actualSec - expectedSec;
 
   /* A stream copy that silently dropped a clip still exits 0. The parts have
-     to add up, so check that they do rather than assuming it. One frame of
-     tolerance: the audio and video tracks of each part end a few
-     milliseconds apart, and those rounding errors accumulate. */
+     to add up, so check that they do rather than assuming it. One frame per
+     part of tolerance: the audio and video tracks of each part end a few
+     milliseconds apart, and those rounding errors accumulate.
+     
+     S35. `frame * ordered.length` alone is 0.0667s for two clips, and it does
+     not account for the one source of drift this join can PREDICT. The concat
+     demuxer ignores edit lists, so each part can contribute up to the media
+     its own edit lists hide -- `editListTrimSec`, already measured on every
+     part by the time we get here. That is a known quantity, so it is added
+     rather than absorbed by a bigger round number.
+     
+     Measured, it is also mostly theoretical: IMG_0060 + IMG_0061 predict
+     0.11s of return and actually drift 0.04s, and two synthetic clips predict
+     0.14s and drift 0.02s. The hidden media largely does not come back. So
+     this widens the window by what the parts could contribute at worst and by
+     nothing else -- after S34, no part can carry more than the reorder
+     allowance anyway, which keeps the window inside a tenth of a second for
+     his footage while a dropped clip is seconds to minutes out. */
   const frame = 1 / (joined.video?.fps || 30);
-  const tolerance = Math.max(frame, frame * ordered.length);
+  const predictedReturn = ordered.reduce((n, p) => n + editListTrimSec(p), 0);
+  const tolerance = Math.max(frame, frame * ordered.length) + predictedReturn;
   if (Math.abs(driftSec) > tolerance) {
+    /* Remove the file we just wrote. ffmpeg succeeded here -- this branch is
+       reached with a COMPLETE join on disk, which for his footage is the sum
+       of two 4K clips. One refused import left 546MB sitting in `raw/` with
+       no beats.json to attach it to, on a machine at 98% full, and nothing
+       ever collects it because no project owns it.
+       
+       The pre-flight check above refuses before writing and is the right
+       shape; this is the post-hoc path, and a join that refuses itself must
+       leave nothing behind either way. */
+    fs.rmSync(dest, { force: true });
     return {
       ok: false,
       ordered,
-      error: `joined file is ${actualSec.toFixed(3)}s but the parts add up to ${expectedSec.toFixed(3)}s`,
+      error: `joined file is ${actualSec.toFixed(3)}s but the parts add up to ${expectedSec.toFixed(3)}s — off by ${Math.abs(driftSec).toFixed(3)}s, past the ${tolerance.toFixed(3)}s this join can account for. Nothing was kept.`,
     };
   }
 

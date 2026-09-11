@@ -163,8 +163,18 @@ export async function PATCH(
   }
 
   const before = { start: existing.start, end: existing.end };
-  const { changed } = updateBeatRange(project, label,
+  const result = updateBeatRange(project, label,
     Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000);
+  /* A trim can be refused: dragging an edge inward across a stretch already
+     cut out of the line leaves nothing to render, and `end - start >= 0.15`
+     above cannot see that because it does not look at the holes. Saying so is
+     the whole point -- the alternative that shipped for a while was accepting
+     it, and the line then disappeared from the finished video with every
+     screen still showing it. */
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+  const { changed } = result;
 
   const startDelta = Math.round((start - before.start) * 1000) / 1000;
   const endDelta = Math.round((end - before.end) * 1000) / 1000;

@@ -1317,7 +1317,16 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       // it is a new edit. Leaving it set meant pushHistory fired once per page
       // load, so every trim after the first was unundoable.
       trimTimer.current = null;
-      if (res.ok) { await load(); learnFromEdits(); applyEditsSoon(); } else { await load(); }
+      if (res.ok) { await load(); learnFromEdits(); applyEditsSoon(); return; }
+      /* A trim can be refused -- dragging an edge across a stretch already cut
+         out would leave nothing of the line to render. Reloading snaps the
+         handle back to where it was, which from the chair is identical to a
+         drag that simply did not take. Say which it was: this is the same
+         failure as "delete says it cut, and cuts nothing", which had to be
+         reported twice before anyone believed it. */
+      const why = (await res.json().catch(() => ({}))).error as string | undefined;
+      await load();
+      toast(why ?? "could not save that trim");
     }, 420);
   }
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { projectDir } from "./paths";
 import { writeJsonAtomic, wouldChange } from "./jsonStore";
 import { takeSnapshot } from "./snapshots";
+import { keptAfterTrim } from "./holes";
 import type { BeatsFile } from "./types";
 
 export function beatsPath(project: string): string {
@@ -76,18 +77,47 @@ export function saveBeats(project: string, data: BeatsFile, reason = "edit"): bo
   return true;
 }
 
-/** Update one beat's start/end in place — the same edit Kayer already makes
- * by hand in beats.json when he resolves an ambiguous take. */
+/**
+ * Update one beat's start/end in place — the same edit Kayer already makes
+ * by hand in beats.json when he resolves an ambiguous take.
+ *
+ * This is the ONLY place a beat's picture edges are written, which is why the
+ * "a line must still have something in it" rule lives here rather than in the
+ * route that happens to have been reported. There were two callers when the
+ * bug was found -- the trim PATCH and the take picker -- and only the first
+ * was ever going to get a guard bolted onto it. The check being inside means
+ * no permissive version of this function exists for a third caller to find.
+ *
+ * The rule the trim path was missing: a line can already have holes in it, and
+ * moving the edges inward can push those holes across everything that is left.
+ * `end - start >= 0.15` is satisfied and the line still renders as nothing --
+ * see lib/holes.ts:keptAfterTrim for what that costs.
+ *
+ * Refusal is a RESULT, not a throw, for the same reason the hole path returns
+ * one: "that edit is not allowed" is an answer the person at the keyboard has
+ * to be given, and a throw becomes a bare 500 with no sentence in it. The
+ * return type is a union so that a caller cannot read `.changed` without
+ * having dealt with the refusal first -- tsc, rather than review, is what
+ * keeps the next call site honest.
+ */
+export type RangeUpdate =
+  | { ok: true; data: BeatsFile; changed: boolean }
+  | { ok: false; error: string };
+
 export function updateBeatRange(
   project: string, label: string, start: number, end: number
-): { data: BeatsFile; changed: boolean } {
+): RangeUpdate {
   const data = loadBeats(project);
   if (!data) throw new Error(`no beats.json for project ${project}`);
   const beat = data.beats.find((b) => b.label === label);
   if (!beat) throw new Error(`no beat '${label}' in ${project}`);
+
+  const survives = keptAfterTrim(beat, start, end);
+  if (!survives.ok) return { ok: false, error: survives.error };
+
   beat.start = start;
   beat.end = end;
-  return { data, changed: saveBeats(project, data, `trim ${label}`) };
+  return { ok: true, data, changed: saveBeats(project, data, `trim ${label}`) };
 }
 
 /**

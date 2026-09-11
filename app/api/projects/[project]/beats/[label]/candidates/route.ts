@@ -89,7 +89,15 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
     return NextResponse.json({ error: "candidate not found in cache — GET candidates first" }, { status: 404 });
   }
 
-  updateBeatRange(project, label, candidate.start, candidate.end);
+  /* The take picker moves a line's edges further than any drag does, so it is
+     the other way a line's existing holes can end up covering everything left
+     of it. Refuse before the pick is recorded, not after -- writing takePicks
+     for a take that was never applied is how review-state and beats.json come
+     to disagree about which take is on screen. */
+  const moved = updateBeatRange(project, label, candidate.start, candidate.end);
+  if (!moved.ok) {
+    return NextResponse.json({ error: moved.error }, { status: 400 });
+  }
   const newState = updateReviewState(project, (s) => {
     s.takePicks[label] = { chosenId: candidateId, pickedAt: new Date().toISOString() };
   });

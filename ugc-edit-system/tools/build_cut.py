@@ -28,6 +28,17 @@ LONG_WORD = 0.8
 # second is a consonant; more than that and something else is wrong.
 WORD_RESCUE = 0.2
 
+# ffmpeg truncates a re-encoded clip to whole output frames at -r 30, which
+# silently drops up to one frame (33ms) off the requested tail. Invisible
+# when that frame was already silence; audible when it held the end of a
+# word. Measured on img-9817: 21ms of "face." and 26ms of "this," gone,
+# both above the project's own speech floor (qa/verify_edges.py), even
+# though snap()'s own word-rescue had already placed the true out-point
+# correctly -- the loss happens downstream of it, in the encode. Ask for a
+# little more than requested so the frame that gets rounded away is one
+# that was already going to be silence or the natural gap to the next beat.
+FRAME_PAD = 0.04
+
 
 def merge_touching(ranges, gap=0.02):
     """One silence reported as several rows is still one silence.
@@ -523,14 +534,15 @@ def main():
         base = base_label(l, {b[0] for b in beats})
         fi, fo = fades.get(base, (0.0, 0.0))
         dur = round(y - x, 3)
+        render_dur = round(dur + FRAME_PAD, 3)
         filt = []
         if fi > 0 and first_of.get(base) == i:
             filt.append(f"afade=t=in:st=0:d={min(fi, dur):.3f}")
         if fo > 0 and last_of.get(base) == i:
             d = min(fo, dur)
-            filt.append(f"afade=t=out:st={max(0.0, dur - d):.3f}:d={d:.3f}")
+            filt.append(f"afade=t=out:st={max(0.0, render_dur - d):.3f}:d={d:.3f}")
         afilt = f' -af "{",".join(filt)}"' if filt else ""
-        lines.append(f'ffmpeg -y -ss {x} -i "{source}" -t {dur} '
+        lines.append(f'ffmpeg -y -ss {x} -i "{source}" -t {render_dur} '
                      f'{vopts}{afilt} -movflags +faststart "{out}" '
                      f'-loglevel error -nostats < /dev/null')
         # ffconcat single-quotes paths; an apostrophe inside must be escaped

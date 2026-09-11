@@ -1,7 +1,91 @@
 import { registerHooks } from "node:module";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, openSync, closeSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import os from "node:os";
 import path from "node:path";
+
+/**
+ * No test run may reach the real library. (ledger T6)
+ *
+ * `lib/paths.ts:resolveDataRoot()` falls back to ~/Movies/SnipAi when
+ * SNIPAI_DATA is unset and `projects/` exists there. That is right for the
+ * app and lethal for a test: on 2026-09-10 it cost Kayer his entire build
+ * history, because `tests/job-stage.test.mts` persists five jobs into a store
+ * capped at 40 and `./scripts/qa --full` ran eight times.
+ *
+ * The obvious fix -- export SNIPAI_DATA from `scripts/qa` -- was rejected.
+ * It is one `export` away from being forgotten by the next runner anyone
+ * writes, it does nothing for `node --test` run by hand (which is how these
+ * are actually run while working), and it would have quietly blinded a guard:
+ * `scripts/qa`'s "learned parameters in range" check reads SNIPAI_DATA to
+ * find the REAL tuning.json on purpose, and pointing that variable at a
+ * throwaway makes it check an empty directory and report nothing wrong.
+ *
+ * So the guard goes here instead, because this file is the actual boundary:
+ * every route into the suite loads it (`scripts/test`, `scripts/qa`,
+ * `scripts/guard-ledger.py`, and any `node --import ./tests/register.mts`),
+ * and nothing the app ships does. A run that skips it cannot resolve `@/` and
+ * therefore cannot import an app module at all -- so there is no third door
+ * to remember. This makes the class of bug impossible rather than fixing one
+ * instance of it.
+ *
+ * An explicit SNIPAI_DATA always wins: `tests/regressions/_fixture.mts` sets
+ * its own per-test library and must keep working. This only fills the gap
+ * where there was no answer and the fallback would have picked his footage.
+ */
+if (!process.env.SNIPAI_DATA?.trim()) {
+  const sandbox = mkdtempSync(path.join(os.tmpdir(), "snipai-testrun-"));
+  mkdirSync(path.join(sandbox, "projects"), { recursive: true });
+  mkdirSync(path.join(sandbox, "state"), { recursive: true });
+  process.env.SNIPAI_DATA = sandbox;
+
+  /* Say where the run is pointed, exactly once.
+   *
+   * The failure being prevented was silent -- the suite wrote his library
+   * while looking like any other green run -- so "it went somewhere safe" is
+   * not a thing to infer, it is a thing to state.
+   *
+   * Saying it once takes a little care. `node --test` runs each FILE in its
+   * own child process and applies --import to the CHILDREN ONLY (checked:
+   * a preload under `node --test` reports NODE_TEST_CONTEXT="child-v8" and
+   * runs once per file, never in the runner itself), so this block executes
+   * N times per run, not once. Each child getting its own sandbox is the
+   * behaviour we want -- per-file isolation is stronger than a shared dir --
+   * but seventeen identical lines is the kind of banner people learn to skip.
+   *
+   * The children of one run share a parent pid, and nothing else about them
+   * is common: process.env mutations made by a preload are NOT inherited
+   * (an externally-set variable is; an in-process one is not). So the run is
+   * identified by ppid, and the first child to create the marker is the one
+   * that speaks. O_EXCL makes that a race nobody can lose twice.
+   *
+   * The marker is deliberately NOT removed at exit. node runs the files in
+   * waves, so the speaker is long gone before the last file starts; deleting
+   * it on the speaker's way out let the next wave claim it and announce
+   * again (observed: three banners in a seventeen-file run). Left in place,
+   * it is an empty file in the OS temp dir that the system reaps, and the
+   * worst a reused pid can do is make one run quieter than it should be --
+   * never make one less isolated. */
+  const marker = path.join(os.tmpdir(), `snipai-testrun-said-${process.ppid}`);
+  let speaker = false;
+  try {
+    closeSync(openSync(marker, "wx"));
+    speaker = true;
+  } catch {
+    /* another child in this run already announced it */
+  }
+  if (speaker) {
+    process.stderr.write(`[2mSNIPAI_DATA unset -- test run sandboxed under ${os.tmpdir()}[0m\n`);
+  }
+
+  process.on("exit", () => {
+    try {
+      rmSync(sandbox, { recursive: true, force: true });
+    } catch {
+      /* a leftover temp dir is not worth failing a run over */
+    }
+  });
+}
 
 /**
  * Let the tests import the app's own modules unmodified.

@@ -13,7 +13,15 @@ PORT=4737
 URL="http://localhost:$PORT"
 PIDFILE=".snipai.pid"
 
-is_snipai() { curl -s -m 2 "$URL/api/projects" | grep -q '"projects"'; }
+# Who is on the port, asked properly. See scripts/port-occupant.sh -- the same
+# question native/LaunchDecision.swift asks, for the same reason (N8).
+. "./scripts/port-occupant.sh"
+
+# There is deliberately no is_snipai() here any more. It asked
+# `/api/projects | grep '"projects"'`, and every use of it -- "is it already
+# running", "has it come up yet" -- has been replaced by asking the server who
+# it is, because that answer is the one that can be wrong in a way that costs
+# footage.
 
 # Focuses an existing SnipAi tab in Chrome instead of piling up a new one on
 # every launch. Falls back to plain `open` (spawns a new tab) if Chrome isn't
@@ -47,16 +55,40 @@ APPLESCRIPT
 
 printf "%sSnipAi%s\n" "$BOLD" "$OFF"
 
-# ---------------------------------------------------------------- already running?
-# Checks for SnipAi's own JSON response, not just that *something* answers on
-# the port -- another app entirely can be bound there.
-if is_snipai; then
-  step "Already running"
-  good "SnipAi is already up at $URL -- opening it"
-  focus_or_open "$URL/dashboard"
-  printf "\n%sDone. You can close this window.%s\n" "$BOLD" "$OFF"
-  exit 0
-fi
+# ---------------------------------------------------------------- who is on the port?
+# This used to check for SnipAi's own JSON on /api/projects, which is better
+# than checking that the port is open and still not enough: EVERY SnipAi
+# server answers "projects", including one serving a different library. So
+# this said "Already running" and opened the browser onto somebody else's
+# footage (N8). The server states its library now; ask it.
+WANT_ROOT=$(snipai_expected_data_root "$PWD")
+snipai_probe_port "$PORT"
+
+case "$SNIPAI_OCCUPANT" in
+  identified)
+    if snipai_same_path "$SNIPAI_OCCUPANT_ROOT" "$WANT_ROOT"; then
+      step "Already running"
+      good "SnipAi is already up at $URL (pid $SNIPAI_OCCUPANT_PID)"
+      good "serving $SNIPAI_OCCUPANT_ROOT -- opening it"
+      focus_or_open "$URL/dashboard"
+      printf "\n%sDone. You can close this window.%s\n" "$BOLD" "$OFF"
+      exit 0
+    fi
+    step "Refusing to open"
+    warn "Port $PORT is already serving a DIFFERENT SnipAi library."
+    warn "  on the port: $SNIPAI_OCCUPANT_ROOT  (pid $SNIPAI_OCCUPANT_PID)"
+    warn "  asked for:   $WANT_ROOT"
+    bad  "Nothing has been started and nothing has been stopped. Opening it would show you the wrong footage -- quit pid $SNIPAI_OCCUPANT_PID, or set SNIPAI_DATA to match, and run this again."
+    ;;
+  unidentified)
+    step "Refusing to open"
+    warn "Something is already using port $PORT and it will not say what it is."
+    for p in $SNIPAI_OCCUPANT_PIDS; do
+      warn "  pid $p: $(ps -ww -o command= -p "$p" 2>/dev/null | cut -c1-100)"
+    done
+    bad  "Nothing has been started and nothing has been stopped. Quit whatever is on port $PORT and run this again."
+    ;;
+esac
 
 # ---------------------------------------------------------------- node
 step "Node"
@@ -86,14 +118,24 @@ echo $! > "$PIDFILE"
 disown
 
 for i in $(seq 1 30); do
-  is_snipai && break
+  snipai_probe_port "$PORT"
+  [ "$SNIPAI_OCCUPANT" = identified ] && break
   sleep 1
 done
 
-if ! is_snipai; then
+if [ "$SNIPAI_OCCUPANT" != identified ]; then
   bad "server didn't come up -- check .snipai.log for errors (a port conflict is the most likely cause)"
 fi
-good "running at $URL (pid $(cat "$PIDFILE"))"
+# It came up. Confirm it came up against the library we asked for, rather than
+# assuming that because we started it. This is the cheap version of the check
+# the app makes: the only thing that can go wrong silently here is the wrong
+# footage.
+if ! snipai_same_path "$SNIPAI_OCCUPANT_ROOT" "$WANT_ROOT"; then
+  warn "  started, but it is serving $SNIPAI_OCCUPANT_ROOT"
+  warn "  and this launch asked for $WANT_ROOT"
+  bad "Not opening it. Stop it with stop-snipai.command and check SNIPAI_DATA."
+fi
+good "running at $URL (pid $SNIPAI_OCCUPANT_PID), serving $SNIPAI_OCCUPANT_ROOT"
 
 focus_or_open "$URL/dashboard"
 

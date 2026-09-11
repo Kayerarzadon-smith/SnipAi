@@ -62,6 +62,8 @@ const server = createServer((req, res) => {
   res.end("not found");
 });
 
+// --port 0 lets the kernel choose, and the real port comes back on stdout --
+// which is how a caller gets a port nobody else can be holding.
 server.listen(port, "127.0.0.1", () => {
-  console.log(`listening ${port}`);
+  console.log(`listening ${server.address().port}`);
 });

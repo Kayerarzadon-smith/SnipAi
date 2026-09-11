@@ -4,6 +4,7 @@ import Overlay from "@/app/components/Overlay";
 import TrimWave from "@/app/components/TrimWave";
 import Timeline, { layout } from "@/app/components/Timeline";
 import { resolveSpanDelete } from "@/lib/timelineLayout";
+import { followScroll, revealScroll, isFollowing, type ScrollRequest } from "@/lib/follow";
 import GraphicsPanel from "@/app/components/GraphicsPanel";
 import VoiceInput from "@/app/components/VoiceInput";
 
@@ -122,10 +123,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   const [shotAspect, setShotAspect] = useState<string | null>(null);
   /** the line being spoken, and which word of it, right now */
   const [spoken, setSpoken] = useState<{ label: string; wordIx: number } | null>(null);
-  /** auto-follow gives way the moment you scroll yourself */
-  const followRef = useRef(true);
-  const followTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [followTick, setFollowTick] = useState(0);
+  /** auto-follow gives way the moment you scroll yourself: when you last took
+   *  the list over, as a timestamp, asked by lib/follow's isFollowing */
+  const yieldedAt = useRef(0);
   const [gfxOpen, setGfxOpen] = useState(false);
   const [gfxCount, setGfxCount] = useState<number | null>(null);
 
@@ -361,7 +361,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     const label = order[(at + 1) % order.length];
     setSelectedClip(label);
     seekToBeat(label);
-    document.querySelector(`[data-beat="${label}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    revealRow(label);
   }
   const rawRef = useRef<HTMLVideoElement | null>(null);
   const stopAt = useRef<number | null>(null);
@@ -393,49 +393,63 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     }
   }
 
+  /* The only place on this page that moves the viewport. (ledger C22)
+     Everything that wants the page to move asks lib/follow first and hands the
+     answer here, so "does the person want this" is decided in one place, by
+     rules that can be read and tested, instead of by each effect guessing from
+     whatever it can see about the input that led to it. */
+  function applyScrollRequest(req: ScrollRequest, el?: Element | null) {
+    if (req.kind === "by") window.scrollBy({ top: req.top, behavior: req.behavior });
+    else if (req.kind === "reveal") el?.scrollIntoView({ block: req.block, behavior: "smooth" });
+  }
+
+  /** Take me to this line -- said out loud, by the one act that means it.
+   *  Keyboard only: a row you clicked is already under your cursor. */
+  function revealRow(label: string) {
+    const row = document.querySelector(`[data-beat="${label}"]`);
+    if (!row) return;
+    const r = row.getBoundingClientRect();
+    applyScrollRequest(
+      revealScroll({ rowTop: r.top, rowBottom: r.bottom, viewportHeight: window.innerHeight }),
+      row
+    );
+  }
+
   /* Carry the spoken line up under the player.
      Playback moves through the list faster than anyone can follow by eye, so
      the list comes to the playhead rather than the other way round. It gives
      way the moment you scroll yourself -- following someone who is reading
      somewhere else is worse than not following at all. */
   useEffect(() => {
-    /* Scrolling yields the list to you, but only for a moment.
-       It used to switch following off for good, so one flick of the wheel to
-       look at something meant the list never came back -- which reads exactly
-       like the feature not working. Four seconds is long enough to read what
-       you scrolled to and short enough that you never have to ask for it
-       back. Same as a video player handing you back the controls. */
-    const yield4s = () => {
-      followRef.current = false;
-      if (followTimer.current) clearTimeout(followTimer.current);
-      followTimer.current = setTimeout(() => {
-        followRef.current = true;
-        // and pull the list back now, rather than waiting for the next line:
-        // on a long line that could be seconds of sitting somewhere else
-        setFollowTick((n) => n + 1);
-      }, 4000);
-    };
-    window.addEventListener("wheel", yield4s, { passive: true });
-    window.addEventListener("touchmove", yield4s, { passive: true });
+    /* Scrolling yields the list to you. Nothing is scheduled here: when you get
+       it back is a question the next line boundary asks (lib/follow's
+       isFollowing), not an alarm that goes off while you are reading. The alarm
+       is what Kayer reported -- it pulled the view back four seconds after he
+       had stopped moving, whether or not anything was playing. */
+    const yieldToUser = () => { yieldedAt.current = Date.now(); };
+    window.addEventListener("wheel", yieldToUser, { passive: true });
+    window.addEventListener("touchmove", yieldToUser, { passive: true });
     return () => {
-      window.removeEventListener("wheel", yield4s);
-      window.removeEventListener("touchmove", yield4s);
-      if (followTimer.current) clearTimeout(followTimer.current);
+      window.removeEventListener("wheel", yieldToUser);
+      window.removeEventListener("touchmove", yieldToUser);
     };
   }, []);
 
   useEffect(() => {
-    if (!spoken || !followRef.current) return;
-    if (pointerDown.current) return;          // never move the page mid-drag
-    const row = document.querySelector(`[data-beat="${spoken.label}"]`) as HTMLElement | null;
-    const stage = document.querySelector(".stage") as HTMLElement | null;
-    if (!row) return;
-    // just below the player, which is where your eyes already are
-    const want = stage ? stage.getBoundingClientRect().bottom + 12 : 140;
-    const delta = row.getBoundingClientRect().top - want;
-    if (Math.abs(delta) < 6) return;                 // already there
-    window.scrollBy({ top: delta, behavior: Math.abs(delta) > 400 ? "auto" : "smooth" });
-  }, [spoken?.label, followTick]);   // the line changing, or following resuming
+    const row = spoken && document.querySelector(`[data-beat="${spoken.label}"]`);
+    const stage = document.querySelector(".stage");
+    const v = liveMode ? rawRef.current : videoRef.current;
+    applyScrollRequest(followScroll({
+      // no row for it is the same as nothing being spoken: there is nowhere to go
+      spokenLabel: row ? spoken!.label : null,
+      following: isFollowing(Date.now(), yieldedAt.current),
+      pointerDown: pointerDown.current,
+      playing: !!v && !v.paused,
+      stageBottom: stage ? stage.getBoundingClientRect().bottom : null,
+      rowTop: row ? row.getBoundingClientRect().top : 0,
+      viewportHeight: window.innerHeight,
+    }));
+  }, [spoken?.label]);   // the line changing, and nothing else
 
   /** Cut time -> the source frame it shows. The inverse of what the timeline
    *  does, and it has to go through the pieces: a line with a stretch taken
@@ -512,30 +526,24 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     };
   }, []);
 
-  /* Picking a clip on the timeline and picking its line are the same act.
-     The row lights up either way, and scrolls into view when the selection
-     came from the keyboard -- so the two halves of the screen never disagree
-     about which line you are working on.
+  /* Picking a clip on the timeline and picking its line are the same act, and
+     the row lights up either way -- so the two halves of the screen never
+     disagree about which line you are working on.
 
-     NOT while you are dragging. Every clip, trim handle and fade grip on the
-     timeline calls onSelect on MOUSEDOWN, so this effect fired the moment a
-     drag began and smooth-scrolled the page to re-centre the row -- pulling
-     the timeline out from under the cursor mid-drag, for the whole length of
-     the animation. "The screen won't stay put. I cannot work this way."
+     Bringing that row into view is NOT part of the same act, and this is where
+     an effect keyed on `selectedClip` used to try. It could not work. Every
+     clip, trim handle and fade grip on the timeline selects on MOUSEDOWN, so
+     it fired mid-drag and pulled the timeline out from under the cursor: "The
+     screen won't stay put. I cannot work this way." The `pointerDown` guard
+     added then fixed dragging and nothing else, because `click` dispatches
+     after `mouseup` -- so clicking line 14 of 34 still centred it and pushed
+     the player and the timeline off the top of the screen.
 
-     The rule is simply: the page does not move itself while the hand is on
-     the mouse. Keyboard selection (arrows, N) still brings the row into view,
-     which is the case this was written for. */
-  useEffect(() => {
-    if (!selectedClip) return;
-    if (pointerDown.current) return;
-    const row = document.querySelector(`[data-beat="${selectedClip}"]`);
-    if (!row) return;
-    const r = row.getBoundingClientRect();
-    if (r.top < 60 || r.bottom > window.innerHeight - 40) {
-      row.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }, [selectedClip]);
+     The effect is gone rather than re-guarded. It was being asked a question it
+     could not answer: by the time it runs, the act that changed the selection
+     is over and unknowable. The two acts that really do mean "take me to that
+     line" -- arrowing through the list, and N -- say so themselves, by calling
+     revealRow at the point where they still know it. (ledger C22, C19) */
 
   /* The playhead, at screen rate rather than the decoder's.
      timeupdate fires about four times a second, so a playhead driven by it
@@ -971,7 +979,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
   }
 
   function playFrom(index: number) {
-    followRef.current = true;          // asking for playback asks to follow it
+    yieldedAt.current = 0;             // asking for playback asks to follow it
     const beats = beatsRef.current;
     if (!beats.length || !rawRef.current) return;
     const i = Math.max(0, Math.min(index, beats.length - 1));
@@ -1057,7 +1065,7 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       if (e.key === "Home" || e.key === "End") {
         e.preventDefault();
         const i = e.key === "Home" ? 0 : beats.length - 1;
-        if (beats[i]) { setSelectedClip(beats[i].label); seekToBeat(beats[i].label); }
+        if (beats[i]) { setSelectedClip(beats[i].label); seekToBeat(beats[i].label); revealRow(beats[i].label); }
         return;
       }
 
@@ -1070,6 +1078,8 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
           : Math.max(0, selIx - 1);
         setSelectedClip(beats[next].label);
         seekToBeat(beats[next].label);
+        // arrowing through the list is the case the old effect was written for
+        revealRow(beats[next].label);
         return;
       }
 
@@ -2177,7 +2187,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
                   data-beat={b.label}
                   role="button"
                   tabIndex={0}
-                  onClick={() => { followRef.current = true; setSelectedClip(b.label); seekToBeat(b.label); }}
+                  /* Picking a line asks to follow it again -- but never moves
+                     the page to it: the row you clicked is under your cursor,
+                     so it is already on screen by definition. */
+                  onClick={() => { yieldedAt.current = 0; setSelectedClip(b.label); seekToBeat(b.label); }}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;   // let the inner buttons act
                     if (e.key === "Enter" || e.key === " ") {

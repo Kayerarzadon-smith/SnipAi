@@ -145,8 +145,8 @@ M-app does **not** close on that alone — see its row.
 | M2 | Build the net under the client | A DOM harness exists; **C2's surviving half** and **CG3** each have a test that went red → green. **CG1 left this milestone 2026-09-11** — it became M-app's blocker and was provable without a harness, so it can no longer serve as this one's proof. CG3 (C11, C12, C23: destructive state cleared with no rollback) replaces it, and is the group I flagged as the one that fails silently. **Exit line rewritten 2026-09-10** — it used to name C1, which `bb4bd5f` fixed on 2026-09-08, so half of M2's exit was already met by a commit predating the milestone and the other half (C2) is now partial. A harness whose first proof is a bug that no longer exists proves nothing. CG1 replaces it because it is the one thing Kayer has reported **twice** in his own words (R4), and a net that cannot catch "the page moves itself" is not worth stringing. Dispatch by group (CG1-CG6 in the ledger), verify by id | C2 (partial), C22 (regressed), C19 (retired into C22) |
 | M3 | Finish the three-level review loop | Level 1 → 2 → 3 usable without knowing `m` is a shortcut | H1, H2, H3 |
 | M3.5 | Make the graphics feature he kept actually work | **Placed 2026-09-11**, now the rebundle is verified. Three rows on one feature that he explicitly kept by decision and that has never rendered correctly: **P6** (`drawbox` defaults to `eval=init`, so every card's box is `w=0` for its entire life while its text animates over nothing — and the module docstring at `:14-16` asserts the opposite, which is how it survived), **S25** (pressing "Plan graphics" twice destroys every hand-made graphic), **E3** (the scorecard still penalises cuts for carrying graphics). Sits **immediately before M4** on purpose: M4 asks him to decide which features are worth keeping, and he cannot judge graphics while graphics has never worked. Deciding on a broken version of a thing is not a decision. Not this weekend's product — closes on one short tester render of a project with a definition card, not on a string assertion | P6, S25, E3 |
-| M4 | Decide what SnipAi is (his call, not QA's or dev's) | Every BLOAT row has a keep/cut answer, written down. **B3 and B4 added 2026-09-11** — the standing order named B1, B2, B5 and B6 and was silent on these two, so they read as decided and were not. The drop-folder question is framed with a recommendation (delete it) under Bloat in the ledger, waiting on him | B1, B2, B3, B4, B5, B6 |
-| M5 | Ship to a human who isn’t him | Apple Developer account bought; a build launches on Apple Silicon without Rosetta | B2, B3, B4 (docket) |
+| M4 | Decide what SnipAi is (his call, not QA's or dev's) | Every BLOAT row has a keep/cut answer, written down. **B3 and B4 added 2026-09-11** — the standing order named B1, B2, B5 and B6 and was silent on these two, so they read as decided and were not. The drop-folder question is framed with a recommendation (delete it) under Bloat in the ledger, waiting on him **B4 answered 2026-09-11 — delete the drop-folder ingest** (Kayer delegated it: *"let the PM decide"*; reasoning in the ledger under Bloat). That leaves **B3 only**, and smaller: two of its nine `.command` scripts go with B4, which also moots P7 and most of P4 | B3 (open), B1, B2, B4, B5, B6 (all answered) |
+| M5 | ~~Ship to a human who isn't him~~ — **PARKED 2026-09-11** | Parked by Kayer's standing statement, *"this app is just for me right now."* Kept rather than deleted, the way P1 was, so the reason is findable when it changes: the milestone is not wrong, it has no audience yet. **Two things do NOT park with it.** **P16** — the bundle is not reproducible from the repo (an untracked, hand-made `Info.plist`; a copy now committed at `scripts/build/Info.plist`) — stays open at unchanged priority, because the M5 framing was too narrow: if `SnipAi.app` is ever deleted, or he clones the repo to a second machine of his own, `bundle-app` cannot produce a launchable app. That is a him-problem, not a them-problem. The same holds for **N2 and T5's whole family** — "works on this Mac, missing from the artifact" — because he is the one running the artifact. **Single-user is not single-copy**, and it is not licence to lower the bar on anything protecting his footage or his output: N1, T6, the sandbox work, S8, S25, C27 and M1's subject all stand exactly as they were | P16, N2, T5 (all still live) |
 
 ## Open
 
@@ -159,12 +159,21 @@ M-app does **not** close on that alone — see its row.
 
 ## Blocked — not on code
 
+**Heads-up on ids: this table's `B1-B4` are NOT the ledger's Bloat `B1-B6`.**
+Two different namespaces, both called B, and on 2026-09-11 a single message
+referred to both. Docket `B2` is the Apple Developer account; ledger `B2` is
+the graphics subsystem. Say which file you mean.
+
+**Re-sequenced 2026-09-11 by Kayer's standing statement — *"this app is just
+for me right now."*** Three rows below lose their reason and are parked rather
+than deleted, so the reason is findable when it changes.
+
 | # | What he asked for | Waiting on |
 |---|---|---|
 | B1 | Post to TikTok Shop, X, Snapchat, Facebook, Instagram, **Pinterest**, **Trybe**, Amazon Storefront | A developer app and credentials per platform. Eight tiles, all `not_connected` |
-| B2 | Hand the app to a few people | Apple Developer account, $99/yr, for signing and notarisation |
-| B3 | It updates itself | Sparkle, which needs B2 first |
-| B4 | Runs properly on Apple Silicon | A universal build. Works today under Rosetta |
+| B2 | Hand the app to a few people | **Parked 2026-09-11 — *"this app is just for me right now."*** The $99/yr is not needed for anything he currently wants. Unpark it the day he wants someone else to open it |
+| B3 | It updates itself | **Parked 2026-09-11**, follows B2 — Sparkle needs signing, signing needs an account he does not need. He restarts the app himself every session (see Done) |
+| B4 | Runs properly on Apple Silicon | **Dropped from blocked to whenever, 2026-09-11.** It works under Rosetta and he is the only user, so a universal build is a nicety with no date. Not parked — it is still wanted, just not waiting on anything |
 **B5 cleared 2026-09-11** and removed from this table: he granted Screen
 Recording and Accessibility, both verified directly. That unblocked the entire
 native surface in one go — M0's last item, M-app's exit line, C20, and every

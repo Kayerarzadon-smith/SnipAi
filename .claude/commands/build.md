@@ -68,41 +68,43 @@ These are decided. Do not re-litigate them, do not ask again.
 
 ---
 
-## The order, and why it is this order
+## The order
 
-Not caution — dependency. Each milestone unlocks the next.
+**`DOCKET.md`'s Roadmap table is the sequence. Read it; do not keep a copy.**
 
-**M0 / M0.5 — the cut path.** A raw clip in, a correct cut out, no clipped
-audio. S18, S19 and E1 are already fixed in code; `snipai-tester` has to
-confirm them against real footage, which has never been done. Everything
-downstream is decoration if this does not work.
+This command used to carry its own milestone list and it went stale within a
+day — it still called M5 "the remaining half-built features" after the docket
+had parked M5 entirely, and it named an M6 that no longer exists. Two lists of
+the same thing drift apart; that is the bug class behind the ledger
+disagreeing with the bug board (T2) and the zoom table being mirrored in the
+looks gauntlet. One authority. It is the docket.
 
-**M1 — trustworthy alarms.** T3, T4. A suite that lies is worse than none.
+Work the table top to bottom. A milestone closes only on its own exit line,
+verified by the role that can verify it. What follows is context the table
+cannot carry, not a second ordering:
 
-**M2 — the DOM harness.** `jsdom` plus a render helper. This is the highest
--leverage item in the entire project: **22 client bugs are open and 0 have
-ever been fixed**, not because they are hard but because nothing can test a
-React drag, so no fix can be proven and therefore none get made. Build the
-harness, then burn the client list down — C1, C2, C22 and the rest.
-
-**M3 — the review flow.** H1, H2, H3. Level 3 has a complete backend and no
-UI; Level 2 is reachable only by pressing `m`; Level 1 cannot produce the
-"Needs fixes" status the dashboard already renders. This is the feature
-`NOTES.md` describes as the whole point of the app, and it is a third built.
-
-**M4 — the rest of the defects.** The 16 server rows, the 18 pipeline rows,
-then the provably-dead code per standing order 1.
-
-**M5 — the remaining half-built features.** H4 detached audio, H5 the
-learning loop's ceiling and preview, H7 products & links, H8 voice input in
-the two places `NOTES.md` actually describes.
-
-**M6 — everything that is not blocked on someone else.** For connectors
-(H6/B1): build and test the full posting path against a mock — auth flow,
-token storage, upload, error handling — so that the day a credential arrives
-it is one config value, not a feature. Do not fake a successful post.
-
----
+- **The decimal milestones are not optional.** M0.5 through M0.8 exist because
+  M0 closed and the thing still did not work for him — the fix had not reached
+  his existing footage, a sandboxed run could still reach his real library,
+  and his own footage arrives as several clips rather than one. They are the
+  difference between a milestone passing and the app working.
+- **M0.8 is the newest and it is his, in his words.** He is interrupted
+  mid-take, restarts where he left off, and batch-films several different
+  TikToks in one sitting — so a real TikTok reaches the app as three or four
+  clips, mixed in a batch with unrelated ones. Its row carries the whole
+  design: join at import rather than making `source` a list, group on whether
+  a clip ended mid-sentence rather than on the recording gap, order by
+  `creation_time` so drop order never matters, and propose the grouping for
+  confirmation before a single stage runs. Build what the row says; the
+  reasoning for each choice is in it, including the roads not taken.
+- **M2 is the highest-leverage row in the project.** 22 client bugs open, 0
+  ever fixed — not because they are hard but because nothing can test a React
+  drag, so no fix can be proven and therefore none get made. The harness is
+  worth more than any single bug behind it.
+- **A milestone can be wrong.** Three exit lines were rewritten on 2026-09-11
+  because they could not prove their own milestone, and M0's was wrong about
+  how he shoots. If a line can be satisfied by a run in which the thing never
+  actually happened, say so and rewrite it before working to it.
 
 ## Blocked, and honestly so
 

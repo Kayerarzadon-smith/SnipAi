@@ -5,6 +5,8 @@ import * as timeline from "./gauntlet/timeline.mts";
 import * as adversarial from "./gauntlet/adversarial.mts";
 import * as persistence from "./gauntlet/persistence.mts";
 import * as scorecard from "./gauntlet/scorecard.mts";
+import * as looks from "./gauntlet/looks.mts";
+import * as gates from "./gauntlet/gates.mts";
 
 const budget = Number(process.env.QA_BUDGET ?? 120);
 const rep = new Report();
@@ -15,6 +17,8 @@ timeline.run(rep, budget);
 adversarial.run(rep, budget);
 persistence.run(rep, budget);
 await scorecard.run(rep);
+looks.run(rep, budget);
+gates.run(rep);
 })();
 
 const c = rep.counts;

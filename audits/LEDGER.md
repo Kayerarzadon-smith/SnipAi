@@ -113,6 +113,12 @@ is worth doing before fixing them.
 | T3 | `scripts/qa --full` | One run, two opposite verdicts: nested section prints "something is broken -- do not ship", the run then ends "notes above, nothing blocking" and exits 0. CI reading the exit code gets a third answer | open |
 | T4 | `scripts/qa` pipeline stage | `skipped -- no venv at ugc-edit-system/.venv/bin/python` in this environment, so the Python pipeline is never exercised. The script is honest about it, but a clean run says far less than it appears to. See T1's note — the venv symlink reads as missing from some contexts. Either make setup guarantee it, or make the skip a hard failure | open |
 
+## Edit quality — found by the looks gauntlet
+
+| ID | Where | Defect | Status | Test |
+|----|-------|--------|--------|------|
+| E2 | `resolveSpanDelete` / `lib/timelineLayout.ts` | A span delete can leave a **surviving sliver of a line** rather than removing it. Found 2026-09-11 by `qa/gauntlet/looks.mts` from believable input: deleting 1.67-10.48s leaves `b2` at 0.170s; deleting 10.63-15.71s leaves `b4` at 0.236s (seeds 22075, 22077, 22084, 22097 — four in ~120). Two harms, and the second is the worse one. **On screen:** 0.170s is 4.3px at the default zoom (25px/s), under the ~6px a pointer can hit — you cannot grab it to fix or remove it without knowing to zoom in first, which is not a recovery path for damage you did not mean to do. **In the cut:** 170ms of a spoken line is not a line, it is a fragment of one syllable, and it renders into the finished video as a stutter. The arithmetic gauntlet passes all of these clean — `timeline.mts` asks whether the right number of seconds came out, which they did. Decide the rule: below some floor a remnant should be dropped whole rather than kept | open | yes — `qa/gauntlet/looks.mts`, category 022, reproduces at the named seeds |
+
 ## Repo hygiene — `snipai-release`
 
 Not app defects. Tracked here anyway because until 2026-09-11 nothing in this

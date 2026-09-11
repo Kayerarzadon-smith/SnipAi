@@ -382,7 +382,12 @@ export async function runAutoPipelineJob(jobId: string, project: string): Promis
   // where it stopped instead of redoing an hour of work.
   const dir = projectDir(project);
   const done = (step: string) => {
-    if (step === "transcribe") return fs.existsSync(path.join(dir, "work", "transcript.json"));
+    /* Every artifact the step writes, not one of them standing in for the
+       rest. `transcript.json` alone was the test, and the same step writes the
+       two silence maps `draft_beats.py` and `build_cut.py` depend on -- so a
+       transcript placed here by anything else skipped the maps with it, and
+       the symptom was not a missing file but worse beats one step later. */
+    if (step === "transcribe") return transcribeStepIsDone(project);
     if (step === "draft-beats") {
       try {
         const bj = JSON.parse(fs.readFileSync(path.join(dir, "beats.json"), "utf8"));
@@ -588,21 +593,89 @@ export async function runCheckJob(jobId: string, project: string): Promise<void>
 
 /* ---- the auto pipeline's other phases, as plain steps ---- */
 
+/**
+ * The transcribe step writes THREE things, and every one of them is depended
+ * on downstream: the transcript `draft_beats.py` reads, the -28dB silence map
+ * it trims pauses with, and the -50dB map `build_cut.py` snaps beat edges
+ * against. Naming them here once is what stops "done" from meaning "one of
+ * the three is on disk" (ledger S31).
+ */
+export const TRANSCRIBE_OUTPUTS = ["transcript.json", "silence.txt", "silence-strict.txt"] as const;
+
+/** True only when a transcript is there AND is the shape transcribe.py
+ *  writes. An empty list is a legitimate transcript (a silent clip); half a
+ *  file left behind by a killed Whisper is not. */
+export function hasUsableTranscript(file: string): boolean {
+  try {
+    return Array.isArray(JSON.parse(fs.readFileSync(file, "utf8")));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Has the transcribe step actually been done for this project? (ledger S31)
+ *
+ * The question is about the WORK, not about one file the work happens to
+ * leave behind. This used to be `existsSync(work/transcript.json)` inline in
+ * the auto pipeline, and the same step writes the two silence maps
+ * `draft_beats.py` trims pauses with and `build_cut.py` snaps edges against.
+ * So a transcript arriving from anywhere else -- which is now a real path,
+ * the import reuses a standalone clip's transcript rather than running
+ * Whisper over the same bytes twice -- read as "transcribe: already done,
+ * skipping" and took the silence maps with it. Nothing was missing at the
+ * time; the beats were just worse, one step later.
+ */
+export function transcribeStepIsDone(project: string): boolean {
+  const work = path.join(projectDir(project), "work");
+  return (
+    TRANSCRIBE_OUTPUTS.every((f) => fs.existsSync(path.join(work, f))) &&
+    hasUsableTranscript(path.join(work, "transcript.json"))
+  );
+}
+
+/**
+ * Transcribe, then map silence twice -- each artifact skipped only if that
+ * artifact is already there.
+ *
+ * Per-artifact rather than all-or-nothing on purpose. A transcript can now
+ * arrive from outside this step: the import flow transcribes a standalone
+ * clip while proposing the grouping, and reuses that transcript rather than
+ * running Whisper a second time over bytes it has already read. That is safe
+ * only if placing a transcript skips Whisper and *nothing else* -- it used to
+ * skip the silence maps with it, and the symptom was not a missing file, it
+ * was worse beats a step later.
+ */
 async function stepTranscribe(project: string, log: (l: string) => void): Promise<boolean> {
   const dir = projectDir(project);
   const beats = loadBeatsForSource(project);
   if (!beats) return false;
   const raw = path.join(dir, beats.source);
   if (!fs.existsSync(raw)) { log("the footage isn't on this machine"); return false; }
-  fs.mkdirSync(path.join(dir, "work"), { recursive: true });
-  const t = await runTool("transcribe.py", [raw, "-o", path.join(dir, "work", "transcript.json")], { onLine: log });
-  if (!t.ok) return false;
-  log("mapping the pauses...");
-  const sm = await runTool("silence_map.py", [raw, "-o", path.join(dir, "work", "silence.txt")], { onLine: log });
-  if (!sm.ok) return false;
-  await runTool("silence_map.py",
-    [raw, "--noise=-50dB", "--min-dur", "0.06", "-o", path.join(dir, "work", "silence-strict.txt")],
-    { onLine: log });
+  const work = path.join(dir, "work");
+  fs.mkdirSync(work, { recursive: true });
+
+  if (hasUsableTranscript(path.join(work, "transcript.json"))) {
+    log("already transcribed — reusing the transcript, still mapping the pauses");
+  } else {
+    const t = await runTool("transcribe.py", [raw, "-o", path.join(work, "transcript.json")], { onLine: log });
+    if (!t.ok) return false;
+  }
+
+  if (!fs.existsSync(path.join(work, "silence.txt"))) {
+    log("mapping the pauses...");
+    const sm = await runTool("silence_map.py", [raw, "-o", path.join(work, "silence.txt")], { onLine: log });
+    if (!sm.ok) return false;
+  }
+  if (!fs.existsSync(path.join(work, "silence-strict.txt"))) {
+    const strict = await runTool("silence_map.py",
+      [raw, "--noise=-50dB", "--min-dur", "0.06", "-o", path.join(work, "silence-strict.txt")],
+      { onLine: log });
+    // Not fatal, exactly as before -- build_cut.py falls back to the -28dB map.
+    // It is said out loud now rather than swallowed, because the fallback is
+    // audible (a little dead air at every join) and used to be invisible.
+    if (!strict.ok) log("could not map true silence — edges will snap against the -28dB map, which leaves a little dead air at the joins");
+  }
   return true;
 }
 

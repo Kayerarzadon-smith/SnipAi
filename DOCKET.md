@@ -17,6 +17,22 @@ not afterwards. `./scripts/docket` prints what is still open.
 
 ---
 
+## Roadmap — the sequence
+
+One milestone open at a time. Nothing below gets touched until the one above
+it meets its exit line. New ideas go in **Open**, not into whichever milestone
+is live — they get pulled in when this list is re-sequenced, not on the spot.
+
+| # | Milestone | Exit line | Ledger / docket ids |
+|---|---|---|---|
+| M0 | Make it watchable | Open `img-9817` in the native window, press play, watch all of it | S18, S19 |
+| M0.5 | Stop shipping clipped audio | `python3 qa/verify_edges.py` reports 0 of 34 | E1 |
+| M1 | Make the test/QA verdict trustworthy | A clean run prints one verdict; a deliberately broken run goes red | T2, T3, T4 |
+| M2 | Build the net under the client | A DOM harness exists; C1 and C2 each have a test that went red → green | C1, C2 |
+| M3 | Finish the three-level review loop | Level 1 → 2 → 3 usable without knowing `m` is a shortcut | H1, H2, H3 |
+| M4 | Decide what SnipAi is (his call, not QA's or dev's) | Every BLOAT row has a keep/cut answer, written down | B1, B2, B5, B6 |
+| M5 | Ship to a human who isn’t him | Apple Developer account bought; a build launches on Apple Silicon without Rosetta | B2, B3, B4 (docket) |
+
 ## Open
 
 | # | What he asked for | Notes |

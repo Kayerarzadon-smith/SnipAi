@@ -90,7 +90,7 @@
   <text x="384" y="156" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" font-weight="600" fill="currentColor">Nadia</text>
   <text x="384" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="currentColor" opacity=".6">Test Driver</text>
 
-  <!-- ============ THEO — Implementer ============ -->
+  <!-- ============ THEO — Developer ============ -->
   <g transform="translate(536,74)">
     <g clip-path="url(#c0)">
       <rect x="-54" y="-54" width="108" height="108" fill="#48673A"/>
@@ -112,7 +112,7 @@
     <circle r="54" fill="none" stroke="currentColor" stroke-opacity=".14" stroke-width="2"/>
   </g>
   <text x="536" y="156" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" font-weight="600" fill="currentColor">Theo</text>
-  <text x="536" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="currentColor" opacity=".6">Implementer</text>
+  <text x="536" y="176" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="currentColor" opacity=".6">Developer</text>
 
   <!-- ============ RUTH — Release Engineer ============ -->
   <g transform="translate(688,74)">

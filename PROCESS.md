@@ -24,7 +24,7 @@ who did what in a way that `snipai-tester` and `snipai-dev` do not.
 | **Mara** | Product Manager | `snipai-pm` | The roadmap, the sequence, forcing decisions | Write code; decide whether a defect is real |
 | **Desmond** | Code Auditor | `snipai-qa` | Reading code adversarially, line-anchored findings | Run the app; edit anything |
 | **Nadia** | Test Driver | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
-| **Theo** | Implementer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
+| **Theo** | Developer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
 | **Ruth** | Release Engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
 
 The names are labels for roles, not claims to be people. Use them in

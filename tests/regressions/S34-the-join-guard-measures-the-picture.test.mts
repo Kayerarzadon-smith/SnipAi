@@ -188,8 +188,13 @@ test("S34: the refusal states what was measured and does not diagnose a cause", 
     !/was trimmed after it was filmed/.test(why),
     `the refusal still asserts a trim it cannot attribute: "${why}"`
   );
+  /* The property, not the phrasing -- asserted as "the Photos remedy and a
+     condition live in the same sentence". The first version of this pinned
+     the exact words `if that is where`, which is the same over-specification
+     that made `tests/stitch.test.mts` refuse a better sentence for reasons
+     its own comments did not actually require. */
   assert.ok(
-    /if that is where/.test(why),
+    /Duplicate it in Photos[^.]*\bif\b/.test(why),
     `the Photos remedy is prescribed rather than offered: "${why}"`
   );
   assert.ok(why.includes("trimmed.mov"), "the refusal does not name the file it is about");

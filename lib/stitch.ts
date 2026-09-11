@@ -169,7 +169,9 @@ export function joinRefusal(ordered: ClipProbe[]): string | null {
      after it was filmed" is a measurement rather than a guess -- and the
      Photos duplicate is a real remedy when Photos is where the trim came
      from, because the duplicate is re-encoded and bakes the trim in. So it
-     is offered conditionally instead of prescribed.
+     is offered conditionally instead of prescribed -- and the condition is put
+     where he can answer it ("if you trimmed it there"), because he knows
+     whether he did and the app never will.
      
      `tests/stitch.test.mts` already pinned the shape of this sentence -- name
      the clip, say how much, no jargon, two remedies, one of which the tray can
@@ -184,7 +186,7 @@ export function joinRefusal(ordered: ClipProbe[]): string | null {
     const hidden = hiddenPicture ?? editListTrimSec(p);
     const allowance = hiddenPicture === null ? formatOverheadSec(p) : reorderAllowanceSec(p);
     if (hidden > allowance) {
-      return `${p.name} has more hidden inside it than a recording carries of its own accord — ${hidden.toFixed(2)}s of it is still in the file, just hidden, so something took that out after it was filmed. A join brings it back and pushes everything after it late. Duplicate it in Photos and import the copy if that is where the trim came from, or import ${p.name} on its own.`;
+      return `${p.name} was shortened after filming: ${hidden.toFixed(2)}s of it is still in the file, just hidden. Joining brings that back and pushes everything after it late. Duplicate it in Photos and import the copy if you trimmed it there. Otherwise import ${p.name} on its own.`;
     }
   }
   return null;

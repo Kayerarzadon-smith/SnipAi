@@ -75,9 +75,17 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     end = stat.size - 1;
   } else {
     start = match[1] ? parseInt(match[1], 10) : 0;
-    end = match[2] ? parseInt(match[2], 10) : stat.size - 1;
+    // A browser media stack routinely asks for a range that ends past EOF --
+    // an open-ended "bytes=N-", or a plain over-long guess like
+    // "bytes=0-99999999" -- expecting the server to clamp it, per RFC 7233.
+    // This used to take end past stat.size and then refuse the whole
+    // request with 416, even when `start` was well inside the file. That is
+    // the one thing every video surface in this app has in common: the
+    // player, both modes, and the snippet-editor monitor all open with a
+    // range like this and all sat at readyState=0 forever with no error.
+    end = match[2] ? Math.min(parseInt(match[2], 10), stat.size - 1) : stat.size - 1;
   }
-  if (start >= stat.size || end >= stat.size || start > end) {
+  if (start >= stat.size || start > end) {
     return new Response("Range Not Satisfiable", { status: 416, headers: { "Content-Range": `bytes */${stat.size}` } });
   }
 

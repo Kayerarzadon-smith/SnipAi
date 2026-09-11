@@ -370,12 +370,38 @@ const PHASES: { step: string; from: number; to: number; label: string }[] = [
 ];
 
 export async function runAutoPipelineJob(jobId: string, project: string): Promise<void> {
-  const log = (line: string) => appendLog(jobId, line);
   const avail = checkAvailability();
   if (!avail.python3 || !avail.ffmpeg || !avail.fasterWhisper) {
     failJob(jobId, "the editing tools aren't set up on this machine");
     return;
   }
+  const r = await runPipelinePhases(jobId, project);
+  if (!r.ok) {
+    failJob(jobId, r.error);
+    return;
+  }
+  finishJob(jobId, r.cutFile);
+}
+
+/**
+ * The phases themselves, over a slice of one job's progress bar.
+ *
+ * Split out of runAutoPipelineJob so a job can run the pipeline for MORE THAN
+ * ONE project and still be one job with one honest bar -- which is what a
+ * confirmed import is: two projects out of one batch of clips, built one after
+ * the other because two Whispers at once take the machine down. It neither
+ * finishes nor fails the job; the caller owns that, because the caller knows
+ * whether there is another project after this one.
+ */
+export async function runPipelinePhases(
+  jobId: string,
+  project: string,
+  band: { from: number; to: number } = { from: 0, to: 100 }
+): Promise<{ ok: true; cutFile?: string } | { ok: false; error: string }> {
+  const log = (line: string) => appendLog(jobId, line);
+  const span = band.to - band.from;
+  /** a phase's own 0-100 position, mapped into this job's slice of the bar */
+  const overall = (n: number) => Math.round(band.from + (span * n) / 100);
 
   // Skip whatever is already done. That makes this safe to fire whenever a
   // project looks unfinished -- reopening a half-processed import picks up
@@ -383,10 +409,11 @@ export async function runAutoPipelineJob(jobId: string, project: string): Promis
   const dir = projectDir(project);
   const done = (step: string) => {
     /* Every artifact the step writes, not one of them standing in for the
-       rest. `transcript.json` alone was the test, and the same step writes the
-       two silence maps `draft_beats.py` and `build_cut.py` depend on -- so a
-       transcript placed here by anything else skipped the maps with it, and
-       the symptom was not a missing file but worse beats one step later. */
+       rest (ledger S31). `transcript.json` alone was the test, and the same
+       step writes the two silence maps `draft_beats.py` and `build_cut.py`
+       depend on -- so a transcript placed here by anything else skipped the
+       maps with it, and the symptom was not a missing file but worse beats
+       one step later. */
     if (step === "transcribe") return transcribeStepIsDone(project);
     if (step === "draft-beats") {
       try {
@@ -408,7 +435,7 @@ export async function runAutoPipelineJob(jobId: string, project: string): Promis
   for (const phase of PHASES) {
     if (done(phase.step)) {
       log(`${phase.label} — already done, skipping`);
-      appendLog(jobId, `PROGRESS ${phase.to}`);
+      appendLog(jobId, `PROGRESS ${overall(phase.to)}`);
       continue;
     }
     // a sub-step's own PROGRESS is remapped into this phase's slice of the bar
@@ -416,15 +443,14 @@ export async function runAutoPipelineJob(jobId: string, project: string): Promis
       const m = /^PROGRESS\s+(\d{1,3})\s*$/.exec(line.trim());
       if (m) {
         const inner = Math.max(0, Math.min(100, Number(m[1])));
-        const overall = phase.from + ((phase.to - phase.from) * inner) / 100;
-        appendLog(jobId, `PROGRESS ${Math.round(overall)}`);
+        appendLog(jobId, `PROGRESS ${overall(phase.from + ((phase.to - phase.from) * inner) / 100)}`);
         return;
       }
       log(line);
     };
 
     log(`${phase.label}…`);
-    appendLog(jobId, `PROGRESS ${phase.from}`);
+    appendLog(jobId, `PROGRESS ${overall(phase.from)}`);
 
     let ok = true;
     if (phase.step === "transcribe") ok = await stepTranscribe(project, relay);
@@ -434,16 +460,13 @@ export async function runAutoPipelineJob(jobId: string, project: string): Promis
       // review render: 720p is what you watch to make decisions, and it is
       // minutes rather than tens of minutes on this machine
       const built = await buildCut(project, relay, { proxy: true });
-      if (built) { appendLog(jobId, "PROGRESS 100"); finishJob(jobId, built); return; }
+      if (built) { appendLog(jobId, `PROGRESS ${overall(100)}`); return { ok: true, cutFile: built }; }
       ok = false;
     }
 
-    if (!ok) {
-      failJob(jobId, `${phase.label} failed — see the log`);
-      return;
-    }
+    if (!ok) return { ok: false, error: `${phase.label} failed — see the log` };
   }
-  finishJob(jobId);
+  return { ok: true };
 }
 
 /** The build itself. Returns the cut's filename, or null on failure, so it

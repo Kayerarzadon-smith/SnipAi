@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER T3 — one run, two opposite verdicts, and the exit code agrees with
@@ -45,7 +46,7 @@ const ROOT = path.dirname(path.dirname(path.dirname(new URL(import.meta.url).pat
 
 /** A tree `scripts/qa` can run in, with the exit codes of its parts dictated. */
 function stubTree(opts: { testExit: number; guardExit?: number }): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-t3-"));
+  const root = scratchDir("t3");
   for (const d of ["scripts", "audits", "app/api", "lib", "native", "tests/regressions"]) {
     fs.mkdirSync(path.join(root, d), { recursive: true });
   }

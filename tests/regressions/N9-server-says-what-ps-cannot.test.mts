@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, execFileSync } from "node:child_process";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * N9 -- the server has to say what `ps` can no longer see.
@@ -33,7 +34,7 @@ import { spawn, execFileSync } from "node:child_process";
  * the evidence that replaces it.
  */
 
-const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n9-"));
+const ROOT = scratchDir("n9");
 fs.mkdirSync(path.join(ROOT, "projects"), { recursive: true });
 fs.mkdirSync(path.join(ROOT, "state"), { recursive: true });
 process.env.SNIPAI_DATA = ROOT;

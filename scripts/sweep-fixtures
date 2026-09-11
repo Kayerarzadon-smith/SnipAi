@@ -1,0 +1,49 @@
+#!/bin/bash
+# Collect fixture directories a previous test run left in the OS temp dir.
+# (ledger T19)
+#
+# `tests/scratch.mts` removes every fixture directory at process exit, which
+# is what actually stopped the leak. This collects the two cases that cannot
+# reach: a run someone SIGKILLed, and the 7,621 directories already on the
+# disk when the leak was found. Belt and braces.
+#
+# THE SCOPE IS THE WHOLE SAFETY ARGUMENT, so it is narrow on purpose:
+#
+#   - only inside $TMPDIR, which the OS already treats as disposable
+#   - only names beginning `snipai-`, which nothing but our own tests writes
+#   - only real directories: never a symlink, so a link named `snipai-*`
+#     cannot aim this at anything (a symlink is how a `touch` once became a
+#     write to his footage, and `[ -d ]` follows them -- hence the `-L` test
+#     before the `-d` test, in that order)
+#   - only files it can see before the run starts, so nothing the run is
+#     about to create is ever in range
+#
+# It makes no judgement about age or contents. If it is ours, and it is a
+# directory, and it is in the temp dir before we start, it is from a run that
+# has already finished. No pattern here can reach his library, his Downloads
+# or the repo.
+#
+# Marker FILES (`snipai-testrun-said-<ppid>`) are deliberately not swept:
+# tests/register.mts explains why it leaves them, they are zero bytes, and
+# the OS reaps them. Directories are the leak.
+#
+# Assumption worth stating: this would also collect a suite running
+# concurrently in another shell. `scripts/test` is not built for that, and one
+# stranded directory is a cheaper failure than a leak nobody collects.
+#
+# Prints the number swept. Never fails a run: a temp directory it could not
+# remove is the next run's problem, not this run's verdict.
+set -uo pipefail
+
+TMP="${TMPDIR:-/tmp}"
+TMP="${TMP%/}"
+
+swept=0
+for d in "$TMP"/snipai-*; do
+  [ -e "$d" ] || continue          # the glob itself, when nothing matches
+  [ -L "$d" ] && continue          # never a symlink -- before the -d test
+  [ -d "$d" ] || continue          # directories only; marker files stay
+  rm -rf -- "$d" 2>/dev/null && swept=$((swept + 1))
+done
+
+echo "$swept"

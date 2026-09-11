@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { resolvedFfmpeg } from "../../lib/pipeline.ts";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER S19 — lib/pipeline.ts, the ffmpeg concat step that writes cuts/*.mp4
@@ -38,7 +39,7 @@ test("S19: the concat step asks ffmpeg for faststart", () => {
 
 test("S19: -c copy -movflags +faststart actually puts moov before mdat", () => {
   const ffmpeg = resolvedFfmpeg();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-s19-"));
+  const dir = scratchDir("s19");
   const clip1 = path.join(dir, "clip1.mp4");
   const clip2 = path.join(dir, "clip2.mp4");
   const concatTxt = path.join(dir, "concat.txt");

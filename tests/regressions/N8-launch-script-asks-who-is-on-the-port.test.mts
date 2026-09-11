@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawn, ChildProcess } from "node:child_process";
 import { createServer } from "node:http";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * N8 -- `launch-snipai.command` opened the browser onto somebody else's
@@ -96,7 +97,7 @@ async function serveAs(
 }
 
 test("a server on the port that serves ANOTHER library is not 'already running'", async () => {
-  const theirs = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n8-theirs-"));
+  const theirs = scratchDir("n8-theirs");
   const server = await serveAs(theirs);
   try {
     const got = probe(server.port);
@@ -118,7 +119,7 @@ test("a slow server is identified, not mistaken for an empty port", async () => 
   // The tester's case: /api/projects takes 4s (a cold `next dev` compiling it),
   // /api/health answers at once. The old check gave up after 2s and called the
   // port free.
-  const theirs = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n8-slow-"));
+  const theirs = scratchDir("n8-slow");
   const server = await serveAs(theirs, { projectsDelay: 4000 });
   try {
     const started = Date.now();
@@ -169,7 +170,7 @@ test("a genuinely empty port is free, and answers quickly", async () => {
 test("the expected data root is worked out the same way the server works it out", () => {
   // If these two disagree the script refuses to open the app against its own
   // library, and a check that cries wolf is one somebody switches off.
-  const lib = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n8-lib-"));
+  const lib = scratchDir("n8-lib");
   const out = execFileSync(
     "/bin/bash",
     ["-c", `set -u; . "${HELPER}"; snipai_expected_data_root "${REPO}"`],

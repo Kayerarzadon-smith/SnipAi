@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * N1 -- port 4737 does not identify our server, so the server has to say who
@@ -31,7 +32,7 @@ import path from "node:path";
  * nothing. The value is deliberately un-normalised -- see the second test.
  */
 
-const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n1-"));
+const ROOT = scratchDir("n1");
 fs.mkdirSync(path.join(ROOT, "projects"), { recursive: true });
 fs.mkdirSync(path.join(ROOT, "state"), { recursive: true });
 process.env.SNIPAI_DATA = path.join(ROOT, "projects", "..");

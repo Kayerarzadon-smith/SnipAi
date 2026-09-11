@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { scratchDir } from "./scratch.mts";
 
 /**
  * Joining one interrupted TikTok back into one recording. (DOCKET M0.8, R5a)
@@ -17,7 +18,7 @@ import path from "node:path";
  * SNIPAI_DATA first, dynamic import second: lib/paths.ts reads it once, at
  * import, and the fallback is his real library.
  */
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-stitch-"));
+const sandbox = scratchDir("stitch");
 fs.mkdirSync(path.join(sandbox, "projects"), { recursive: true });
 process.env.SNIPAI_DATA = sandbox;
 
@@ -192,7 +193,7 @@ const have = checkAvailability();
 
 test("three clips join into one file, in filmed order, without re-encoding",
   { skip: have.ffmpeg ? false : "no ffmpeg" }, async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-join-"));
+    const dir = scratchDir("join");
     const ff = resolvedFfmpeg();
 
     /* Names and stamps deliberately disagree: capture order is 03, 01, 02.
@@ -250,7 +251,7 @@ test("a clip trimmed without re-encoding is refused by name, before the copy",
        hid 1.1s joined to 9.34s instead of 8.34s, with duplicated audio at the
        seam, because the concat demuxer does not honour an edit list. A clip
        off the phone never looks like this; one trimmed in Photos does. */
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-elst-"));
+    const dir = scratchDir("elst");
     const ff = resolvedFfmpeg();
     const make = (name: string, extra: string[], stamp: string) =>
       runCommand(ff, [
@@ -297,7 +298,7 @@ test("a clip trimmed without re-encoding is refused by name, before the copy",
   });
 
 test("a join that would overwrite an existing file is refused", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-join-"));
+  const dir = scratchDir("join");
   const dest = path.join(dir, "joined.mov");
   fs.writeFileSync(dest, "not yours to clobber");
   const out = await joinClips([dest, dest], dest);

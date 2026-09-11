@@ -11,6 +11,12 @@ fail=0
 # what did not run, so the final line cannot claim it did
 skipped=""
 
+# Collect what a killed run left behind, before starting (ledger T19). The
+# scope argument lives in scripts/sweep-fixtures, which is a separate file so
+# that tests/regressions/T19-*.test.mts can drive it against real decoys.
+swept=$(./scripts/sweep-fixtures)
+[ "${swept:-0}" -gt 0 ] && printf "%sswept %s leftover fixture dir(s) from a previous run%s\n" "$DIM" "$swept" "$OFF"
+
 printf "\n%s== types ==%s\n" "$BOLD" "$OFF"
 if npx tsc --noEmit -p tsconfig.json; then printf "  %sclean%s\n" "$OK" "$OFF"
 else printf "  %sfailed%s\n" "$ERR" "$OFF"; fail=1; fi

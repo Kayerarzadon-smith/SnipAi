@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER T7 -- `./scripts/qa --regressions` printed an empty board.
@@ -35,7 +36,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 
 function fixtureBoard(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-t7-board-"));
+  const dir = scratchDir("t7-board");
   fs.writeFileSync(
     path.join(dir, "Z1-a-fixed-bug.test.mts"),
     `import test from "node:test";\n` +

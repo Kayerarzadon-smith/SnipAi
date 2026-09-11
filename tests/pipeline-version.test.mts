@@ -6,6 +6,7 @@ import os from "node:os";
 import { isCutStale, isPipelineBehind } from "../lib/cutFreshness.ts";
 import { manifestDrift, driftLines, versionStatus } from "../lib/pipelineVersion.ts";
 import { PROJECTS_ROOT, CODE_ROOT } from "../lib/paths.ts";
+import { scratchDir } from "./scratch.mts";
 
 /* A render is a snapshot of two things, not one: of the EDIT, and of the
    CUTTING that produced it. isCutStale has covered the first since 86a90d4.
@@ -93,7 +94,7 @@ describe("a build knows which pipeline made it", () => {
   });
 
   test("a pipeline we cannot read says so, instead of saying nothing", () => {
-    const empty = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-nocode-"));
+    const empty = scratchDir("nocode");
     const status = versionStatus(empty);
     assert.equal(status.ok, false);
     assert.equal(status.version, 0);

@@ -1,5 +1,6 @@
 import { registerHooks } from "node:module";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, openSync, closeSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, closeSync } from "node:fs";
+import { scratchDir } from "./scratch.mts";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import os from "node:os";
 import path from "node:path";
@@ -34,7 +35,7 @@ import path from "node:path";
  * where there was no answer and the fallback would have picked his footage.
  */
 if (!process.env.SNIPAI_DATA?.trim()) {
-  const sandbox = mkdtempSync(path.join(os.tmpdir(), "snipai-testrun-"));
+  const sandbox = scratchDir("testrun");
   mkdirSync(path.join(sandbox, "projects"), { recursive: true });
   mkdirSync(path.join(sandbox, "state"), { recursive: true });
   process.env.SNIPAI_DATA = sandbox;
@@ -78,13 +79,9 @@ if (!process.env.SNIPAI_DATA?.trim()) {
     process.stderr.write(`[2mSNIPAI_DATA unset -- test run sandboxed under ${os.tmpdir()}[0m\n`);
   }
 
-  process.on("exit", () => {
-    try {
-      rmSync(sandbox, { recursive: true, force: true });
-    } catch {
-      /* a leftover temp dir is not worth failing a run over */
-    }
-  });
+  /* No teardown here any more: `scratchDir` registered it. That is the point
+     of T19 -- one place removes these, so a new fixture cannot be added
+     without one and this file cannot drift from the rest. */
 }
 
 /**

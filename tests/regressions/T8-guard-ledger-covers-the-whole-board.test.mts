@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER T8 -- the guard that checks the ledger against the bug board was
@@ -40,7 +41,7 @@ const ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.ur
 type Row = [string, string];
 
 function fixture(files: Record<string, string>, rows: Row[]) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-t8-"));
+  const dir = scratchDir("t8");
   const board = path.join(dir, "board");
   fs.mkdirSync(board);
   for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(board, name), body);

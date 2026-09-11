@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * A throwaway SnipAi library.
@@ -11,7 +12,7 @@ import path from "node:path";
  * wrong and the test writes into the real ~/Movies/SnipAi.
  */
 export function tempLibrary(project = "fixture", beats: unknown[] = []): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-qa-"));
+  const root = scratchDir("qa");
   fs.mkdirSync(path.join(root, "projects", project), { recursive: true });
   fs.mkdirSync(path.join(root, "state"), { recursive: true });
   fs.writeFileSync(
@@ -56,7 +57,7 @@ export function repoApiRoutes(): string[] {
  * Caller deletes exactly the piece it wants to be missing.
  */
 export function bundleSkeleton(tag = "bundle"): string {
-  const app = fs.mkdtempSync(path.join(os.tmpdir(), `snipai-${tag}-`));
+  const app = scratchDir(tag);
   const res = path.join(app, "Contents", "Resources");
   fs.mkdirSync(path.join(res, "server"), { recursive: true });
   fs.mkdirSync(path.join(app, "Contents", "MacOS"), { recursive: true });

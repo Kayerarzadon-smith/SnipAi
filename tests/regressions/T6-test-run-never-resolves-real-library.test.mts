@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * T6 -- a test run must never resolve DATA_ROOT to the real library.
@@ -121,7 +122,7 @@ test("the redirected data root is a real, writable, throwaway directory", () => 
 test("an explicit SNIPAI_DATA still wins -- the guard only fills a gap", () => {
   // The guard must not override a data root the caller chose; every
   // regression fixture in tests/regressions/_fixture.mts depends on that.
-  const chosen = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-t6-"));
+  const chosen = scratchDir("t6");
   const out = execFileSync(
     process.execPath,
     [

@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER N4 -- nothing automated compiled or ran the Swift ownership rule.
@@ -46,7 +47,7 @@ const CHECKER = path.join(ROOT, "scripts", "check-launcher");
 /** A two-file Swift program shaped like the real pair: a rule, and a probe
  *  that exits on what the rule decided. `verdict` is the rule's answer. */
 function substitutePair(verdict: number | "uncompilable"): { rule: string; probe: string; dir: string } {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n4-"));
+  const dir = scratchDir("n4");
   const rule = path.join(dir, "Rule.swift");
   const probe = path.join(dir, "Probe.swift");
   fs.writeFileSync(

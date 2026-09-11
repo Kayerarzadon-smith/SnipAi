@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { scratchDir } from "./scratch.mts";
 
 /**
  * Which dropped clips are one interrupted TikTok. (DOCKET M0.8, R5)
@@ -18,7 +19,7 @@ import path from "node:path";
  * SNIPAI_DATA first, dynamic import second: lib/paths.ts reads it once, at
  * import, and its fallback is his real library.
  */
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-grouping-"));
+const sandbox = scratchDir("grouping");
 fs.mkdirSync(path.join(sandbox, "projects"), { recursive: true });
 process.env.SNIPAI_DATA = sandbox;
 

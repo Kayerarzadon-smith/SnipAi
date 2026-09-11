@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * "Transcribed" means the work, not one of the files it leaves behind.
@@ -23,7 +24,7 @@ import path from "node:path";
  * The failure it prevents is the nastiest shape this project keeps paying for:
  * nothing is missing, nothing errors, and the beats are simply worse.
  */
-const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-transcribe-step-"));
+const sandbox = scratchDir("transcribe-step");
 fs.mkdirSync(path.join(sandbox, "projects"), { recursive: true });
 process.env.SNIPAI_DATA = sandbox;
 

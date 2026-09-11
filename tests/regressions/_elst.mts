@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * Ground-truth clips for S34/S35/S36, built with ffmpeg rather than copied
@@ -54,7 +55,7 @@ export type Kit = {
  * encoder rather than to the question.
  */
 export function buildKit(tag = "elst"): Kit {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `snipai-${tag}-`));
+  const dir = scratchDir(tag);
   const make = (name: string, seconds: number, hz: number, bframes: boolean) => {
     const out = path.join(dir, name);
     run([

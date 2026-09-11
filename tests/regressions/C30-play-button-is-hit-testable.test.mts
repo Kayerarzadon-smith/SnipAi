@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER C30 -- the Live edit Play/Pause button received no mouse clicks.
@@ -202,7 +203,7 @@ type Case = {
 
 let probeBin: string | null = null;
 function probe(width: number, height: number): Case[] {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-c30-"));
+  const dir = scratchDir("c30");
   if (!probeBin) {
     const bin = path.join(dir, "layout-probe");
     const built = spawnSync("swiftc", ["-O", PROBE_SRC, "-o", bin], { encoding: "utf8" });

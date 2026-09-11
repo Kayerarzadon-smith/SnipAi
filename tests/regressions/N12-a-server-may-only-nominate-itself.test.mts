@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { scratchDir } from "../scratch.mts";
 
 /**
  * LEDGER N12 -- quit could SIGTERM a third party that never claimed anything,
@@ -146,7 +147,7 @@ function readout(bin: string, port: number): Record<string, string> {
 }
 
 test("N12: a server that names somebody else's pid gets nobody signalled", async (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n12-"));
+  const dir = scratchDir("n12");
   const port = freePort();
   let bystander: ChildProcess | undefined;
   let impostor: ChildProcess | undefined;
@@ -222,7 +223,7 @@ test("N12: a lone server that identifies itself is still ours to stop", async (t
   // longer stop its OWN orphan, it would have traded N12 for N9 -- a rule that
   // is safe because it never claims anything, which is the exact defect N9
   // records and calls "right by accident".
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-n12b-"));
+  const dir = scratchDir("n12b");
   const port = freePort();
   let ours: ChildProcess | undefined;
   t.after(() => {

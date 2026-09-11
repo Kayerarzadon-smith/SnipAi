@@ -240,6 +240,39 @@ videos, with nothing flagged) is held behind S34/S35 on Nadia's judgement,
 which I agree with: a grouping fix cannot be evaluated without being able to
 see the joined result.
 
+**Same evening, after Theo landed `2bb2b96`: the rebundle is now the next row,
+and S35's premise did not reproduce.** Two changes to the ruling directly
+above, both from observed evidence rather than from a re-think.
+
+**S34 and S36 are fixed and green** — 225/225, `fail 0`, `guard-ledger`
+agreeing across 26 ids with S34 and S36 among them. S34 was not fixed by
+widening a threshold, which is the outcome the row argued for and the one
+Nadia asked for: the guard now decides from the **video** track's edit list,
+where a trim shows and priming does not, measured by demuxing each track to
+`-f null` with and against `-ignore_editlist`. All eight of his real files hide
+**0.0000s** of picture; the same clip after `ffmpeg -ss 1.1 -c copy` shows
+4.83 -> 6.00. That is a mechanism rather than a magnitude, so a 0.2s Photos
+trim — which any constant set clear of 0.09s would have waved through — is
+still refused.
+
+**The rebundle moves to the front, by my own stated reason rather than against
+it.** I sequenced it last because a tray whose only multi-clip path refuses
+every clip he owns is worse than no tray. That reason is now gone. N15 is the
+next row and it is Ruth's, and the tester run that follows it does triple duty:
+it is M0.8's exit line, it is where S35's failing case either appears or does
+not, and it is what unblocks S37, E4 and E5 by producing a real joined cut.
+
+**S35 stays open with its premise unreproduced, and that is the right state
+for it.** Theo measured drift on `0060+0061` at **~0.04s against a 0.067s
+window** — so on the pair the report cites, nothing refuses a correct join. He
+hardened the window in the same commit and declined to "fix" a case he could
+not reproduce, which is exactly what dev is supposed to do with a row whose
+premise does not hold. **This is a disagreement between two roles, not a
+mistake by either, and it does not get resolved by a third guess from me:** it
+needs Nadia's actual failing case — the two file names and the two numbers —
+which the rebundled run will produce or disprove. It does not block the
+rebundle.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

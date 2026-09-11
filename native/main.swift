@@ -36,7 +36,20 @@ let kVideoExtensions = ["mov", "mp4", "m4v", "avi", "mkv", "webm"]
 /// can be dragged to /Applications or handed to someone.
 ///
 /// A checkout with no bundled Resources falls back to running the repo it
-/// sits in, so `swiftc native/main.swift` still gives a working dev launcher.
+/// sits in, so a dev launcher still works. Build it with BOTH files:
+///
+///     swiftc -o "$TMPDIR/SnipAiDev" native/LaunchDecision.swift native/main.swift
+///
+/// `swiftc native/main.swift` alone has not built since the server-ownership
+/// rule moved out into native/LaunchDecision.swift -- it fails with `cannot
+/// find 'decideLaunch' / 'PortOccupant' / 'ourOrphanPIDs' in scope` (ledger
+/// N3). Naming the two files rather than globbing `native/*.swift` is also
+/// deliberate: native/snapshot.swift is a separate standalone program with its
+/// own top-level code, and two mains cannot share a binary.
+///
+/// The same pair is what scripts/bundle-app compiles and what
+/// scripts/check-launcher compiles on every run of ./scripts/test, so this
+/// command cannot go stale again without a gate going red.
 struct Layout {
     let node: String
     let server: String        // server.js

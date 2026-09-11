@@ -132,6 +132,20 @@ mostly done as a result, `scripts/test` now prints an honest verdict.
 5 of 6, the one red being S1, kept red on purpose. S18 and S19 both green.
 M-app does **not** close on that alone — see its row.
 
+**C35 jumps C27, 2026-09-11.** `review/page.tsx:1831` tells him he is watching
+*"the original footage"* on the exact branch that plays the 720p proxy
+(`:1860`), while the same toolbar's tooltip two rows away calls it "a small
+copy". It is live every time he opens a project, and on a product whose
+subject is skin texture it means **he judges focus and detail on a downscale
+believing it is the original** — he can approve a soft cut or reject a sharp
+one, and either way the screen has taught him to distrust his own eyes. C27 is
+an annoyance he has reported twice; this is a claim about picture quality that
+can put a bad video out. **The scope is small and that is part of the ruling:**
+the proxy is correct on the live path — it is what makes every trim instant —
+and **Rendered file** is already full resolution, so the fix is to stop
+claiming otherwise and point at where quality can be judged, not to put the
+original on the live path.
+
 **C32 jumps the queue, 2026-09-11 — the third and last true jump of this
 project so far.** `review/page.tsx:1192`: the Trash button toasts *"Sent back
 to re-cut"* and bins the video. No job is queued, `review-state.json` records

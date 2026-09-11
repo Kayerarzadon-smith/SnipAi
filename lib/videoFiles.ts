@@ -22,6 +22,25 @@ export function isVideoName(name: string): boolean {
   return VIDEO_EXT.test(name);
 }
 
+/**
+ * "IMG_9817.MOV" -> "img-9817", the project a file would be imported as.
+ *
+ * Lives here rather than in the drop tray because the tray is no longer the
+ * only thing that needs it: a proposed GROUP of clips is named after its
+ * first clip, and the name has to be the same one the import would produce or
+ * the tray is showing him something that will not happen (DOCKET M0.8).
+ */
+export function projectNameFor(fileName: string): string {
+  return (
+    fileName
+      .replace(/\.[^.]+$/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "untitled"
+  );
+}
+
 /** "…: .mov, .mp4, .m4v, .avi, .mkv or .webm" -- for saying what is accepted. */
 export function acceptedList(): string {
   const l = VIDEO_EXT_LIST;

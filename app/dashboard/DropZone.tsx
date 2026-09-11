@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isVideoName } from "@/lib/videoFiles";
+import { isVideoName, projectNameFor } from "@/lib/videoFiles";
 import { useRouter } from "next/navigation";
 
 type Existing = { project: string; name: string; size: number }[];
@@ -18,17 +18,9 @@ type Queued = {
   pct?: number;
 };
 
-/** "IMG_9817.MOV" -> "img-9817" */
-function projectNameFor(fileName: string): string {
-  return (
-    fileName
-      .replace(/\.[^.]+$/, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "untitled"
-  );
-}
+/* projectNameFor moved to lib/videoFiles.ts: a proposed GROUP of clips is
+   named the same way (DOCKET M0.8), and two copies of that rule would let the
+   tray promise a project name the import does not produce. */
 
 function mb(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;

@@ -55,9 +55,18 @@ does **not** pass environment through LaunchServices — exec the binary directl
 
     SNIPAI_DATA=~/Movies/SnipAi/qa-sandbox exec ~/Projects/SnipAi/SnipAi.app/Contents/MacOS/SnipAi
 
-Opening a real project read-only to cross-check a number is fine and often
+Opening a real project to cross-check a number is fine and often
 worth it — the cut-length bug was only convincing once it was shown on
 `img-9817` and `img-9823`. Editing one is not.
+
+**But "read-only" is not literally true, so do not promise it.** Viewing a
+project writes filmstrip cache into `work/strips/`. Measured 2026-09-11: a
+fingerprint of 949 files across both real projects, before and after a viewing
+session, came back 0 removed, 0 modified, **26 added** — every one a strip
+cache file. `beats.json`, `review-state.json` and `work/edl.json` were
+byte-identical, so nothing that matters was touched. Fingerprint before and
+after and report what actually changed, rather than asserting a guarantee the
+app does not give you.
 
 ## Never trust the UI's numbers
 

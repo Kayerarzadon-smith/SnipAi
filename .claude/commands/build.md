@@ -117,6 +117,46 @@ Say so in every report. Do not quietly skip them.
 
 ---
 
+## When the app is finished
+
+Kayer asked for every bug fixed. That needs a finish line a machine can
+recognise, or "done" is just a feeling. All six, at once:
+
+1. **Zero `open` defect rows** in `audits/LEDGER.md` — the server, client,
+   tooling, pipeline and edit-quality sections. As of 2026-09-11 that is
+   **60**. Rows marked `wontfix` are decided, not outstanding, and do not
+   count; neither do the half-built, dead-code or hygiene sections, which are
+   their own milestones.
+2. **Zero half-built rows** (H1-H9). A feature that exists but cannot be
+   reached is not a fixed bug, it is an unfinished promise, and he asked for
+   all of his features.
+3. **`./scripts/test` green**, with its verdict line agreeing with its counts
+   and nothing silently skipped — which means the pipeline venv problem (T4)
+   is actually solved, not skipped past.
+4. **`./scripts/qa --full` clean**, and `node --import ./tests/register.mts
+   qa/run.mts` reporting zero distinct failures across all 2,000+ scenarios,
+   including the `022 looks` and `023 gates` suites.
+5. **A fresh `/qa` judgment pass finds nothing new.** Not "nothing serious" —
+   nothing. This is the real gate, and it is the one that will hold longest.
+6. **`snipai-tester` completes the whole journey on the packaged app**:
+   raw footage in, a cut out, reviewed at all three levels, and a file Kayer
+   can post — with no step requiring a terminal.
+
+## Expect the number to rise before it falls
+
+This will happen and it is not failure. A QA function that is working finds
+bugs faster than one implementer fixes them, especially early: `snipai-qa`
+reads code that has never been read adversarially, and `snipai-tester` is
+about to run surfaces that have never been driven end to end. The count
+going from 60 to 80 after a good run means the team is doing its job and the
+ledger is getting honest, not that the app got worse — the bugs were already
+there, uncounted.
+
+Report the number every run, both directions, and say which way it moved and
+why. Never quietly close a row to make the count look better; `guard-ledger.py`
+will catch it, and it is the one dishonesty that would make the whole ledger
+worthless.
+
 ## The loop
 
 ```

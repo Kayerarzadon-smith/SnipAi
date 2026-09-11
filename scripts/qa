@@ -121,7 +121,22 @@ tests() {
   # ./scripts/test runs `tsc --noEmit` itself before the suite, so QA does not
   # type-check separately -- on this repo that was twenty seconds of duplicate work
   hdr "types and tests"
-  out=$(./scripts/test 2>&1); echo "$out" | tail -14 | sed 's/^/  /'
+  # Keep the status. This used to be `out=$(./scripts/test 2>&1)` followed by
+  # `grep -q "fail 0"`, which threw the exit code away and decided on a string
+  # -- and that string is node's summary line for the app suite ONLY. A `tsc
+  # --noEmit` failure, a red guard or a failing Python unittest case produces
+  # no "fail 0" line and suppresses none, so all three passed the gate. A run
+  # on 2026-09-11 printed "something is broken -- do not ship" in this very
+  # section and ended "notes above, nothing blocking", exit 0 (ledger T3).
+  # scripts/bundle-app:23-26 reads this exit code to decide whether an artifact
+  # may leave the machine, so this was a release gate that could not fail.
+  out=$(./scripts/test 2>&1); status=$?
+  if [ "$status" = 0 ]; then echo "$out" | tail -14 | sed 's/^/  /'
+  else
+    # On failure show more: the cause is often tsc at the TOP of the output,
+    # which `tail -14` cut off, leaving a red verdict with no visible reason.
+    echo "$out" | tail -40 | sed 's/^/  /'
+  fi
   # Only when something ACTUALLY skipped. node prints "skipped 0" on every run,
   # so a bare grep for the word fired every time -- and a warning that is always
   # there is a warning nobody reads. The two real cases are the pipeline suite
@@ -130,7 +145,7 @@ tests() {
      echo "$out" | grep -qE "skipped ([1-9][0-9]*)$"; then
     note "a suite was SKIPPED -- 'all green' does not mean all ran"
   fi
-  echo "$out" | grep -q "fail 0" || bad "test failures above"
+  [ "$status" = 0 ] || bad "./scripts/test exited $status -- types, tests, guards or the pipeline suite"
 }
 
 regressions() {
@@ -169,9 +184,13 @@ regressions() {
 
 sweeps() {
   hdr "edits that never rebuild"
-python3 scripts/guard-rebuild.py || true
-  python3 scripts/guard-open-panel.py || true
-  python3 scripts/guard-ledger.py || true
+  # `|| true` here meant a guard could report its own defect and pass the run
+  # anyway -- the same discarded-status fault as tests() above, one function
+  # down, and scripts/test:44 already names it as a known fault of this file.
+  # A guard that cannot fail the run is a comment.
+  for g in scripts/guard-rebuild.py scripts/guard-open-panel.py scripts/guard-ledger.py; do
+    python3 "$g" || bad "$(basename "$g") is reporting a problem (above)"
+  done
 
 hdr "orphaned API routes"
   found=0

@@ -776,6 +776,47 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
 .import-row.duplicate .import-name { color: var(--text-faint); text-decoration: line-through; }
 .import-row.done .import-status { color: var(--good); }
 .import-row.error .import-status { color: var(--critical); }
+.import-row.plain { border-top: none; padding: 5px 0; }
+
+/* ---- the proposal (DOCKET M0.8) ----------------------------------------
+   The tray proposes and does not decide, so every claim it makes is a
+   sentence with a reason attached and a control beside it for saying no. */
+.import-foot { font-size: 12.5px; color: var(--text-muted); padding: 8px 2px 2px; line-height: 1.5; }
+.import-foot.dim { color: var(--text-faint); }
+.import-problem { font-size: 12.5px; color: var(--critical); background: var(--critical-soft);
+                  border-radius: var(--radius-sm); padding: 8px 10px; margin-top: 8px; line-height: 1.5; }
+.import-dupe.subtle { color: var(--text-muted); background: var(--border-soft); }
+
+.import-bar { height: 4px; background: var(--border-soft); border-radius: 999px; overflow: hidden; margin: 4px 0 2px; }
+.import-bar-fill { display: block; height: 100%; background: var(--accent); transition: width .4s linear; }
+
+/* the one thing it is genuinely unsure about, at the top where it cannot be
+   missed -- an unsure seam is proposed as a break and asked about */
+.import-eye { border: 1px solid var(--accent); background: var(--accent-soft);
+              border-radius: var(--radius-sm); padding: 10px 12px; margin: 4px 0 12px; }
+.import-eye b { font-size: 12.5px; display: block; margin-bottom: 4px; }
+.import-eye-row { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+
+.import-card { border: 1px solid var(--border); border-radius: var(--radius-sm);
+               padding: 10px 12px; }
+.import-card.blocked { border-color: var(--critical); }
+.import-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.import-card-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.import-name-input { background: transparent; border: 1px solid transparent; border-radius: 5px;
+                     color: var(--text); font-size: 13px; padding: 3px 6px; min-width: 12ch; }
+.import-name-input:hover { border-color: var(--border); }
+.import-name-input:focus { border-color: var(--accent); outline: none; }
+
+/* why two clips are in the same project, between the two clips it is about */
+.import-seam { display: flex; align-items: center; gap: 10px; padding: 4px 0 4px 10px;
+               margin-left: 3px; border-left: 2px solid var(--accent);
+               font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+.import-seam-why { flex: 1; }
+/* ...and why the next project is a different video */
+.import-split { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+.import-split-line { width: 18px; height: 1px; background: var(--border); }
+.import-split-why { flex: 1; font-size: 12px; color: var(--text-faint); }
+.btn-xs { font-size: 11.5px; padding: 2px 8px; }
 .empty-hint { color: var(--text-muted); font-size: 13.5px; padding: 8px 2px; }
 
 /* one line where three stat cards used to be. The cards were three numbers

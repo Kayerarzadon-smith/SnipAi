@@ -18,6 +18,42 @@ type Queued = {
   pct?: number;
 };
 
+/* The shapes the server sends back. Kept narrow on purpose: the tray renders
+   sentences the server wrote, and inventing its own wording here is how a
+   proposal starts promising something the import does not do. */
+type TraySeam = { from: string; to: string; verdict: string; reasons: string[] };
+type ProposedProject = {
+  project: string;
+  files: string[];
+  totalDurationSec: number | null;
+  joinedBy: TraySeam[];
+  separatedBy: TraySeam | null;
+  blocker: string | null;
+  interleaved: boolean;
+};
+type Proposal = {
+  basis: string;
+  projects: ProposedProject[];
+  needsYourEye: { from: string; to: string; reasons: string[] }[];
+  notTranscribed: string[];
+};
+type BatchState = {
+  batch: {
+    id: string;
+    status: string;
+    files: { name: string; sizeBytes: number }[];
+    error?: string;
+    proposal?: Proposal;
+    imported?: { project: string; clips: number; cutFile?: string }[];
+  };
+  job: { id: string; status: string; progress?: number; stage?: string;
+         etaSeconds?: number; error?: string } | null;
+};
+
+/** What he can change about a proposal: which clips are in which project, and
+ *  what each project is called. Everything else is derived. */
+type Group = { project: string; files: string[] };
+
 /* projectNameFor moved to lib/videoFiles.ts: a proposed GROUP of clips is
    named the same way (DOCKET M0.8), and two copies of that rule would let the
    tray promise a project name the import does not produce. */
@@ -26,8 +62,21 @@ function mb(bytes: number) {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
+function clock(sec: number | null): string {
+  if (sec === null || !Number.isFinite(sec)) return "";
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return m ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}
+
+function eta(seconds?: number): string {
+  if (!seconds || seconds < 5) return "";
+  const m = Math.round(seconds / 60);
+  return m < 1 ? "under a minute left" : m === 1 ? "about a minute left" : `about ${m} minutes left`;
+}
+
 /**
- * Send the file as a raw body, with progress.
+ * Send one clip to staging, with progress.
  *
  * XHR rather than fetch, for the one thing XHR still does that fetch cannot:
  * `upload.onprogress`. Without it there is no honest way to show how far a
@@ -38,14 +87,13 @@ function mb(bytes: number) {
  * nothing has to hold the file in memory at either end.
  */
 function upload(
-  project: string,
+  batch: string,
   file: File,
   onProgress: (pct: number) => void
-): Promise<{ ok: boolean; body: { project?: string; error?: string } }> {
+): Promise<{ ok: boolean; body: { file?: string; error?: string } }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/projects");
-    xhr.setRequestHeader("x-snipai-project", project);
+    xhr.open("POST", `/api/import/${batch}/files`);
     // headers are latin-1; a filename with an accent in it must be encoded
     xhr.setRequestHeader("x-snipai-filename", encodeURIComponent(file.name));
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
@@ -57,7 +105,7 @@ function upload(
     // smaller window, so the row says what is actually happening.
     xhr.upload.onload = () => onProgress(100);
     const done = (ok: boolean, fallback: string) => {
-      let body: { project?: string; error?: string } = {};
+      let body: { file?: string; error?: string } = {};
       try { body = JSON.parse(xhr.responseText); } catch { body = { error: fallback }; }
       resolve({ ok, body });
     };
@@ -75,10 +123,19 @@ function upload(
 }
 
 /**
- * Drag anywhere on the page. The zone only appears while a file is actually
- * over the window -- a permanent dropbox on a queue that already has projects
- * is dead space. When the queue is empty it renders inline instead, because
- * then dropping footage is the only thing worth doing.
+ * Drop footage, see what it thinks the videos are, say yes.
+ *
+ * The tray's instruction is **propose, do not decide** (DOCKET M0.8). Kayer is
+ * interrupted mid-take -- kid, door, life -- so one TikTok reaches the app as
+ * three or four clips, and he also batch-films several different TikToks in
+ * one sitting. Both arrive as "a pile of clips", and getting it wrong is
+ * expensive in both directions: stitching two separate videos produces a
+ * garbage cut, splitting one interrupted video means re-shooting. So the app
+ * says what it thinks and why, in his words, and waits.
+ *
+ * Nothing here decides anything either. `confirm` sends the grouping that is
+ * ON SCREEN, so agreeing and regrouping are the same path -- there is no
+ * branch where the proposal acts on itself.
  */
 export function DropZone({
   existing,
@@ -94,6 +151,11 @@ export function DropZone({
   const [dragging, setDragging] = useState(false);
   const [queued, setQueued] = useState<Queued[]>([]);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<"choosing" | "uploading" | "analysing" | "proposing" | "importing" | "done">("choosing");
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [state, setState] = useState<BatchState | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [problem, setProblem] = useState<string | null>(null);
   const depth = useRef(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -130,6 +192,8 @@ export function DropZone({
         seen.add(key);
         return true;
       });
+      setProblem(null);
+      setPhase("choosing");
       setQueued([
         ...rejected,
         ...empties,
@@ -188,54 +252,170 @@ export function DropZone({
   }, [accept]);
 
   /* A ref, not the `busy` state, because state is asynchronous.
-     
+
      The button is disabled on `busy`, but React has not re-rendered yet when
-     the second half of a double-click arrives — so both clicks ran importAll,
-     both POSTed the same file, and the loser came back 409 "project already
-     exists". An error row, for pressing the button the way people press
-     buttons. */
-  const importing = useRef(false);
+     the second half of a double-click arrives — so both clicks ran the
+     upload, both POSTed the same file, and the loser came back an error. */
+  const working = useRef(false);
 
-  async function importAll() {
-    if (importing.current) return;
-    importing.current = true;
-    setBusy(true);
-    for (let i = 0; i < queued.length; i++) {
-      const item = queued[i];
-      if (item.status === "duplicate" || item.status === "done" || item.status === "rejected") continue;
-      setQueued((q) => q.map((x, n) => (n === i ? { ...x, status: "uploading", pct: 0 } : x)));
-      const { ok, body } = await upload(
-        projectNameFor(item.name), item.file,
-        (pct) => setQueued((q) => q.map((x, n) => (n === i ? { ...x, pct } : x))));
-
-      // Dropping footage should be the whole instruction. Kick the pipeline
-      // off here so it starts transcribing, drafting and cutting on its own --
-      // one job, one bar, no clicking through four steps. It queues, so a
-      // batch of five starts the first and the rest wait their turn.
-      if (ok && body.project) {
-        fetch(`/api/projects/${body.project}/pipeline`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ step: "auto" }),
-        }).catch(() => {});
+  /** Poll one batch until its job stops running. The analyse job transcribes
+   *  every clip, which is minutes on this machine, so this is the same
+   *  every-second poll the review screen uses rather than a held-open
+   *  request. */
+  const pollBatch = useCallback(async (id: string): Promise<BatchState | null> => {
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1200));
+      let s: BatchState;
+      try {
+        const res = await fetch(`/api/import/${id}`, { cache: "no-store" });
+        if (!res.ok) return null;
+        s = (await res.json()) as BatchState;
+      } catch {
+        continue; // a dropped poll is not a failed import
       }
-      setQueued((q) =>
-        q.map((x, n) =>
-          n === i
-            ? { ...x, status: ok ? "done" : "error", pct: undefined,
-                message: ok ? undefined : body.error }
-            : x
-        )
-      );
+      setState(s);
+      if (s.job && s.job.status !== "running") return s;
+      if (!s.job) return s;
     }
-    setBusy(false);
-    importing.current = false;
-    router.refresh();
+  }, []);
+
+  /** Upload everything ready, then ask the server what these clips are. */
+  async function lookAtThem() {
+    if (working.current) return;
+    working.current = true;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const made = await fetch("/api/import", { method: "POST" });
+      const madeBody = (await made.json()) as { batch?: string; error?: string };
+      if (!made.ok || !madeBody.batch) throw new Error(madeBody.error ?? "could not start the import");
+      const batch = madeBody.batch;
+      setBatchId(batch);
+      setPhase("uploading");
+
+      for (let i = 0; i < queued.length; i++) {
+        const item = queued[i];
+        if (item.status !== "ready") continue;
+        setQueued((q) => q.map((x, n) => (n === i ? { ...x, status: "uploading", pct: 0 } : x)));
+        const { ok, body } = await upload(batch, item.file, (pct) =>
+          setQueued((q) => q.map((x, n) => (n === i ? { ...x, pct } : x))));
+        setQueued((q) =>
+          q.map((x, n) =>
+            n === i
+              ? { ...x, status: ok ? "done" : "error", pct: undefined, message: ok ? undefined : body.error }
+              : x));
+      }
+
+      setPhase("analysing");
+      const started = await fetch(`/api/import/${batch}/analyse`, { method: "POST" });
+      if (!started.ok) {
+        throw new Error((await started.json()).error ?? "could not look at these clips");
+      }
+      const finished = await pollBatch(batch);
+      const proposal = finished?.batch.proposal;
+      if (!proposal) {
+        throw new Error(finished?.job?.error ?? finished?.batch.error ?? "could not work out what these clips are");
+      }
+      setGroups(proposal.projects.map((p) => ({ project: p.project, files: [...p.files] })));
+      setPhase("proposing");
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : String(err));
+      setPhase("choosing");
+    } finally {
+      setBusy(false);
+      working.current = false;
+    }
   }
+
+  /** Say yes to what is on screen. */
+  async function confirmGroups() {
+    if (working.current || !batchId) return;
+    working.current = true;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const res = await fetch(`/api/import/${batchId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groups }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "could not start the import");
+      setPhase("importing");
+      router.refresh(); // the projects exist from here on; show them building
+      const finished = await pollBatch(batchId);
+      if (finished?.job?.status === "error") throw new Error(finished.job.error ?? "the import failed");
+      setPhase("done");
+      setQueued([]);
+      setBatchId(null);
+      setState(null);
+      setGroups([]);
+      router.refresh();
+    } catch (err) {
+      setProblem(err instanceof Error ? err.message : String(err));
+      setPhase("proposing");
+    } finally {
+      setBusy(false);
+      working.current = false;
+    }
+  }
+
+  async function startOver() {
+    if (batchId) await fetch(`/api/import/${batchId}`, { method: "DELETE" }).catch(() => {});
+    setQueued([]);
+    setGroups([]);
+    setState(null);
+    setBatchId(null);
+    setProblem(null);
+    setPhase("choosing");
+  }
+
+  /* ---- regrouping: the two things he can say back ---- */
+
+  const rename = (i: number, name: string) =>
+    setGroups((g) => g.map((x, n) => (n === i ? { ...x, project: name } : x)));
+
+  /** "These two are one video." The merged project keeps the first one's name,
+   *  because the first clip is what the import names a project after. */
+  const mergeWithNext = (i: number) =>
+    setGroups((g) => {
+      if (i + 1 >= g.length) return g;
+      const merged = { project: g[i].project, files: [...g[i].files, ...g[i + 1].files] };
+      return [...g.slice(0, i), merged, ...g.slice(i + 2)];
+    });
+
+  /** "No, that one is its own video." Splits a project in two before clip k. */
+  const splitAt = (i: number, k: number) =>
+    setGroups((g) => {
+      const head = g[i].files.slice(0, k);
+      const tail = g[i].files.slice(k);
+      if (!head.length || !tail.length) return g;
+      const taken = new Set([...g.map((x) => x.project), ...existing.map((e) => e.project)]);
+      let name = projectNameFor(tail[0]);
+      for (let n = 2; taken.has(name); n++) name = `${projectNameFor(tail[0])}-${n}`;
+      return [...g.slice(0, i), { ...g[i], files: head }, { project: name, files: tail }, ...g.slice(i + 1)];
+    });
+
+  const proposal = state?.batch.proposal ?? null;
+  const sizeOf = (name: string) =>
+    state?.batch.files.find((f) => f.name === name)?.sizeBytes ??
+    queued.find((q) => q.name === name)?.file.size ?? 0;
+  /* The proposal's own card for a group, matched on its first clip, so a
+     regrouped card still shows the reasons that belong to it and never
+     borrows another card's. */
+  const cardFor = (g: Group) => proposal?.projects.find((p) => p.files[0] === g.files[0]) ?? null;
+  const seamFor = (from: string, to: string) => {
+    for (const p of proposal?.projects ?? []) {
+      const hit = p.joinedBy.find((s) => s.from === from && s.to === to);
+      if (hit) return hit;
+      if (p.separatedBy && p.separatedBy.from === from && p.separatedBy.to === to) return p.separatedBy;
+    }
+    return null;
+  };
 
   const importable = queued.filter((q) => q.status === "ready").length;
   const dupes = queued.filter((q) => q.status === "duplicate").length;
   const rejects = queued.filter((q) => q.status === "rejected").length;
+  const job = state?.job ?? null;
 
   return (
     <>
@@ -255,7 +435,7 @@ export function DropZone({
               <path d="M3.5 15.5v2.2a2.3 2.3 0 0 0 2.3 2.3h12.4a2.3 2.3 0 0 0 2.3-2.3v-2.2" />
             </svg>
             <div className="drop-title">Drop footage to start a project</div>
-            <div className="drop-sub">Drop several at once — they queue up</div>
+            <div className="drop-sub">Drop the whole take — several clips at once is the point</div>
           </div>
         </div>
       )}
@@ -267,19 +447,26 @@ export function DropZone({
             <path d="M3.5 15.5v2.2a2.3 2.3 0 0 0 2.3 2.3h12.4a2.3 2.3 0 0 0 2.3-2.3v-2.2" />
           </svg>
           <div className="drop-title">Drop your footage here</div>
-          <div className="drop-sub">or click to choose — several at once is fine</div>
+          <div className="drop-sub">or click to choose — if one video came out as several clips, drop them all</div>
         </button>
       )}
 
-      {queued.length > 0 && (
+      {problem && (
+        <div className="import-tray">
+          <div className="import-problem">✕ {problem}</div>
+        </div>
+      )}
+
+      {/* ---- before he has said go: the files, as files ---- */}
+      {queued.length > 0 && (phase === "choosing" || phase === "uploading") && (
         <div className="import-tray">
           <div className="import-head">
             <b>{queued.length} file{queued.length === 1 ? "" : "s"} to import</b>
             {dupes > 0 && <span className="import-dupe">{dupes} already imported</span>}
             {rejects > 0 && <span className="import-dupe">{rejects} not video</span>}
-            <button className="btn btn-ghost btn-sm" onClick={() => setQueued([])} disabled={busy}>Clear</button>
-            <button className="btn btn-primary btn-sm" onClick={importAll} disabled={busy || importable === 0}>
-              {busy ? "Importing…" : `Import ${importable}`}
+            <button className="btn btn-ghost btn-sm" onClick={startOver} disabled={busy}>Clear</button>
+            <button className="btn btn-primary btn-sm" onClick={lookAtThem} disabled={busy || importable === 0}>
+              {busy ? "Reading them…" : importable === 1 ? "Read this clip" : `Read these ${importable} clips`}
             </button>
           </div>
           {queued.map((q, i) => (
@@ -291,17 +478,181 @@ export function DropZone({
               <span className="import-size mono">{mb(q.file.size)}</span>
               <span className="import-status">
                 {q.status === "duplicate" && `⚠ ${q.message}`}
-                {q.status === "ready" && `→ ${projectNameFor(q.name)}`}
+                {q.status === "ready" && "ready"}
                 {q.status === "uploading" &&
-                  (q.pct === undefined ? "importing…"
+                  (q.pct === undefined ? "copying…"
                    : q.pct < 100 ? `copying ${q.pct}%`
                    : "filing it away…")}
-                {q.status === "done" && "✓ imported"}
+                {q.status === "done" && "✓ copied"}
                 {q.status === "error" && `✕ ${q.message ?? "failed"}`}
                 {q.status === "rejected" && `✕ ${q.message}`}
               </span>
             </div>
           ))}
+          {phase === "choosing" && importable > 1 && (
+            <div className="import-foot">
+              Nothing is imported yet. SnipAi listens to each clip first, then shows you
+              which of them it thinks are one video — you decide before anything is cut.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- listening ---- */}
+      {phase === "analysing" && (
+        <div className="import-tray">
+          <div className="import-head">
+            <b>Working out what these clips are…</b>
+          </div>
+          <div className="import-bar">
+            <span className="import-bar-fill" style={{ width: `${job?.progress ?? 2}%` }} />
+          </div>
+          <div className="import-foot">
+            {job?.stage ?? "listening to each clip"}
+            {eta(job?.etaSeconds) ? ` — ${eta(job?.etaSeconds)}` : ""}
+          </div>
+          <div className="import-foot dim">
+            Transcribing is the slow part. It is what tells an interrupted take from
+            the next video, so it happens before anything is decided.
+          </div>
+        </div>
+      )}
+
+      {/* ---- the proposal ---- */}
+      {phase === "proposing" && proposal && (
+        <div className="import-tray">
+          <div className="import-head">
+            <b>
+              {groups.length === 1
+                ? "This looks like one video"
+                : `This looks like ${groups.length} videos`}
+            </b>
+            <span className="import-dupe subtle">
+              {state?.batch.files.length} clip{state?.batch.files.length === 1 ? "" : "s"}
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={startOver} disabled={busy}>Cancel</button>
+            <button className="btn btn-primary btn-sm" onClick={confirmGroups} disabled={busy}>
+              {busy ? "Importing…" : groups.length === 1 ? "Import it" : `Import ${groups.length} projects`}
+            </button>
+          </div>
+
+          {proposal.needsYourEye.length > 0 && (
+            <div className="import-eye">
+              <b>Worth your eye</b>
+              {proposal.needsYourEye.map((s) => (
+                <div key={`${s.from}-${s.to}`} className="import-eye-row">
+                  <span className="mono">{s.from} → {s.to}</span>: {s.reasons.join(". ")}.
+                  {" "}Kept separate for now — join them below if they are one video.
+                </div>
+              ))}
+            </div>
+          )}
+
+          {groups.map((g, i) => {
+            const card = cardFor(g);
+            /* A duration is only shown while the card is still the one that
+               was proposed. The moment he merges or splits, the total the
+               server measured is a total of different clips -- and a number
+               that is quietly about something else is worse than no number. */
+            const asProposed =
+              card !== null &&
+              card.files.length === g.files.length &&
+              card.files.every((f, n) => f === g.files[n]);
+            const total = asProposed ? card.totalDurationSec : null;
+            const split = card?.separatedBy ?? null;
+            return (
+              <div key={`${g.project}-${i}`}>
+                {i > 0 && (
+                  <div className="import-split">
+                    <span className="import-split-line" />
+                    <span className="import-split-why">
+                      {split ? split.reasons[0] : "kept as separate videos"}
+                    </span>
+                    <button className="btn btn-ghost btn-xs" onClick={() => mergeWithNext(i - 1)} disabled={busy}>
+                      Actually one video
+                    </button>
+                  </div>
+                )}
+                <div className={`import-card${card?.blocker ? " blocked" : ""}`}>
+                  <div className="import-card-head">
+                    <input
+                      className="import-name-input mono"
+                      value={g.project}
+                      onChange={(e) => rename(i, e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+                      aria-label={`Name for the project made from ${g.files[0]}`}
+                      disabled={busy}
+                    />
+                    <span className="import-card-meta">
+                      {g.files.length === 1 ? "1 clip" : `${g.files.length} clips joined end to end`}
+                      {total !== null ? ` · ${clock(total)}` : ""}
+                    </span>
+                  </div>
+
+                  {g.files.map((f, k) => (
+                    <div key={f}>
+                      {k > 0 && (
+                        <div className="import-seam">
+                          <span className="import-seam-why">
+                            {seamFor(g.files[k - 1], f)?.reasons[0] ?? "joined because you said so"}
+                          </span>
+                          <button className="btn btn-ghost btn-xs" onClick={() => splitAt(i, k)} disabled={busy}>
+                            Split here
+                          </button>
+                        </div>
+                      )}
+                      <div className="import-row plain">
+                        <span className="import-name mono">{f}</span>
+                        <span className="import-size mono">{mb(sizeOf(f))}</span>
+                        <span className="import-status">
+                          {k === 0 && g.files.length > 1 ? "first" : ""}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Both of these are facts about the clips the SERVER put
+                      in this card, so they are only shown while that is still
+                      what the card holds. */}
+                  {asProposed && card.blocker && (
+                    <div className="import-problem">
+                      ✕ {card.blocker}
+                    </div>
+                  )}
+                  {asProposed && card.interleaved && (
+                    <div className="import-foot dim">
+                      These were filmed with another video in between them.
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {proposal.notTranscribed.length > 0 && (
+            <div className="import-foot dim">
+              Nothing could be heard in {proposal.notTranscribed.join(", ")}, so the seams
+              either side of it are a guess rather than an answer.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- building ---- */}
+      {phase === "importing" && (
+        <div className="import-tray">
+          <div className="import-head">
+            <b>Importing{state?.batch.imported?.length ? ` — ${state.batch.imported.map((im) => im.project).join(", ")}` : ""}…</b>
+          </div>
+          <div className="import-bar">
+            <span className="import-bar-fill" style={{ width: `${job?.progress ?? 2}%` }} />
+          </div>
+          <div className="import-foot">
+            {job?.stage ?? "joining the clips"}
+            {eta(job?.etaSeconds) ? ` — ${eta(job?.etaSeconds)}` : ""}
+          </div>
+          <div className="import-foot dim">
+            You can leave this page — it keeps going, and the queue above shows it.
+          </div>
         </div>
       )}
 

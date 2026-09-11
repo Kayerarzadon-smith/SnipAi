@@ -3,12 +3,12 @@
 import Overlay from "@/app/components/Overlay";
 import TrimWave from "@/app/components/TrimWave";
 import Timeline, { layout } from "@/app/components/Timeline";
-import { resolveSpanDelete } from "@/lib/timelineLayout";
+import { resolveSpanDelete, liveClock } from "@/lib/timelineLayout";
 import { followScroll, revealScroll, isFollowing, type ScrollRequest } from "@/lib/follow";
 import GraphicsPanel from "@/app/components/GraphicsPanel";
 import VoiceInput from "@/app/components/VoiceInput";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import type {
   Beat,
@@ -1105,8 +1105,10 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
         if (!p) return;
         e.preventDefault();
         const beats2 = beatsRef.current;
-        // whichever clip the playhead is actually inside, selected or not
-        const { placed } = layout(beats2, data?.edl);
+        // whichever clip the playhead is actually inside, selected or not --
+        // and it is compared against cutPlayhead, so it has to be laid out on
+        // the same clock cutPlayhead is measured in (ledger C29)
+        const { placed } = cutLayout;
         const at = liveMode ? p.currentTime : null;
         const target = at !== null
           ? beats2.find((x) => at >= x.start && at <= x.end)
@@ -1236,23 +1238,36 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
     tick();
   }
 
+  /* The edit laid out on the clock that is actually running. (ledger C29)
+   *
+   * There is one cut time on this screen and everything that measures it has to
+   * agree, so there is one layout and the MODE picks its basis. Watching the
+   * rendered file, the EDL's durations are the player's own clock and the
+   * filmstrip lines up with the clips because of them. In Live edit nothing
+   * rendered is playing -- the source runs through the beat ranges as they are
+   * now -- so the EDL describes a video that is not on screen, and handing it
+   * over put a 2:06.8 edit on the last build's 1:38.0 clock.
+   *
+   * Graphics are the one thing deliberately left on the rendered basis
+   * (`cutSpanOf`, `generateGraphicFor`): a graphic is burned into a build, so
+   * it is timed against the build. */
+  const cutLayout = useMemo(
+    () => layout(data?.beats ?? [], liveMode ? undefined : data?.edl),
+    [data?.beats, data?.edl, liveMode],
+  );
+
   /** Where the raw playhead sits on the CUT's timeline. The player runs the
    *  source; the timeline measures the edit, so the two need translating. */
   const cutPlayhead = (() => {
     const beats = data?.beats ?? [];
     if (!beats.length) return null;
     if (!liveMode) return playhead;                 // rendered file: already cut time
-    const { placed } = layout(beats, data?.edl);
-    const c = placed[liveIdx];
-    if (!c || rawHead === null) return null;
-    const inside = Math.max(0, Math.min(c.dur, rawHead - c.start));
-    return c.at + inside;
+    return liveClock(beats, liveIdx, rawHead).at;
   })();
 
   /** Timeline position -> the source frame it refers to, then go there. */
   function scrubCut(cutTime: number) {
-    const beats = data?.beats ?? [];
-    const { placed } = layout(beats, data?.edl);
+    const { placed } = cutLayout;
     const c = placed.find((p) => cutTime >= p.at && cutTime < p.at + p.dur) ?? placed[placed.length - 1];
     if (!c) return;
     liveIdxRef.current = c.index;
@@ -1441,7 +1456,9 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
    *  span that is bad anywhere changes nothing. */
   async function cutSpan(from: number, to: number) {
     if (!data || to - from <= 0.02) return;
-    const { pieces } = layout(data.beats, data.edl);
+    // `from`/`to` are the timeline's own cut time, so the pieces they are
+    // resolved against must be the timeline's own layout (ledger C29)
+    const { pieces } = cutLayout;
     const edits = resolveSpanDelete(pieces, data.beats, from, to);
     if (!edits.length) { toast("nothing under that selection"); return; }
     const pushed = pushHistory("cutting that stretch out");
@@ -1520,13 +1537,14 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
    * the old sum ignored that entirely.
    *
    * The rendered file's length is still used for the rendered-cut player,
-   * where it is the honest number. */
-  const beatsDuration = (data?.beats ?? []).reduce((sum, b) => {
-    const holes = (b.holes ?? []).reduce(
-      (n, [f, t]) => n + Math.max(0, Math.min(t, b.end) - Math.max(f, b.start)), 0);
-    return sum + Math.max(0, (b.end - b.start) - holes);
-  }, 0);
-  const cutDuration = liveMode || cutMediaDuration === null ? beatsDuration : cutMediaDuration;
+   * where it is the honest number.
+   *
+   * It comes off `cutLayout` now rather than its own sum (ledger C29). It was
+   * the only readout on the screen that had been told the edit reports itself,
+   * and it sat next to an elapsed clock that had not -- `1:38.0 / 2:06.8` on a
+   * 2:06.8 edit, the render's length and the edit's length either side of one
+   * slash. Two answers to one question is how that happens; there is one now. */
+  const cutDuration = liveMode || cutMediaDuration === null ? cutLayout.total : cutMediaDuration;
 
   async function clearMarkers() {
     await fetch(`/api/projects/${project}/review-action`, {
@@ -2029,13 +2047,25 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
         <div className="tl-wrap">
           <Timeline
             clips={data.beats}
-            edl={data.edl}
+            /* The playhead drawn on this surface is `playCutTime` below, so the
+               surface has to be laid out on the same clock the playhead is
+               measured in. In Live edit that is the edit, not the last render
+               -- otherwise the marker walks across a timeline it does not
+               belong to and comes to rest 28.8s from the end. (ledger C29) */
+            edl={liveMode ? undefined : data.edl}
             peaks={peaks?.peaks ?? null}
             rms={peaks?.rms ?? null}
             peakRate={peaks?.rate ?? 400}
             peaksError={peaksError}
             onRetryPeaks={loadPeaks}
-            pictureStale={data.cutStale}
+            /* In Live edit the frames behind the clips are ALWAYS from the last
+               render while the clips are the edit as it is now, so the two are
+               laid out on different clocks even when the build is fresh --
+               build_cut snaps every edge inward and live playback does not. The
+               badge already says exactly that; it just was not shown for this
+               case. Saying so beats a strip that quietly lies about which frame
+               is where, which is this component's own rule. (ledger C29) */
+            pictureStale={data.cutStale || liveMode}
             stripUrlFor={
               data.cutFile
                 ? (from, to, frames) =>

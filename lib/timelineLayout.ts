@@ -176,6 +176,57 @@ export function layout(
 
 
 /**
+ * Where the frame now on screen sits on the cut's clock.
+ *
+ * The player runs the SOURCE and the timeline measures the EDIT, so the two
+ * need translating -- this is the inverse of the review screen's `cutToSource`,
+ * and it has to go through the pieces for the same reason that one does: a line
+ * with a stretch taken out of it is several runs of film, and cut time skips
+ * the gap. Clamping a source offset against a cut duration, which is what this
+ * replaces, is the source-time-vs-cut-time confusion with both units in one
+ * expression.
+ */
+export function cutTimeOf(pieces: Piece[], p: Placed, srcTime: number): number {
+  let end = p.at;
+  for (const piece of pieces) {
+    if (piece.beatLabel !== p.label) continue;
+    if (srcTime < piece.srcStart) return end;            // in the gap before this run
+    const span = piece.srcEnd - piece.srcStart;
+    if (srcTime < piece.srcEnd) {
+      const f = span > 0 ? (srcTime - piece.srcStart) / span : 0;
+      return ms(piece.at + f * piece.dur);
+    }
+    end = ms(piece.at + piece.dur);
+  }
+  return Math.min(end, ms(p.at + p.dur));
+}
+
+/**
+ * The clock the Live edit transport runs on. (ledger C29)
+ *
+ * Both readouts either side of the slash, from one layout, so they cannot
+ * disagree -- and the layout is of the EDIT. Live edit plays the source through
+ * the beat ranges as they are now; not one frame of the last render is
+ * involved, so the EDL has nothing to say about how long this has been
+ * running. It was being asked anyway, and on img-9817 that put a 2:06.8 edit on
+ * a 1:38.0 clock: the elapsed readout hit the length of the last build and
+ * could go no further while the picture played on for another 28.8 seconds.
+ *
+ * `edl` is not a parameter of this function ON PURPOSE. The decision was
+ * already made and written down at review/page.tsx ("it reports the edit now")
+ * and then not applied at three of the four call sites that needed it. A
+ * function the render's timeline cannot be handed to cannot be given it again
+ * by the next person in a hurry.
+ */
+export function liveClock(
+  clips: Clip[], beatIndex: number, srcTime: number | null
+): { at: number | null; total: number } {
+  const { placed, pieces, total } = layout(clips);
+  const c = placed[beatIndex];
+  return { at: c && srcTime !== null ? cutTimeOf(pieces, c, srcTime) : null, total };
+}
+
+/**
  * The order after dragging one clip into a gap.
  *
  * `dropAt` is the index the clip would land BEFORE, counted in the CURRENT

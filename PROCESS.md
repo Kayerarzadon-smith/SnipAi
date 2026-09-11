@@ -181,10 +181,13 @@ The rule, borrowed from how a real team avoids this:
   leaving it exposed**, and says in the message that it came from elsewhere.
 - **Long parallel work goes on a branch**, the way `qa/issues-*` already did.
   `master` is the integration point, not the workbench.
-- **Never `--amend` on a shared branch without re-reading `git log -1` first.**
-  Added 2026-09-11 after the PM amended the developer's commit instead of its
-  own, because another commit had landed in between. Reverted exactly; the
-  branch the work was built on is what made the restore provable.
+- **Re-read `git log -1` and `git status` immediately before committing shared
+  state — never `--amend` on a shared branch, and always `git add` by explicit
+  path.** Added 2026-09-11 after this happened in **both** directions within an
+  hour: the PM amended the developer's commit instead of its own (reverted
+  exactly; the branch the work sat on is what made the restore provable), and
+  the developer's next commit swept up the PM's uncommitted ledger rows and said
+  nothing about them. Nothing was lost either time, and that was luck twice.
 
 ## Retro
 

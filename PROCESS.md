@@ -15,13 +15,21 @@ Each role refuses the other four's job on purpose. That is the whole design:
 a reviewer who also writes code stops reviewing, and an implementer who also
 picks priorities starts rewriting whatever he already wanted to rewrite.
 
-| Role | Agent | Owns | Must never |
-|---|---|---|---|
-| Product manager | `snipai-pm` | The roadmap, the sequence, forcing decisions | Write code; decide whether a defect is real |
-| Static QA | `snipai-qa` | Reading code adversarially, line-anchored findings | Run the app; edit anything |
-| Dynamic QA | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
-| Implementer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
-| Release engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
+Kayer named the team on 2026-09-11 so the work can be talked about in
+people rather than in slugs — "Nadia found it and Theo fixed it" carries
+who did what in a way that `snipai-tester` and `snipai-dev` do not.
+
+| Name | Role | Agent | Owns | Must never |
+|---|---|---|---|---|
+| **Mara** | Product Manager | `snipai-pm` | The roadmap, the sequence, forcing decisions | Write code; decide whether a defect is real |
+| **Desmond** | Code Auditor | `snipai-qa` | Reading code adversarially, line-anchored findings | Run the app; edit anything |
+| **Nadia** | Test Driver | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
+| **Theo** | Implementer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
+| **Ruth** | Release Engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
+
+The names are labels for roles, not claims to be people. Use them in
+reports and commit messages where it reads better; the agent slug is what
+actually gets dispatched.
 
 **Kayer** is the fifth seat and the only one that can answer a product
 question. When `snipai-pm` puts a BLOAT or HALF-BUILT row in front of him, it

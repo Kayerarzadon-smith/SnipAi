@@ -135,10 +135,22 @@ tests() {
 
 regressions() {
   hdr "reproduced bugs (a failing test here is a bug still open)"
-  ts=(tests/regressions/*.test.mts); py=(ugc-edit-system/tests/regressions/test_*.py)
+  # SNIPAI_BOARD_DIR exists so this section can be run against a fixture board
+  # by tests/regressions/T7-*.test.mts. Nothing sets it in normal use.
+  BOARD="${SNIPAI_BOARD_DIR:-tests/regressions}"
+  ts=("$BOARD"/*.test.mts); py=(ugc-edit-system/tests/regressions/test_*.py)
   [ -e "${ts[0]}" ] || { printf "  %sno regression tests yet%s\n" "$DIM" "$OFF"; return; }
   if [ -e "${ts[0]}" ]; then
-    node --import ./tests/register.mts --test "tests/regressions/"*.test.mts 2>&1 \
+    # --test-reporter=tap, and never the default. node chooses its reporter by
+    # whether stdout is a TTY: the spec reporter ("✔ name") when it is, tap
+    # ("ok N - name") when it is not -- except it does NOT, reliably. On node
+    # 24.20 this pipeline got the SPEC reporter with stdout piped into grep, so
+    # the grep below matched nothing and the board rendered as a heading, zero
+    # lines and "nothing mechanical to report" while 12 tests sat on it
+    # (ledger T7). This is the same defect scripts/guard-ledger.py had (T2), in
+    # the second of the two places that run the board. Ask for the format, do
+    # not infer it from how the caller happened to connect us.
+    node --import ./tests/register.mts --test-reporter=tap --test "$BOARD"/*.test.mts 2>&1 \
       | grep -vE "MODULE_TYPELESS_PACKAGE_JSON|Reparsing as ES module|To eliminate this warning|trace-warnings" \
       | grep -E "^(not ok|ok|# (pass|fail))" | sed 's/^/  /'
   fi

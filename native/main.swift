@@ -134,6 +134,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
     var statusLabel: NSTextField!
     var spinner: NSProgressIndicator!
     var weStartedServer = false
+    /// The server WE spawned, held so quitting can stop that exact process
+    /// rather than whoever is on the port by then. nil in a dev checkout,
+    /// where the server is started detached through a shell.
+    var serverProcess: Process?
     var pollTimer: Timer?
     var pollAttempts = 0
 
@@ -196,9 +200,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
 
     func applicationWillTerminate(_ notification: Notification) {
         guard weStartedServer else { return }
-        // Kill only the actual listener on our port -- never a client
-        // connection that merely touches that port number.
-        shell("lsof -ti:\(kPort) -sTCP:LISTEN | xargs kill 2>/dev/null")
+
+        // Stop the process we started, by pid.
+        //
+        // This used to be `lsof -ti:PORT | xargs kill`, which asks the wrong
+        // question: it stops whoever holds the port now, not the server this
+        // app spawned. Those are the same process right up until they are
+        // not -- our server exits, someone starts a dev server on the freed
+        // port, the app quits and takes it down. `weStartedServer` proves we
+        // started *a* server; it does not prove the current listener is it.
+        if let p = serverProcess, p.isRunning {
+            p.terminate()                       // SIGTERM: let it finish its write
+            return
+        }
+
+        if kLayout.bundled {
+            // The handle is gone but the server may not be. Fall back to pids
+            // that are on our port AND running our own server binary -- still
+            // never a stranger's.
+            for pid in ourOrphanPIDs(port: kPort, ourServerPath: kLayout.server) {
+                kill(pid, SIGTERM)
+            }
+        } else {
+            // Dev checkout: `npm start` is detached through a shell, so there
+            // is no handle to hold and no bundled server path to match on.
+            // weStartedServer is the ownership proof here, as it already was
+            // -- the ledger cleared this path (P12, fixed 77e2ae5) and this
+            // change deliberately leaves it alone.
+            shell("lsof -ti:\(kPort) -sTCP:LISTEN | xargs kill 2>/dev/null")
+        }
     }
 
     // MARK: - UI
@@ -356,27 +386,91 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
 
     // MARK: - Server lifecycle
 
+    /// Decide what to do about port \(kPort), then do exactly that.
+    ///
+    /// This used to be five lines that trusted the port: adopt whatever was
+    /// listening if its build matched, otherwise `lsof | xargs kill`. Both
+    /// halves were wrong, in opposite directions, and both are in the ledger
+    /// (N1, P19) -- see native/LaunchDecision.swift for the rule that
+    /// reconciles them. The short version: the port names nobody, so ask.
     func bootServerThenLoad() {
         DispatchQueue.global(qos: .userInitiated).async {
-            if serverIsUp() {
-                if serverMatchesDiskBuild() {
-                    DispatchQueue.main.async { self.loadApp() }
-                    return
-                }
-                // Serving an older build than what's on disk. Restart it --
-                // this only relaunches the server, it never builds.
+            let occupant: PortOccupant = !serverIsUp()
+                ? .free
+                : (fetchServerIdentity(port: kPort).map { PortOccupant.identified($0) } ?? .unidentified)
+
+            // Both of these cost a round trip or a subprocess, and neither
+            // means anything when the port is free -- which is the ordinary
+            // cold launch. Asking anyway put a 2s build check in front of
+            // every start.
+            let free: Bool = { if case .free = occupant { return true }; return false }()
+
+            let action = decideLaunch(
+                occupant: occupant,
+                expectedDataRoot: expectedDataRoot(codeRoot: kLayout.code),
+                buildMatches: free ? false : serverMatchesDiskBuild(),
+                listenerIsOurOrphan: free ? false
+                    : listenerIsOurOrphan(port: kPort, ourServerPath: kLayout.server),
+                port: kPort)
+
+            switch action {
+
+            case .adopt(let why):
+                // Announced, never silent. A run that quietly used somebody
+                // else's server is how the sandbox leaked in the first place.
+                NSLog("SnipAi: %@", why)
+                DispatchQueue.main.async { self.loadApp() }
+
+            case .refuse(let why):
+                NSLog("SnipAi: refusing to start — %@", why)
+                DispatchQueue.main.async { self.showRefusal(why) }
+
+            case .restartOrphan(let why):
+                NSLog("SnipAi: %@", why)
                 DispatchQueue.main.async {
-                    self.statusLabel.stringValue = "Loading the latest build…"
+                    self.statusLabel.stringValue = "Restarting the SnipAi server…"
                 }
-                shell("lsof -ti:\(kPort) -sTCP:LISTEN | xargs kill 2>/dev/null")
+                // Re-checked immediately before signalling, not just in the
+                // decision above: between the two there is a window in which
+                // the port could change hands, and the whole point of this
+                // row is that we never signal a process we have not just
+                // confirmed is ours. SIGTERM, not SIGKILL -- the server gets
+                // to finish writing whatever it was writing.
+                for pid in ourOrphanPIDs(port: kPort, ourServerPath: kLayout.server) {
+                    kill(pid, SIGTERM)
+                }
                 Thread.sleep(forTimeInterval: 1.2)
+                self.startOurOwnServer()
+
+            case .startOurOwn:
+                self.startOurOwnServer()
             }
-            self.weStartedServer = true
-            NSLog("SnipAi: no server up — starting one (bundled=%@)", kLayout.bundled ? "yes" : "no")
-            DispatchQueue.main.async { self.statusLabel.stringValue = "Starting SnipAi…" }
-            self.startServer()
-            DispatchQueue.main.async { self.startPolling() }
         }
+    }
+
+    /// Spawn a server and take responsibility for stopping it again.
+    ///
+    /// `weStartedServer` is set HERE and nowhere else: it is the whole record
+    /// of whether this app owns the process on the port, and quitting reads
+    /// it before stopping anything.
+    private func startOurOwnServer() {
+        self.weStartedServer = true
+        NSLog("SnipAi: starting our own server on %d (bundled=%@)",
+              kPort, kLayout.bundled ? "yes" : "no")
+        DispatchQueue.main.async { self.statusLabel.stringValue = "Starting SnipAi…" }
+        self.startServer()
+        DispatchQueue.main.async { self.startPolling() }
+    }
+
+    /// Stop, with the reason on screen.
+    ///
+    /// The alternative -- carrying on against the wrong library -- is the
+    /// failure this whole change exists to prevent, so there is deliberately
+    /// no "continue anyway" button here.
+    func showRefusal(_ why: String) {
+        spinner.stopAnimation(nil)
+        spinner.isHidden = true
+        statusLabel.stringValue = why
     }
 
     /// Start the Node server the bundle carries.
@@ -413,13 +507,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         env["SNIPAI_CODE"] = kLayout.code
         env["SNIPAI_PYTHON"] = kLayout.python
         env["SNIPAI_FFMPEG"] = kLayout.ffmpeg
+        // Say which library, explicitly, instead of letting the server work
+        // it out again from an inherited environment. It resolves to the same
+        // answer today -- expectedDataRoot() mirrors resolveDataRoot() -- but
+        // "the same answer today" is what the launcher has just refused to
+        // assume about the port, and the server we start is the one case
+        // where we can simply remove the guesswork. It also makes
+        // /api/health's reply comparable to what we asked for by
+        // construction, rather than by coincidence.
+        env["SNIPAI_DATA"] = expectedDataRoot(codeRoot: kLayout.code)
         p.environment = env
         if let handle = handle {
             p.standardOutput = handle
             p.standardError = handle
         }
         NSLog("SnipAi: launching %@ %@", kLayout.node, kLayout.server)
-        do { try p.run(); NSLog("SnipAi: server pid %d", p.processIdentifier) } catch {
+        do {
+            try p.run()
+            // Hold the handle: this is what quitting stops. Without it the
+            // only way back to this process was "whatever is on the port",
+            // which is not the same thing and was already wrong once.
+            self.serverProcess = p
+            NSLog("SnipAi: server pid %d", p.processIdentifier)
+        } catch {
             NSLog("SnipAi: could not start the server: \(error)")
         }
     }

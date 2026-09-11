@@ -128,7 +128,13 @@ rm -rf "$RES/pipeline/python/lib/python$PYVER/test" 2>/dev/null
 
 step "Building the launcher"
 if [ -f "$ROOT/native/main.swift" ]; then
-  swiftc -O -o "$RES/../MacOS/SnipAi.new" "$ROOT/native/main.swift" 2>&1 | sed 's/^/  /'
+  # The launcher is two files now: the server-ownership rule (N1/P19) lives in
+  # native/LaunchDecision.swift so it can be compiled and exercised without a
+  # window. Named explicitly rather than globbed -- native/snapshot.swift is a
+  # separate standalone program with its own top-level code, and `swiftc
+  # native/*.swift` fails outright because two mains cannot share a binary.
+  swiftc -O -o "$RES/../MacOS/SnipAi.new" \
+    "$ROOT/native/LaunchDecision.swift" "$ROOT/native/main.swift" 2>&1 | sed 's/^/  /'
   # swiftc can fail while a shell chain still reports success -- check the file
   if [ ! -x "$APP/Contents/MacOS/SnipAi.new" ]; then
     rm -f "$APP/Contents/MacOS/SnipAi.new"

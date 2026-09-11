@@ -167,7 +167,14 @@ hdr "orphaned API routes"
     route=$(dirname "${r#app/api/}")
     seg=$(echo "$route" | tr '/' '\n' | grep -v '^\[' | tail -1)
     [ -z "$seg" ] && continue
-    hits=$(grep -rl "api/.*$seg" app lib --include=*.ts --include=*.tsx 2>/dev/null | grep -v "^$r$" | wc -l | tr -d ' ')
+    # native/ and scripts/ are callers too. The web app is not the only client
+    # of this API -- the launcher polls it to decide whether the server on the
+    # port is ours (see /api/health, native/main.swift) -- and a sweep that
+    # only reads app/ and lib/ calls those routes orphaned. tests/ is
+    # deliberately NOT searched: a route whose only caller is its own test is
+    # exactly what this check exists to find.
+    hits=$( { grep -rl "api/.*$seg" app lib native --include=*.ts --include=*.tsx --include=*.swift 2>/dev/null
+              grep -rl "api/.*$seg" scripts 2>/dev/null; } | grep -v "^$r$" | wc -l | tr -d ' ')
     [ "$hits" = "0" ] && { bad "no caller found for /api/$route"; found=1; }
   done < <(find app/api -name route.ts | sed 's|^\./||')
   [ "$found" = 0 ] && ok "every route has at least one caller"

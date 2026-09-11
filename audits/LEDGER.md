@@ -30,10 +30,14 @@ These are corrupting output or losing data today.
 | C1 | `Timeline.tsx:266` — the in-point drag runs away and collapses the clip | open |
 | C2 | `review/page.tsx:1017` — every trim after the first is unundoable | open |
 | T1 | `scripts/test:26` — a skipped suite reads as "all green" | fixed |
+| S18 | `media/[...path]/route.ts:73` — 416 on a range ending past EOF; **no video plays anywhere in the app** | open |
+| S19 | the step writing `cuts/*.mp4` — `moov` at end of file, so the export can never start streaming | open |
+| E1 | beat out-points clip the final consonant of two lines (`under-eyes-looks`, `egf-going-improve`) | open |
 
-Out of scope but still true, and still costing you output quality: the pipeline's
-`snap_tail` is poisoned to 0.881 (P1/P2 below). One line of JSON to reset;
-the clamp that stops it recurring is a pipeline change.
+Out of scope but still true: `snap_tail` was **reset to 0.01 on 2026-09-10**
+(`~/Movies/SnipAi/state/tuning.json`, `overrides_seen: 0`), so P2's 0.881
+poisoning is no longer live. P1's missing clamp is still unfixed, so nothing
+stops it recurring the next time learning runs.
 
 ---
 
@@ -43,7 +47,7 @@ the clamp that stops it recurring is a pipeline change.
 |----|-------|--------|--------|------|
 | S1 | `pipeline/route.ts:136` | Beat rebuilt from a 4-field whitelist; undo drops `holes`, `audioStart`/`audioEnd`, `fadeIn`/`fadeOut` | **wontfix 2026-09-09** — merging from disk on undo would make every cut permanent. The live loss needs GET to drop a field; it does not (6 fields pinned round-tripping in `tests/undo-round-trip.test.mts`) | `tests/regressions/S1-*.test.mts` (kept red on purpose) |
 | S2 | `lib/jobs.ts:184` | `failJob` is the one mutator that doesn't `persist()`; failed builds stay "running" everywhere else and then 409 the next build | fixed — `failJob` calls `persist()`; its regression test is green | `tests/regressions/S2-*.test.mts` |
-| S3 | `projects/route.ts:68` | Upload buffered whole, twice, no size cap; a 1.4GB original OOMs and the catch then deletes the new project dir. Same at `references/route.ts:60` | open | no — needs a large-file harness |
+| S3 | `projects/route.ts:68` | Upload buffered whole, twice, no size cap; a 1.4GB original OOMs and the catch then deletes the new project dir. **Stale** — commit `7d31529` ("Stop the import taking the machine down") replaced the real upload path with a 64KB-chunk stream; `DropZone.tsx` sends the raw/streamed request, not multipart. The bug still exists at `references/route.ts:60`, which is a separate, lower-traffic route | fixed — confirmed 2026-09-11 for the footage-import path; `references/route.ts:60` still open | no — needs a large-file harness |
 | S4 | `lib/pipeline.ts:149`, `lib/jobs.ts:164` | Unbounded stdout accumulation over a 6-hour cap, and unbounded `job.log` re-serialised every 2s | open | no |
 | S5 | `peaks/route.ts:39`, `beats/[label]/candidates/route.ts:26` | CWD-relative `projects/<name>` where every other caller passes an absolute path; take picker 422s after migration | open | yes, not yet written |
 | S6 | `lib/pipeline.ts:32` | `spawnSync` + `import faster_whisper` on the request path of eight GETs, 60s cache | open | no |
@@ -58,7 +62,12 @@ the clamp that stops it recurring is a pipeline change.
 | S15 | six routes | ffmpeg/Whisper spawned without `runningJob()`; twelve filmstrips render at once on page load | open | no |
 | S16 | `lib/projectSummary.ts:117` | Cut length ignores holes; `lib/snapshots.ts:129` subtracts them. Same edit, two durations | open | yes, not yet written |
 | S17 | `products/route.ts:14` | `read()` swallows every error and returns `{products: []}`, which PATCH writes back over the catalogue | open | yes, not yet written |
-| S18 | `media/[...path]/route.ts:73` | 416 for a range past EOF instead of clamping to `size - 1` | open | yes, not yet written |
+| S18 | `media/[...path]/route.ts:73` | 416 for a range past EOF instead of clamping to `size - 1`. **Confirmed 2026-09-10 to be the cause of every video surface staying black** — player (both modes) and the snippet-editor monitor sit at `readyState=0` forever with no media error raised. A browser media stack opens with an over-long range; this route refuses it. `bytes=0-99999999` → 416, and so does `bytes=56151828-56156928` whose **start is inside the file**. In-bounds ranges are served correctly and fast, which is why the bug looks like a player problem and is not | open | yes, not yet written — assert 206 + clamped `content-range` for a range ending past EOF, and for an open-ended `bytes=N-` |
+| S19 | the step that writes the finished file into `cuts/` | Export muxed with `moov` **after** `mdat` (`cuts/img-9817-v6.mp4`: ftyp@0, free@32, mdat@40, moov@513655552 of 513MB). Nothing can begin playing without fetching the whole file. The proxy is written correctly (moov@32), so the two writers disagree. Not known gap #9 — that is about resolution being unlabelled, this is muxing | open | yes, not yet written — assert atom order on a built cut |
+| S20 | `projects/route.ts` (import) | `POST /api/projects` with an **empty body** returns bare `500` with an empty response — the only one of 13 endpoints probed that does not answer with `4xx` + `{"error": …}`. A malformed-but-present body on the same route correctly returns `400 {"error":"project name must be lowercase kebab-case"}`. Same route as S3 | open | yes, not yet written |
+| S21 | queue listing vs project detail | Two overall scores for one project at the same moment: review screen `scorecard.overall = 53`, queue `scorecardOverall = 76`. 76 is exactly the `Word cutoffs` metric, so the queue looks to be reporting the first metric as the overall. Not user-visible on the card today; wrong wherever it is read. Sibling of S16 | open | yes, not yet written |
+| S22 | queue listing vs review header | Flagged-line count disagrees three ways for `img-9817`: review pill and lines list say **12**, queue `flaggedBeatLabels` has **6**, `beats.json` entries marked `needs_review` is **0** | open | yes, not yet written |
+| S23 | `lib/projectSummary.ts` (queue summary line) | A project with no transcript is counted as needing review. With a broken third project the line reads `3 projects · 3 need your review · 1 awaiting a beat draft` — the same project counted twice, once wrongly | open | yes, not yet written |
 
 ## Client — `app/**/*.tsx`
 
@@ -86,6 +95,9 @@ is worth doing before fixing them.
 | C16 | `review/page.tsx:730` | `Math.max(0, findIndex)` maps "nothing selected" to index 0; first ↓ selects line 2 | open |
 | C17 | `LiveProgress.tsx:72` | Interval depends on `job`, whose identity changes every 900ms poll; the label never rotates | open |
 | C18 | `Timeline.tsx:538` | "Zoom to clip" maps `findIndex` → `-1` onto the most zoomed-*out* level | open |
+| C19 | review screen re-render after a state change | For ~1s after any edit (row select, ⌘Z) the top two-thirds of the viewport render empty — no header, no player, no timeline — with the lines list starting partway down. Resolves on the next render. Reproduced from two different actions. Screenshots: `qa-screenshots/bug-010-*.jpg` | open |
+| C20 | the timeline band | Plain mouse wheel over the video track or waveform is swallowed: neither the page nor the timeline moves. The spec reserves **⌘+scroll** for zoom, which implies the plain wheel should scroll the page. The timeline is a tall band mid-screen, so scrolling down from the player stops dead and reads as a freeze | open |
+| C21 | Settings → Editing preferences, **Add a rule** | Clicking **Save** with the field empty does nothing and says nothing — no rule, no toast, no validation, button not disabled. Violates the cross-cutting rule that an action changing nothing says so | open |
 
 ## Native and shell — part of the app
 
@@ -97,6 +109,15 @@ is worth doing before fixing them.
 | ID | Where | Defect | Status |
 |----|-------|--------|--------|
 | T1 | `scripts/test:26` | A skipped suite still prints "all green". Note: the venv's `bin/python` is a symlink out to a system framework — it reads as missing from some contexts and is fine on the machine itself (`lib/paths.ts:30` documents this). Fix the reporting, not the detection | fixed — reports what did not run, and counts unittest's own skips too |
+| T2 | `scripts/test` verdict line | Prints **"something is broken -- do not ship"** on a run with `# fail 0` and 173/173 passing. The spec says this run should print "all green" alongside the bug board count, and that `1 still open` is expected and not a failure. T1 fixed the *reporting* of skips; the **verdict** still goes red on a clean run, so a real regression is indistinguishable from today | open |
+| T3 | `scripts/qa --full` | One run, two opposite verdicts: nested section prints "something is broken -- do not ship", the run then ends "notes above, nothing blocking" and exits 0. CI reading the exit code gets a third answer | open |
+| T4 | `scripts/qa` pipeline stage | `skipped -- no venv at ugc-edit-system/.venv/bin/python` in this environment, so the Python pipeline is never exercised. The script is honest about it, but a clean run says far less than it appears to. See T1's note — the venv symlink reads as missing from some contexts. Either make setup guarantee it, or make the skip a hard failure | open |
+
+## Edit quality — the cut itself
+
+| ID | Where | Defect | Status | Test |
+|----|-------|--------|--------|------|
+| E1 | beat out-point placement | Two beats end 20-30ms before their own final word finishes: `under-eyes-looks` leaves 26ms of `'this,'` past the out-point (mean -22.5dB, peak -12.4dB) and `egf-going-improve` leaves 21ms of `'face.'` (mean -22.9dB, peak -11.6dB), both above the project's -26.2dB speech floor. Both fragments sit **inside** their line, not past an abandoned take, so this is clipping and not take selection. `img-9823`'s two flagged fragments **are** take selection working and are not filed. Note `snap_tail` is **0.01** today, so this is not P2's 0.881 residue — the boundary placement itself is tight | open | yes — `python3 qa/verify_edges.py --project <p>` already reproduces it; the fix is green when it reports 0 of 34 |
 
 ## Unused / dead
 
@@ -112,7 +133,7 @@ Rows marked *(pipeline)* are out of scope — listed so the sweep is complete.
 | U6 | `scripts/make_icon.py` superseded by `scripts/build/make_icon.py` | grep + its own docstring | open |
 | U7 | `native/snapshot.swift` not compiled by `bundle-app` | grep | open |
 | U8 | *(pipeline)* `relocate.command`, `finish-move.command` migrate to `~/Movies/UGC Edit System`; `paths.ts:47` looks in `~/Movies/SnipAi` | grep | open |
-| U9 | `review-state.beatDiagnoses` (the Level 3 store), `spanCuts`, `deletedBeats`, `statusNote` written, never read | `./scripts/qa --fast` | open |
+| U9 | `review-state.beatDiagnoses` (the Level 3 store), `spanCuts`, `deletedBeats`, `statusNote` written, never read | `./scripts/qa --fast`. **Chased 2026-09-10 and cleared as a data-loss risk**: a live delete + ⌘Z showed `beats.json` is authoritative and correct (34 → 33 → 34, restored byte-identical). These four are an append-only audit log that also records *undone* actions, and nothing says so — `img-9817` lists `good-thing-theres` as deleted while it is still in the cut. Anyone auditing a project from its state file will read that as a delete-persistence bug. Worth a comment or a rename either way | open |
 | U10 | `app/connectors/page.tsx:13` fetches `/api/projects` into state that is never read | grep | open |
 
 ## Half-built

@@ -273,6 +273,48 @@ needs Nadia's actual failing case — the two file names and the two numbers —
 which the rebundled run will produce or disprove. It does not block the
 rebundle.
 
+**N15 is closed, S37 stays held, and what governs the sequence now is disk
+rather than code. 2026-09-11, third update of the evening.**
+
+**Ruth rebundled and N15 is fixed.** My reversal and the dispatch crossed —
+we reached the same call from the same reason, which is worth one line because
+it is the first time the sequence has been arrived at twice independently.
+`verify-bundle` is green (*"29 tools identical, 29 API routes compiled"*,
+exit 0, re-run here), `BUILD_ID` is 13:45 against tray commits at 11:07 and
+11:18, and she drove the **packaged** server on a spare port: `POST
+/api/import` 201, `GET` read back, analyse/confirm/files all reaching their
+handlers, and the tray's own strings found in the dashboard chunk fetched over
+HTTP. **A compiled route proves the plumbing; a string in the served chunk
+proves the screen** — and N16 is filed because the gate still only does the
+first.
+
+**Three new rows, all disk-free: N16, T18, T19.** N16 is the N7 class
+recurring one layer up — the bundle gate asserts every API route and **zero of
+the five page routes**, so a `/dashboard` that failed to compile would go green
+and hand him an app with an import API and no tray. High. T18: a changed pin in
+`requirements.txt` does not invalidate the Python build cache and nothing
+compares what is installed, so the old transcriber can ship silently — correct
+today, unguarded today, and those are different claims. T19: the suite leaks
+~75 temp fixture directories **per run** (7,621 and 273 MB had accumulated
+since 2026-09-08, cleared by hand), which is our own tooling eating the
+resource that is currently blocking Nadia.
+
+**S37 stays held, and the disk does not change that.** The argument for holding
+it was that a grouping fix cannot be evaluated without seeing a joined result,
+and that argument is untouched by how much space is free. Widening
+`SEAM_WINDOW` against the preserved transcripts is genuinely free and genuinely
+tempting, which is exactly why it is worth naming what it would be: **letting a
+constraint push us into work we had already sequenced later**, and then having
+no way to tell a real fix from one that fits six transcripts. The corpus will
+still be there when a join can be watched.
+
+**What can proceed with no disk at all:** N16, T18, T19, and the S34 refusal
+wording Theo already has. **What cannot:** M0.8's exit line, S35's failing case
+and the joined cut S37, E4 and E5 all need — one run, three answers, and it
+needs roughly 6.4 GB against **4.7 GiB free** (measured here after the temp
+sweep). That is the only thing standing between this milestone and closing, and
+it is not a code problem. See Blocked.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |
@@ -305,7 +347,9 @@ rebundle.
 
 **What held, recorded so the row is not misread as a failed feature:** ordering correct across all six and order-independent; the staging restructure streamed 270 MB clips with no blow-up; `validateGroups` refused a grouping that would have orphaned a clip; the join's pre-flight disk check refuses before writing; `joinBlocker` returned `none` for every adjacent pair and was right about the streams — only the edit-list guard misfires. And **the re-transcribe-after-join decision is paying for itself**: the joined transcript came back clean across the seam where the per-clip pass invented "Thanks for watching!" on the same audio (**S39**). That decision was recorded here under "go with best judgement" so it would not be re-litigated; it is now the first one with evidence behind it.
 
-**The corpus this run produced is the test for four of the rows, and it must not be deleted for disk:** `~/Movies/SnipAi/qa-m08/qa-transcripts/` — 252 KB, six transcripts, the proposal, `probes.json`. The only recording of his real speech this project has, and 42 minutes of transcription. S37, S38, S39 and C37 all re-run against it with no video at all |
+**The corpus this run produced is the test for four of the rows, and it must not be deleted for disk:** `~/Movies/SnipAi/qa-m08/qa-transcripts/` — 252 KB, six transcripts, the proposal, `probes.json`. The only recording of his real speech this project has, and 42 minutes of transcription. S37, S38, S39 and C37 all re-run against it with no video at all
+
+**STILL OPEN, and now for exactly one reason: nobody has yet watched three of his clips become one video.** Everything else that was in the way has moved. S34 and S36 are fixed and green (225/225). N15 is fixed — the packaged app has `/api/import` and a tray, both driven against the packaged server rather than inferred from a build log. What remains is the exit line itself, which is a tester action and cannot be met from a test suite, a code read or a green gate. It is blocked on **disk**, not on code — see Blocked B6 |
 | M1 | Make the test/QA verdict trustworthy | **Exit line rewritten 2026-09-11 — the fourth tonight that could not prove its own milestone.** It used to include "nothing silently skipped", which can never be met as written: `scripts/test:66-68` and `scripts/qa:132-136` raise "a suite was SKIPPED" for one deliberate, permanent, harmless `skipTest` in `test_paths.py`, so the warning fires on every run and is therefore read on none. **T4 leaves M1** — verified as an environment artefact, not a defect (the venv resolves, `Ran 75 tests, OK (skipped=1)`); the residual is a reporting bug now described as such in its row. **New line, and it is about the habit rather than the symptoms:** every check reports on what it actually measured. Concretely — `./scripts/qa --regressions` prints the 12 tests on the board rather than zero (T7); `guard-ledger.py` covers all id families on both sides of its comparison and never collapses two same-titled tests into one verdict (T8); one run prints one verdict and the exit code agrees with it (T3); a deliberate skip and a suite that did not run are reported differently (T4's residual); and the Swift ownership rule has a gate at all (N4). The subject here is a pattern, not a list: `verify_edges.py` certified a clipping build, a string assertion would certify P6's dead `drawbox`, `verify_cut.py` found real repeated phrases and the card said 100, and `guard-ledger.py` reported agreement across 5 of 12 tests — **four checks that reported success about something they never measured, and one of them was relayed to Kayer as assurance** | T2, T3, T7, T8, N3, N4 (all fixed), T4 (rescoped), T11, T12, T13, T14, T15 |
 | M2 | Build the net under the client | A DOM harness exists; **C2's surviving half** and **CG3** each have a test that went red → green. **CG1 left this milestone 2026-09-11** — it became M-app's blocker and was provable without a harness, so it can no longer serve as this one's proof. CG3 (C11, C12, C23: destructive state cleared with no rollback) replaces it, and is the group I flagged as the one that fails silently. **Exit line rewritten 2026-09-10** — it used to name C1, which `bb4bd5f` fixed on 2026-09-08, so half of M2's exit was already met by a commit predating the milestone and the other half (C2) is now partial. A harness whose first proof is a bug that no longer exists proves nothing. CG1 replaces it because it is the one thing Kayer has reported **twice** in his own words (R4), and a net that cannot catch "the page moves itself" is not worth stringing. Dispatch by group (CG1-CG6 in the ledger), verify by id | C2 (partial), C22 (regressed), C19 (retired into C22) |
 | M3 | Finish the three-level review loop | **Split into four slices 2026-09-11, before dev reached it.** The audit turned M3 into several sittings, and a large milestone that half-lands is exactly how the fade handle happened — asked for, built partway, marked done, dead for weeks. The slices are ordered so **each one is usable on its own** and none depends on a later one to make sense. **No longer gated on Kayer** — the clamp/layout question is answered (M3a). **H10 has been removed from this milestone**: "learning has no surface" is a real row but it is not part of the three-level loop, and leaving it here would have let M3 close with it open or held M3 open for unrelated work. It follows M3 as its own row with H5's take-scoring half | H1, H2, H3; C5, C12 in the same pass |
@@ -344,6 +388,7 @@ than deleted, so the reason is findable when it changes.
 | B2 | Hand the app to a few people | **Parked 2026-09-11 — *"this app is just for me right now."*** The $99/yr is not needed for anything he currently wants. Unpark it the day he wants someone else to open it |
 | B3 | It updates itself | **Parked 2026-09-11**, follows B2 — Sparkle needs signing, signing needs an account he does not need. He restarts the app himself every session (see Done) |
 | B4 | Runs properly on Apple Silicon | **Dropped from blocked to whenever, 2026-09-11.** It works under Rosetta and he is the only user, so a universal build is a nicety with no date. Not parked — it is still wanted, just not waiting on anything |
+| B6 | **Room to import his own footage** | **His decision, in front of him now.** His three creatine clips total **3.2 GB**; an import needs roughly double that; the volume has **4.7 GiB** free after a temp sweep. So Nadia's run — M0.8's exit line, S35's failing case, and the joined cut S37/E4/E5 need — **cannot start until space is found**. The largest single object on the machine is a **15 GB VM image belonging to the Claude desktop app**, bigger than his entire footage library and four times the Downloads duplicates that were the other candidate. **Nobody deletes anything of his, and nobody deletes that image on his behalf** — it is named here so the choice is his and is findable when it is made. T19 is ours and is being fixed regardless |
 **B5 cleared 2026-09-11** and removed from this table: he granted Screen
 Recording and Accessibility, both verified directly. That unblocked the entire
 native surface in one go — M0's last item, M-app's exit line, C20, and every

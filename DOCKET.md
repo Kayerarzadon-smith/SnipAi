@@ -39,11 +39,16 @@ connection could not do reliably tonight. Also fixed in passing: T2's real
 cause (`guard-ledger.py` was silently forcing `fail=1` on every run) — `M1` is
 mostly done as a result, `scripts/test` now prints an honest verdict.
 
+**Checkpoint 2026-09-10, before the tester run.** Re-ran the suite: 173/173,
+`# fail 0`, one honest skip (1 pipeline test, no venv — T4). Regression board
+5 of 6, the one red being S1, kept red on purpose. S18 and S19 both green.
+M-app does **not** close on that alone — see its row.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Not yet run tonight** — needs a real clip through the real dashboard | S3 (fixed) |
 | M0.5 | Stop shipping clipped audio | `python3 qa/verify_edges.py` reports 0 of 34. **Fix written, needs the same real run as M0 to confirm** | E1 |
-| M-app | Make it watchable inside SnipAi itself | Open `img-9817` in the native window, press play, watch all of it | S18 (fixed), S19 (fixed) |
+| M-app | Make it watchable inside SnipAi itself | Open a cut in the native window, press play, watch all of it. **Both fixes in and green** (`tests/regressions/S18-*`, `S19-*`) — but S19 is forward-only, and all six `img-9817` cuts on disk still carry `moov` last (v6: moov@513655552 of 513MB). The named file cannot pass until it is rebuilt. Closes on the cut the tester's run produces, or on a rebuilt `img-9817` — not on the ledger alone | S18 (fixed), S19 (fixed) |
 | M1 | Make the test/QA verdict trustworthy | A clean run prints one verdict; a deliberately broken run goes red. **Root cause (guard-ledger.py) fixed** — T3/T4 (the two-verdicts-in-one-run problem, and the silent pipeline skip) still open | T2 (fixed), T3, T4 |
 | M2 | Build the net under the client | A DOM harness exists; C1 and C2 each have a test that went red → green | C1, C2 |
 | M3 | Finish the three-level review loop | Level 1 → 2 → 3 usable without knowing `m` is a shortcut | H1, H2, H3 |

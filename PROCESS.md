@@ -120,6 +120,29 @@ run. That is deliberate: the ledger going stale is itself a defect.
 
 ---
 
+## More than one session at a time
+
+This is real and it already happened. On 2026-09-11 two Claude sessions were
+working in this repo at once: one fixing S18/S19/E1, another writing a
+strategy report and editing `DOCKET.md`. Nothing was lost, but only by luck —
+both were editing the same two files, and neither knew the other existed.
+The second session also caught something the first had missed (S19 is
+forward-only: every cut already on disk still carries `moov` last), so the
+overlap was not worthless. It was just unmanaged.
+
+The rule, borrowed from how a real team avoids this:
+
+- **`DOCKET.md` and `audits/LEDGER.md` have one writer at a time.** They are
+  the shared state. If a session finds uncommitted changes in either that it
+  did not make, it stops and reads them before touching anything — it does
+  not overwrite, and it does not assume they are stale.
+- **Commit early.** Uncommitted work is invisible to every other session and
+  is the only kind that can be silently clobbered.
+- **A session that finds another's in-flight work commits it rather than
+  leaving it exposed**, and says in the message that it came from elsewhere.
+- **Long parallel work goes on a branch**, the way `qa/issues-*` already did.
+  `master` is the integration point, not the workbench.
+
 ## Retro
 
 After each milestone, `snipai-pm` asks two questions and writes the answers

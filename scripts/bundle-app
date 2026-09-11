@@ -115,6 +115,15 @@ cp -a "$ROOT/.next/static" "$RES/server/.next/static"
 cp -a "$ROOT/ugc-edit-system/tools" "$RES/pipeline/tools"
 cp -a "$PYBUILD" "$RES/pipeline/python"
 
+# ...and the manifest that says which cutting those tools ARE. It is tools/'s
+# sibling, not a file inside it, so the cp above never took it -- and without
+# it the packaged server reads no version, decides it cannot tell an old cut
+# from a current one, and the "Rebuild -- the cutting has improved since this
+# was built" badge is off in the only build Kayer opens (ledger N2). That was
+# true for days while both of his cuts were genuinely behind.
+cp "$ROOT/ugc-edit-system/pipeline-version.json" "$RES/pipeline/pipeline-version.json" \
+  || bad "no ugc-edit-system/pipeline-version.json — the app cannot flag an out-of-date cut without it"
+
 # ffmpeg ships inside imageio_ffmpeg under a versioned name; give it a stable
 # path so the server does not have to go looking through site-packages
 FF="$(find "$RES/pipeline/python/lib/python$PYVER/site-packages/imageio_ffmpeg/binaries" -name 'ffmpeg-*' -type f | head -1)"
@@ -145,6 +154,13 @@ if [ -f "$ROOT/native/main.swift" ]; then
 else
   note "no native/main.swift — keeping the launcher that is there"
 fi
+
+step "Checking the bundle against the repo"
+# Assembling is not the same as having assembled. Every check above this line
+# watches a step succeed; this one reads the artifact back and asks whether it
+# is what the repo says (ledger T5 -- a bundle that was three days stale while
+# three fixes sat green in the suite).
+if ./scripts/verify-bundle.mjs "$APP"; then :; else bad "the bundle is not what the repo says it should be"; fi
 
 step "Done"
 printf "  %-10s %s\n" "node"     "$(du -sh "$RES/node" | cut -f1)"

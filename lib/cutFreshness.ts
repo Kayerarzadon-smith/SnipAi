@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { projectDir, CODE_ROOT } from "./paths";
+import { versionStatus, type VersionStatus } from "./pipelineVersion";
 
 /**
  * Does the rendered file still describe the edit?
@@ -50,14 +51,33 @@ export function isCutStale(project: string, cutFile: string | null): boolean {
  * stamp is a build from before stamping existed, which is by definition older
  * -- so absence reads correctly and no project has to be migrated.
  */
+export function pipelineVersion(): VersionStatus {
+  return versionStatus(CODE_ROOT);
+}
+
+/**
+ * "We could not read the manifest" is a different answer from "nothing is
+ * stale", and for a year the code gave the second when it meant the first.
+ *
+ * The bundle shipped no pipeline-version.json -- bundle-app copied tools/ and
+ * the manifest is that directory's sibling -- so inside the .app this
+ * returned 0 and isPipelineBehind answered false to every question. The badge
+ * was off, permanently and quietly, at the exact moment both of Kayer's cuts
+ * were behind. Still returning false is right: a manifest we cannot read is
+ * no grounds for telling someone to re-render 500MB. Being silent about it is
+ * not. Said once per process, because this is read on every dashboard load.
+ */
+let announcedUnknown = false;
 function currentPipelineVersion(): number {
-  try {
-    const raw = fs.readFileSync(path.join(CODE_ROOT, "pipeline-version.json"), "utf8");
-    const v = Number(JSON.parse(raw).version);
-    return Number.isFinite(v) ? v : 0;
-  } catch {
-    return 0;                          // no manifest, no claim
+  const status = pipelineVersion();
+  if (!status.ok && !announcedUnknown) {
+    announcedUnknown = true;
+    console.warn(
+      `[cutFreshness] ${status.reason} -- the "cutting has improved" badge cannot fire. ` +
+      `This is what a bundle missing its pipeline manifest looks like (ledger N2).`
+    );
   }
+  return status.version;
 }
 
 function builtPipelineVersion(project: string): number {

@@ -2,7 +2,9 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { isCutStale, isPipelineBehind } from "../lib/cutFreshness.ts";
+import { manifestDrift, driftLines, versionStatus } from "../lib/pipelineVersion.ts";
 import { PROJECTS_ROOT, CODE_ROOT } from "../lib/paths.ts";
 
 /* A render is a snapshot of two things, not one: of the EDIT, and of the
@@ -65,6 +67,40 @@ describe("a build knows which pipeline made it", () => {
   test("with no cut on disk there is nothing to be out of date", () => {
     fs.rmSync(path.join(work, "pipeline.json"), { force: true });
     assert.equal(isPipelineBehind(P, null), false);
+  });
+
+  /* The version is a hand-written claim about code, and for one day it was
+     simply false: E1 changed how every clip is extracted and the manifest
+     still read 2, the WORD_RESCUE value. Nothing noticed, because nothing
+     could -- the number was tied to the code only by somebody remembering.
+
+     It is tied now. The manifest records a digest of every file in tools/,
+     and this test is what makes forgetting expensive. It lives in the gating
+     suite rather than on the bug board on purpose: scripts/test and
+     scripts/qa both COUNT a regression failure without failing on it, and a
+     guard that cannot turn a run red is a guard nobody obeys.
+
+     If this is red, the question is not "how do I make it green". It is: does
+     the change I just made make a cut already on disk WRONG, or merely
+     different? --bump if wrong, --restamp if not. Both take ten seconds; the
+     point is that neither of them is silence. */
+  test("the manifest was stamped against the cutting tools that are on disk", () => {
+    const d = manifestDrift(CODE_ROOT);
+    assert.deepEqual(driftLines(d), [],
+      "the cutting changed and nobody said whether existing cuts are now wrong.\n" +
+      '      yes they are -> ./scripts/pipeline-version.mjs --bump "<why it matters>"\n' +
+      "      no they are not -> ./scripts/pipeline-version.mjs --restamp");
+  });
+
+  test("a pipeline we cannot read says so, instead of saying nothing", () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-nocode-"));
+    const status = versionStatus(empty);
+    assert.equal(status.ok, false);
+    assert.equal(status.version, 0);
+    assert.match(status.reason ?? "", /pipeline-version\.json/,
+      "the reason has to name the missing file -- this is the state the packaged " +
+      "app was in for days while both of Kayer's cuts were genuinely behind (N2)");
+    fs.rmSync(empty, { recursive: true, force: true });
   });
 
   test("it is a separate question from whether the file matches the edit", () => {

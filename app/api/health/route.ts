@@ -23,11 +23,29 @@ export const dynamic = "force-dynamic";
  * found, and two libraries can hold the same names -- a sandbox copy is
  * precisely that case. So the server states its root outright.
  *
- * `pid` is the other half: it lets the launcher tell its OWN orphaned server,
- * which it may stop, from one a person started in a terminal, which it may
- * not. Everything here is derived at request time from this process's own
- * resolved configuration, so it cannot drift from what the server is really
- * using -- these are the same constants every other route reads.
+ * `pid`, `serverPath` and `launchToken` are the other half: they let the
+ * launcher tell its OWN server, which it may stop, from one a person started
+ * in a terminal, which it may not. Everything here is derived at request time
+ * from this process's own resolved configuration, so it cannot drift from what
+ * the server is really using -- these are the same constants every other route
+ * reads.
+ *
+ * Why the server has to say those two rather than the launcher looking them
+ * up: **this process re-titles itself.** `ps -ww -o command= -p <pid>` on the
+ * packaged server returns exactly `next-server (v14.2.35)` -- the path it was
+ * launched from is gone from the outside world, and `next dev` re-titles to
+ * the identical string, so from outside the two are indistinguishable. The
+ * launcher used to decide ownership by looking for its own server path in that
+ * command line, which therefore could never match in the packaged app. It
+ * failed safe (it stopped nothing, ever) but for a reason nobody intended.
+ * `process.argv[1]` survives the retitle inside the process, so the server can
+ * state what the outside can no longer see.
+ *
+ * `launchToken` is SNIPAI_LAUNCH_TOKEN, which the native wrapper sets to a
+ * fresh UUID when it spawns a server, and is "" for a server a person started.
+ * It is an identity nonce and NOT a credential: nothing is authorised by it,
+ * and the worst a local process can do by echoing back a token it read here is
+ * get itself SIGTERMed on quit instead of somebody else.
  *
  * `pipeline` is here so the one thing that can silently disable the "cutting
  * has improved" badge is visible from outside the process. A packaged build
@@ -42,6 +60,8 @@ export async function GET() {
     dataRoot: DATA_ROOT,
     codeRoot: CODE_ROOT,
     pid: process.pid,
+    serverPath: process.argv[1] ?? "",
+    launchToken: process.env.SNIPAI_LAUNCH_TOKEN ?? "",
     pipeline: {
       version: pipeline.version,
       known: pipeline.ok,

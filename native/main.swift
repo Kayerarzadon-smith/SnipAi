@@ -74,6 +74,14 @@ struct Layout {
 let kLayout = Layout.resolve()
 let kProjectDir = NSString(string: "~/Projects/SnipAi").expandingTildeInPath
 
+/// Minted once per launch and handed to every server this app spawns, as
+/// SNIPAI_LAUNCH_TOKEN. A server that reports it back from /api/health is one
+/// we started during THIS run; anything else is somebody's, and not ours to
+/// stop. See ourListeningPIDs() for why ownership has to be asked rather than
+/// observed -- the process re-titles itself, so `ps` cannot tell our own
+/// bundled server from a stranger's `next dev`.
+let kLaunchToken = UUID().uuidString
+
 /// Is the server we started ready to serve a page yet?
 ///
 /// This answers readiness and nothing else. It must never again be used to
@@ -225,20 +233,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
             return
         }
 
-        if kLayout.bundled {
-            // The handle is gone but the server may not be. Fall back to pids
-            // that are on our port AND running our own server binary -- still
-            // never a stranger's.
-            for pid in ourOrphanPIDs(port: kPort, ourServerPath: kLayout.server) {
-                kill(pid, SIGTERM)
-            }
-        } else {
-            // Dev checkout: `npm start` is detached through a shell, so there
-            // is no handle to hold and no bundled server path to match on.
-            // weStartedServer is the ownership proof here, as it already was
-            // -- the ledger cleared this path (P12, fixed 77e2ae5) and this
-            // change deliberately leaves it alone.
-            shell("lsof -ti:\(kPort) -sTCP:LISTEN | xargs kill 2>/dev/null")
+        // No handle. Two ways to get here and they now take the same path:
+        // a dev checkout, where `npm start` is detached through a shell, and a
+        // bundled run whose handle we somehow lost.
+        //
+        // This used to branch, and the dev half was `lsof -ti:PORT | xargs
+        // kill` -- the exact fallacy the launch path had just stopped making,
+        // defended by citing P12's clearance of `weStartedServer`. But
+        // `weStartedServer` proves we started A server; it does not prove the
+        // process on the port is it. In a dev checkout that gap is not
+        // theoretical and not rare: `npm start` cannot succeed in a checkout
+        // with no production build at all, so EVERY dev launch on a free port
+        // set this flag, produced no server, and left the port free for
+        // somebody else to take -- and then killed whoever took it. Reproduced
+        // 2/2. Ledger P19's surviving half.
+        //
+        // So: ask the port who it is, and signal only the pid that says it is
+        // ours. If our server died at birth, nobody answers with our token and
+        // nothing is signalled, which is the correct outcome and the one the
+        // reproduction checks.
+        //
+        // Two seconds is enough here, where the launch allows eight: by quit
+        // time the server has been serving the app, so /api/health is long
+        // since compiled and answers immediately. A quit must not hang on a
+        // stranger who will not talk -- and a stranger is exactly who we are
+        // not going to signal.
+        let identity = fetchServerIdentity(port: kPort, timeout: 2.0)
+        let ours = ourListeningPIDs(port: kPort, identity: identity,
+                                    ourServerPath: kLayout.server,
+                                    ourLaunchToken: kLaunchToken)
+        if ours.isEmpty {
+            NSLog("SnipAi: quitting. We started a server but nothing on port %d " +
+                  "identifies itself as it, so nothing has been stopped.", kPort)
+            return
+        }
+        for pid in ours {
+            NSLog("SnipAi: quitting. Stopping our own server, pid %d", pid)
+            kill(pid, SIGTERM)
         }
     }
 
@@ -425,20 +456,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
                 NSLog("SnipAi: port %d is held by a SnipAi server (pid %d, library %@)",
                       kPort, id.pid, id.dataRoot)
             case .unidentified:
-                NSLog("SnipAi: port %d is held by something that will not identify itself (pids %@)",
-                      kPort, listeningPIDs(port: kPort).map(String.init).joined(separator: ","))
+                // Say what it looks like, not just that there is something.
+                // `next-server (v14.2.35)` here means an old SnipAi build;
+                // anything else means a different program entirely, and the
+                // person has to know which before they can act on the refusal.
+                let who = listeningPIDs(port: kPort)
+                    .map { "\($0) (\(commandLine(ofPID: $0)))" }
+                    .joined(separator: ", ")
+                NSLog("SnipAi: port %d is held by something that will not identify itself: %@",
+                      kPort, who)
             }
 
             // Both of the lookups below cost a round trip or a subprocess,
             // and neither means anything when the port is free -- which is the
             // ordinary cold launch. Asking anyway put a 2s build check in
             // front of every start.
+            let identity: ServerIdentity? = {
+                if case .identified(let id) = occupant { return id }
+                return nil
+            }()
+
             let action = decideLaunch(
                 occupant: occupant,
                 expectedDataRoot: expectedDataRoot(codeRoot: kLayout.code),
                 buildMatches: free ? false : serverMatchesDiskBuild(),
                 listenerIsOurOrphan: free ? false
-                    : listenerIsOurOrphan(port: kPort, ourServerPath: kLayout.server),
+                    : listenerIsOurOrphan(port: kPort, identity: identity,
+                                          ourServerPath: kLayout.server,
+                                          ourLaunchToken: kLaunchToken),
                 port: kPort)
 
             switch action {
@@ -458,13 +503,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
                 DispatchQueue.main.async {
                     self.statusLabel.stringValue = "Restarting the SnipAi server…"
                 }
-                // Re-checked immediately before signalling, not just in the
+                // Re-asked immediately before signalling, not just in the
                 // decision above: between the two there is a window in which
                 // the port could change hands, and the whole point of this
                 // row is that we never signal a process we have not just
                 // confirmed is ours. SIGTERM, not SIGKILL -- the server gets
                 // to finish writing whatever it was writing.
-                for pid in ourOrphanPIDs(port: kPort, ourServerPath: kLayout.server) {
+                let confirmed = fetchServerIdentity(port: kPort)
+                for pid in ourListeningPIDs(port: kPort, identity: confirmed,
+                                            ourServerPath: kLayout.server,
+                                            ourLaunchToken: kLaunchToken) {
+                    NSLog("SnipAi: stopping our own orphaned server, pid %d", pid)
                     kill(pid, SIGTERM)
                 }
                 Thread.sleep(forTimeInterval: 1.2)
@@ -531,8 +580,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
     /// tools, interpreter, ffmpeg and library are.
     func startServer() {
         guard kLayout.bundled else {
-            // dev fallback: run the repo the way it has always been run
-            shell("cd \(kProjectDir) && nohup npm start >> .snipai.log 2>&1 &", wait: false)
+            // dev fallback: run the repo the way it has always been run.
+            //
+            // The token goes on the command line rather than being inherited
+            // through the login shell, so that what the server reports back is
+            // what we passed and not whatever a profile left lying around.
+            // It is the only thing that will let quitting recognise this
+            // server: there is no process handle to hold, and no bundled
+            // server path to compare against.
+            shell("cd \(kProjectDir) && SNIPAI_LAUNCH_TOKEN=\(kLaunchToken) " +
+                  "nohup npm start >> .snipai.log 2>&1 &", wait: false)
             return
         }
         let logDir = NSString(string: "~/Library/Logs/SnipAi").expandingTildeInPath
@@ -566,6 +623,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
         // /api/health's reply comparable to what we asked for by
         // construction, rather than by coincidence.
         env["SNIPAI_DATA"] = expectedDataRoot(codeRoot: kLayout.code)
+        // How this server will prove it is ours if we ever lose the handle.
+        env["SNIPAI_LAUNCH_TOKEN"] = kLaunchToken
         p.environment = env
         if let handle = handle {
             p.standardOutput = handle

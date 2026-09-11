@@ -73,9 +73,53 @@ func answersProjectsWithin(port: Int, timeout: TimeInterval) -> Bool {
     return alive
 }
 
+/// Sockets sitting in TIME_WAIT whose LOCAL port is this one -- what a server
+/// that was stopped gracefully leaves behind for ~30s after it is gone.
+func timeWaitCount(port: Int) -> Int {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/sbin/netstat")
+    p.arguments = ["-an", "-p", "tcp"]
+    let pipe = Pipe()
+    p.standardOutput = pipe
+    p.standardError = FileHandle.nullDevice
+    do { try p.run() } catch { return 0 }
+    let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    p.waitUntilExit()
+    return out.split(separator: "\n").filter { line in
+        let f = line.split(separator: " ", omittingEmptySubsequences: true)
+        guard f.count >= 6, f[5] == "TIME_WAIT" else { return false }
+        return f[3].hasSuffix(".\(port)")     // LOCAL address, not the remote one
+    }.count
+}
+
 /// A port nothing is using, found with the check under test.
 func findFreePort(from: Int = 4900, to: Int = 4960) -> Int? {
     (from...to).first { !portIsOccupied($0) }
+}
+
+/// Hold a port the way a real server holds it -- bound, listening, and with
+/// SO_REUSEADDR set, because every server built on libuv sets it. Returns the
+/// socket to close when done, or nil if it could not take the port.
+func holdPort(_ port: Int) -> Int32? {
+    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    if fd < 0 { return nil }
+    var on: Int32 = 1
+    _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
+    var addr = sockaddr_in()
+    addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    addr.sin_family = sa_family_t(AF_INET)
+    addr.sin_port = UInt16(truncatingIfNeeded: port).bigEndian
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+    let bound = withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    if bound != 0 || listen(fd, 1) != 0 {
+        _ = Darwin.close(fd)
+        return nil
+    }
+    return fd
 }
 
 /// tests/native/fake-occupant.mjs, wherever this was run from.
@@ -199,21 +243,13 @@ struct LaunchDecisionProbe {
     if let free = findFreePort() {
         check(!portIsOccupied(free), "an unused port reads as free (\(free))")
         // Hold it for real, the way a stranger would.
-        let held = socket(AF_INET, SOCK_STREAM, 0)
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(truncatingIfNeeded: free).bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-        let bound = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.bind(held, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
+        if let held = holdPort(free) {
+            check(true, "test bound port \(free) itself")
+            check(portIsOccupied(free), "a held port reads as occupied -- with no HTTP asked")
+            _ = Darwin.close(held)
+        } else {
+            check(false, "could not take port \(free) to test with")
         }
-        _ = listen(held, 1)
-        check(bound == 0, "test bound port \(free) itself")
-        check(portIsOccupied(free), "a held port reads as occupied -- with no HTTP asked")
-        _ = Darwin.close(held)
     } else {
         check(false, "no free port in 4900-4960 to test with")
     }
@@ -263,20 +299,38 @@ struct LaunchDecisionProbe {
     check(occupantProc.isRunning, "the slow occupant is still running -- nothing was killed")
     occupantProc.terminate()
 
+    print("\n== N5 live: a port whose last server was stopped CLEANLY is free ==")
+    // Found by running the reproduction rather than by reading: a graceful
+    // shutdown leaves the connections that server had accepted in TIME_WAIT on
+    // its own port for up to 30 seconds. `lsof -sTCP:LISTEN` correctly reports
+    // nobody; a bind WITHOUT SO_REUSEADDR is refused anyway. So the first cut
+    // of this check called the port occupied, refused to launch, and could
+    // name no pid at all -- on the commonest path there is: quit SnipAi, open
+    // it again. libuv sets SO_REUSEADDR on every bind, so our own server would
+    // have started fine; the check has to ask the question the same way.
+    if let twPort = findFreePort(),
+       let gentle = startFakeOccupant(script: script, port: twPort, dataRoot: "/tmp/x",
+                                      projectsDelayMS: 0, withHealth: true) {
+        // A real client connection, so there is something to leave behind.
+        _ = fetchServerIdentity(port: twPort, timeout: 3)
+        gentle.terminate()                    // SIGTERM: the graceful stop
+        gentle.waitUntilExit()
+        Thread.sleep(forTimeInterval: 0.4)
+
+        let waiting = timeWaitCount(port: twPort)
+        check(waiting > 0,
+              "the case is armed: \(waiting) socket(s) in TIME_WAIT on port \(twPort)")
+        check(listeningPIDs(port: twPort).isEmpty, "nothing is listening on it any more")
+        check(!portIsOccupied(twPort),
+              "a port with only TIME_WAIT sockets left on it reads as FREE")
+        check(lookUpOccupant(port: twPort) == .free,
+              "so relaunching straight after a clean quit starts a server, not a refusal")
+    } else {
+        check(false, "could not set up the TIME_WAIT case")
+    }
+
     print("\n== N5 live: something on the port that will not speak at all ==")
-    if let silentPort = findFreePort() {
-        let holder = socket(AF_INET, SOCK_STREAM, 0)
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(truncatingIfNeeded: silentPort).bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-        _ = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.bind(holder, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
-        }
-        _ = listen(holder, 1)
+    if let silentPort = findFreePort(), let holder = holdPort(silentPort) {
         check(lookUpOccupant(port: silentPort) == .unidentified,
               "a non-HTTP program holding the port is unidentified, not free (N5: this " +
               "case could not be reached at all before)")
@@ -291,6 +345,75 @@ struct LaunchDecisionProbe {
         _ = Darwin.close(holder)
     } else {
         check(false, "no free port for the silent-holder case")
+    }
+
+    print("\n== ownership: only a server that says it is ours ==")
+    // The command-line test this replaces could never match in the packaged
+    // app: the bundled server re-titles itself to `next-server (v14.2.35)`,
+    // which is also exactly what `next dev` reports. Verified against the
+    // shipped bundle. Ownership is now what the server says about itself.
+    let ourPath = "/Applications/SnipAi.app/Contents/Resources/server/server.js"
+    let ourToken = "TOKEN-THIS-RUN"
+    let held: [Int32] = [4242]
+
+    func ours(_ id: ServerIdentity?, path: String = ourPath, token: String = ourToken) -> [Int32] {
+        ourListeningPIDs(port: 4737, identity: id, ourServerPath: path,
+                         ourLaunchToken: token, listening: held)
+    }
+    func server(pid: Int32 = 4242, serverPath: String = "", launchToken: String = "")
+        -> ServerIdentity {
+        ServerIdentity(dataRoot: real, codeRoot: "/x/code", pid: pid,
+                       serverPath: serverPath, launchToken: launchToken)
+    }
+
+    check(ours(server(launchToken: ourToken)) == [4242],
+          "carries THIS run's token -> ours")
+    check(ours(server(serverPath: ourPath)) == [4242],
+          "launched from our own bundled server file -> our orphan")
+    check(ours(server()) == [],
+          "a server that claims neither -> not ours")
+    check(ours(server(launchToken: "SOMEBODY-ELSES-TOKEN")) == [],
+          "another run's token -> not ours")
+    check(ours(nil) == [],
+          "silence is not ownership -- an unidentified listener is never signalled")
+    check(ours(server(pid: 9999, launchToken: ourToken)) == [],
+          "right token, but not the pid holding the port -> nothing signalled")
+    // P19, restated at the new mechanism: a dev checkout has no bundled server
+    // path, so a person's `npm run dev` in the same checkout can never be ours.
+    check(ours(server(serverPath: "/Users/k/Projects/SnipAi/node_modules/.bin/next"),
+               path: "", token: "") == [],
+          "P19: dev checkout owns nothing -- somebody's `npm run dev` is never ours")
+    check(ours(server(serverPath: ourPath), path: "", token: "") == [],
+          "a bundled server, seen from a dev checkout -> still not ours to stop")
+    // The token is only ever OUR token; an empty one must not match an empty
+    // one, or every server a person started would be ours.
+    check(ours(server(launchToken: ""), path: "", token: "") == [],
+          "empty token never matches empty token")
+
+    print("\n== ownership composes: no identity, no restart ==")
+    // decideLaunch still takes `listenerIsOurOrphan` as a free parameter and
+    // its table is unchanged -- but the LOOKUP can no longer hand it `true`
+    // without an identity, so the `.unidentified -> restartOrphan` row is now
+    // unreachable in the app. Asserted rather than claimed in a comment.
+    if let silent = findFreePort() {
+        let holder = socket(AF_INET, SOCK_STREAM, 0)
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = UInt16(truncatingIfNeeded: silent).bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        _ = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(holder, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        _ = listen(holder, 1)
+        check(!listenerIsOurOrphan(port: silent, identity: nil,
+                                   ourServerPath: ourPath, ourLaunchToken: ourToken),
+              "a real listener that answers nothing is not our orphan")
+        _ = Darwin.close(holder)
+    } else {
+        check(false, "no free port for the composition check")
     }
 
     print("\n== path comparison does not cry wolf ==")
@@ -331,7 +454,9 @@ struct LaunchDecisionProbe {
                                   expectedDataRoot: sandbox,
                                   buildMatches: true,
                                   listenerIsOurOrphan: listenerIsOurOrphan(
-                                      port: port, ourServerPath: "/nonexistent/bundled/server.js"),
+                                      port: port, identity: id,
+                                      ourServerPath: "/nonexistent/bundled/server.js",
+                                      ourLaunchToken: "not-the-token-it-carries"),
                                   port: port)
         if case .refuse(let why) = action {
             check(true, "refused to adopt it")

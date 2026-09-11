@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { tempLibrary } from "./_fixture.mts";
+import { tempLibrary, bundleSkeleton } from "./_fixture.mts";
 
 /**
  * LEDGER N2 — the "Rebuild — the cutting has improved" badge is inert.
@@ -59,16 +59,12 @@ test("N2: the bundle is rejected when the pipeline manifest is missing", () => {
     "scripts/verify-bundle.mjs must exist -- nothing else checks what the bundler produced");
 
   // A bundle skeleton: everything a real one has except the manifest.
-  const app = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-bundle-"));
+  // The skeleton is shared (tests/regressions/_fixture.mts) so that an
+  // assertion added to verify-bundle for some other row cannot quietly turn
+  // this fixture into an invalid bundle and redden a test about the manifest.
+  const app = bundleSkeleton("n2");
   const res = path.join(app, "Contents", "Resources");
-  fs.mkdirSync(path.join(res, "server"), { recursive: true });
-  fs.mkdirSync(path.join(app, "Contents", "MacOS"), { recursive: true });
-  for (const f of ["Contents/Info.plist", "Contents/MacOS/SnipAi",
-                   "Contents/Resources/node", "Contents/Resources/server/server.js"]) {
-    fs.writeFileSync(path.join(app, f), "");
-  }
-  fs.cpSync(path.join(ROOT, "ugc-edit-system", "tools"),
-    path.join(res, "pipeline", "tools"), { recursive: true });
+  fs.rmSync(path.join(res, "pipeline", "pipeline-version.json"));
 
   const run = () => {
     try {

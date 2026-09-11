@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { bundleSkeleton } from "./_fixture.mts";
 
 /**
  * LEDGER N7 — the bundled server is missing a route and verify-bundle says it matches.
@@ -37,56 +37,7 @@ import { execFileSync } from "node:child_process";
 
 const ROOT = path.dirname(path.dirname(path.dirname(new URL(import.meta.url).pathname)));
 const VERIFY = path.join(ROOT, "scripts", "verify-bundle.mjs");
-
-/** Every `app/api/**\/route.ts` in the repo, as a route path like `api/health`. */
-function repoRoutes(): string[] {
-  const out: string[] = [];
-  const walk = (dir: string, rel: string) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (e.isDirectory()) walk(path.join(dir, e.name), path.posix.join(rel, e.name));
-      else if (e.name === "route.ts") out.push(rel);
-    }
-  };
-  walk(path.join(ROOT, "app", "api"), "api");
-  return out.sort();
-}
-
-/**
- * A bundle skeleton that passes every check verify-bundle had BEFORE this row:
- * the launcher pieces, the manifest, byte-identical tools. Everything the
- * new assertions are about is added by the caller, so each one can be
- * removed in isolation and blamed by name.
- */
-function skeleton(): string {
-  const app = fs.mkdtempSync(path.join(os.tmpdir(), "snipai-bundle-n7-"));
-  const res = path.join(app, "Contents", "Resources");
-  fs.mkdirSync(path.join(res, "server"), { recursive: true });
-  fs.mkdirSync(path.join(app, "Contents", "MacOS"), { recursive: true });
-  for (const f of ["Contents/Info.plist", "Contents/MacOS/SnipAi",
-                   "Contents/Resources/node", "Contents/Resources/server/server.js"]) {
-    fs.writeFileSync(path.join(app, f), "");
-  }
-  fs.cpSync(path.join(ROOT, "ugc-edit-system", "tools"),
-    path.join(res, "pipeline", "tools"), { recursive: true });
-  fs.copyFileSync(path.join(ROOT, "ugc-edit-system", "pipeline-version.json"),
-    path.join(res, "pipeline", "pipeline-version.json"));
-
-  // the three pieces nothing asserted: interpreter, ffmpeg, stylesheets
-  fs.mkdirSync(path.join(res, "pipeline", "python", "bin"), { recursive: true });
-  fs.writeFileSync(path.join(res, "pipeline", "python", "bin", "python3"), "");
-  fs.mkdirSync(path.join(res, "pipeline", "bin"), { recursive: true });
-  fs.writeFileSync(path.join(res, "pipeline", "bin", "ffmpeg"), "");
-  fs.mkdirSync(path.join(res, "server", ".next", "static", "chunks"), { recursive: true });
-  fs.writeFileSync(path.join(res, "server", ".next", "static", "chunks", "main.js"), "");
-
-  // and the compiled routes, one per repo route
-  for (const r of repoRoutes()) {
-    const d = path.join(res, "server", ".next", "server", "app", r);
-    fs.mkdirSync(d, { recursive: true });
-    fs.writeFileSync(path.join(d, "route.js"), "");
-  }
-  return app;
-}
+const skeleton = () => bundleSkeleton("bundle-n7");
 
 function run(app: string): { code: number; out: string } {
   try {

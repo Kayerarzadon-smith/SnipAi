@@ -367,7 +367,44 @@ test("every seam says why, in a sentence he could read out loud", () => {
   }
 });
 
-/* ---- 10. the seams a group was built from are the ones inside it ---- */
+/* ---- 10. the milestone's exit line, as a proposal ---- */
+
+test("four clips of one interrupted TikTok plus one standalone propose 2 projects, not 5 and not 1", () => {
+  /* M0.8's exit line, minus the parts only the packaged app can prove. The
+     four parts are one recitation he was interrupted in three times -- twice
+     he restarted the line, once he just carried on -- and the fifth is a
+     different product filmed in the same sitting. */
+  const p1 = clip("IMG_9901.MOV", at(0), [
+    "If between your eyes looks like this, you need EGF.",
+    "I have been using this stuff for like five months now and oh my gosh, I swear my",
+  ], { tailSilenceSec: 0.1 });
+  const p2 = clip("IMG_9902.MOV", at(3), [
+    "I have been using this stuff for like five months now and oh my gosh, I swear my life on this.",
+    "You can definitely tell my skin texture is terrible and there's",
+  ], { tailSilenceSec: 0.1 });
+  const p3 = clip("IMG_9903.MOV", at(7), [
+    "fine lines everywhere, and the reason this works is because",
+  ], { tailSilenceSec: 0.2 });
+  const p4 = clip("IMG_9904.MOV", at(11), [
+    "growth factors tell your skin to behave like it did ten years ago.",
+    ...CLOSE,
+  ]);
+  const standalone = clip("IMG_9905.MOV", at(26), [
+    "If your hair looks like this, you need the rosemary oil.",
+    "Three weeks and my edges came back",
+  ]);
+
+  const p = proposeGroups([p3, standalone, p1, p4, p2]); // dropped in a mess
+  assert.equal(p.groups.length, 2, p.seams.map((s) => `${s.from}->${s.to}: ${s.verdict} ${s.score}`).join("; "));
+  assert.deepEqual(p.groups.map((g) => g.clips.map((c) => c.name)), [
+    ["IMG_9901.MOV", "IMG_9902.MOV", "IMG_9903.MOV", "IMG_9904.MOV"],
+    ["IMG_9905.MOV"],
+  ]);
+  assert.deepEqual(p.groups.map((g) => g.projectName), ["img-9901", "img-9905"]);
+  assert.equal(p.needsYourEye.length, 0, "the common case should cost him one click, not five");
+});
+
+/* ---- 11. the seams a group was built from are the ones inside it ---- */
 
 test("a group reports the seams it was built from, and they are the ones inside it", () => {
   const a1 = clip("A1.MOV", at(0), ["If your cheeks look like this, you need EGF.", "The reason this works is because"], { tailSilenceSec: 0.1 });

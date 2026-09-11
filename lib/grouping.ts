@@ -174,14 +174,25 @@ const CONFIDENT_AT = 0.5;
  *
  * Deliberately conjunctions, articles, prepositions, auxiliaries and pronouns
  * only -- things that promise another word. "...for five months" ends a
- * thought; "...is because" does not. 25-27% of his segments end on one of
- * these and neither of his two finished videos does.
+ * thought; "...is because" does not.
+ *
+ * The contractions on the last two lines are the ones that CANNOT close a
+ * sentence: a pronoun glued to `be`/`have` still needs its complement, and
+ * "gonna" still needs its verb. `don't`, `can't` and `won't` are deliberately
+ * left out, because "...but I don't." is a real ending. They were added after
+ * this missed a line lifted verbatim from img-9817 -- "and there's" -- and
+ * they cost almost nothing: they take the share of his segments ending on a
+ * dangling word from 25% to 26-27%, and neither of his two real finished
+ * endings ("...in the next day or two") is caught by either set.
  */
 const DANGLING = new Set(
   `a an and as at because before but by for from if in into like my of on onto or our so than that
    the their there these this those to until upon we what when where which while who why will with
    without you your his her its it he she they i am are be been being can could did do does had has
-   have is may might must shall should was were would just really very`.split(/\s+/)
+   have is may might must shall should was were would just really very
+   there's it's that's what's here's he's she's who's i'm you're we're they're
+   i've you've we've they've i'll you'll he'll she'll we'll they'll it'll
+   i'd you'd he'd she'd we'd they'd gonna wanna gotta kinda sorta`.split(/\s+/)
 );
 
 /* ---- reading a transcript ---- */
@@ -357,9 +368,20 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
     reasons.push(`${b.probe.name} does not pick up where ${a.probe.name} left off`);
   }
 
-  /* did clip N end on a complete sentence? */
+  /* Did clip N end on a complete sentence? This is the design's discriminator,
+     and it carries enough weight on its own to reach `same` -- a clip that
+     stops on a function word is not a finished TikTok, so it should not become
+     a project of its own while there is a later clip it could belong to.
+
+     It has to carry that much because the gap cannot help: he batch-films, so
+     four minutes means either "the kid came in" or "on to the next product",
+     and the design says so in as many words. Weighting this at 0.4 left the
+     common case -- cut off mid-thought, carries on four minutes later without
+     re-saying the line -- sitting at `unsure`, which would put a question in
+     front of him on the seam the rule exists to answer. The gap still pulls it
+     back to `unsure` when he was away twenty minutes or more. */
   if (endsDangling) {
-    score += 0.4;
+    score += 0.55;
     reasons.push(`${a.probe.name} stops on "${lastWord}", mid-sentence — that is not how a finished video ends`);
   } else if (endsPunctuated) {
     score -= 0.25;

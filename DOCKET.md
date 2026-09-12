@@ -487,6 +487,64 @@ now costs what the first build cost"* is currently a claim rather than a
 measurement. It also capped the last run at one edit and cost the
 refresh-mid-edit and import-during-build cases outright.
 
+**2026-09-11, the last ruling of the day: N18 next, then the rebundle, and the
+honest state of play for Kayer at the bottom.**
+
+**N18 goes next, and I agree with the lean for a stronger reason than the one
+offered.** The offered reason was that N18 caught a Critical fail-open before
+anyone ran it as a gate, which is true and earns it a place. **The decisive
+reason is that the rebundle is approved by the gate N18 repairs.**
+`scripts/bundle-app:23-26` reads `scripts/test`'s exit code as the release gate,
+that run's typecheck has **never looked at `tests/`** (`tsconfig.json:21` names
+`**/*.ts`; all 21 test files are `.mts`), and **the known hole is in the join
+path specifically** — two fixtures feeding `analyseBatch` -> `joinRefusal` are
+incomplete, which is how S34's fail-open was reachable from two places rather
+than one. Rebundling first means shipping the join on a gate with a known blind
+spot over the join. **Fix the gate, then package.** It also needs no disk, which
+matters at 3.6 GiB.
+
+**Then the rebundle, and its payload is now much stronger than it was two hours
+ago — which I only know because I read the branch rather than the report.**
+`qa/S38-C37` carries **`4ff5213` S42**, so *deleting one line no longer costs a
+gigabyte*, plus `de9733d` (C37 and S38's plumbing) and `bb345e7` (the S34
+fail-open). **That changes my earlier reasoning:** I had been arguing the
+rebundle should wait for a payload that changes what Kayer can do, and it now
+has one. **An edit costing 857 MB and 32 minutes is the single biggest thing
+standing between him and using this app tomorrow**, and it is fixed and
+unpackaged. So the rebundle is not "queued behind S37" — it is next after N18.
+
+**Then S38's remaining half**, and the ordering is deliberate rather than
+alphabetical: N18's 14 errors are in `grouping.test.mts` and
+`import-batch.test.mts`, which are **S38's own fixtures**. Doing N18 first means
+the rest of S38 lands on typechecked fixtures instead of adding to them.
+
+**Where I committed this, and why it is not master.** `DOCKET.md` and
+`audits/LEDGER.md` are one-writer-at-a-time shared state, and their current head
+is on `qa/S38-C37`, six commits ahead of master with **strictly linear history**
+(`git merge-base --is-ancestor master qa/S38-C37` passes, so the merge is a
+fast-forward). Committing the ledger to master instead would **fork the one file
+that must not fork**. Master fast-forwards whenever Ruth is ready; I am not
+merging somebody's in-flight code branch to make my own filing tidier.
+
+**The honest stopping point for today: after N18. Not more.** It is nearly 10pm
+and the developer has been running since morning. There is no gate, test or
+milestone that improves by being done tired, and the two rows after N18 — the
+rebundle and S38's remaining half — are both things whose value is
+*verification*, which is the worst kind of work to do on momentum.
+
+**And the honest answer to "is the app finished today", which Kayer should hear
+tonight rather than discover tomorrow: M0.8 got its join and lost its
+grouping.** That is real progress and it is not done. Three of his clips became
+one video tonight, correctly — every machine-checkable property passes, the take
+picker chose a better line from clip 2 over clip 1, and it plays in the native
+window. **But the tray proposed splitting it into two, and a human had to click
+"Actually one video" to get that result.** So the thing he asked for works, and
+it does not yet decide correctly on its own. **What he can do with it after the
+rebundle:** drop three clips, click *Actually one video*, get one cut — and edit
+lines without paying a gigabyte a time. **What is not there:** the tray getting
+the grouping right unaided (S38 then S37), and a full-resolution export, so
+**nothing he exports today should be treated as the finished upload** (M0.95).
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

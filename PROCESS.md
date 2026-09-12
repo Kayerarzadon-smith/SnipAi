@@ -261,6 +261,15 @@ The rule, borrowed from how a real team avoids this:
   `app/dashboard/DropZone.tsx` are the contended files, and almost every open
   client row lives in one of them. If a second implementer ever exists, the WIP
   limit of one row is the thing that breaks first — see the ruling in DOCKET.
+- **The scratchpad is shared. Treat anything in it as someone else's until you
+  have confirmed it is not.** Added 2026-09-12: a tester's compression step
+  **deleted 54 PNG originals from the previous day's run** because the
+  scratchpad was assumed empty. Nothing was lost — the content survives as
+  downscaled JPEGs — but it was **moved from where its author left it**, and
+  the author was not asked. **Same class as the nightly selecting a data root
+  by fallback (G9):** a step that picks its working location by assumption
+  rather than by instruction. **List before you write, and never delete what
+  you did not create.**
 - **Before committing a shared file, diff it and confirm every hunk is yours.**
   **Theo's formulation, 2026-09-12, and it replaces a weaker rule of mine.**
   Mine said *"add by explicit path"*. **That is not enough and the evidence is

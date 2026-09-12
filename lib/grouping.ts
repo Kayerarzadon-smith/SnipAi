@@ -105,8 +105,13 @@ export type Seam = {
   /** plain English, for the tray. Every seam has at least one. */
   reasons: string[];
   /**
-   * The reason that actually decided this verdict -- the one contributing the
-   * most to `score`, whichever way it pushed.
+   * The strongest reason that pushed TOWARD this verdict -- or, for `unsure`,
+   * a statement that the rule did not reach one.
+   *
+   * "Whichever way it pushed" is what this used to say and used to do, and it
+   * was wrong for eight of the nine `unsure` combinations: the loudest signal
+   * there argues SAME while the group is proposed as a break, so the split
+   * line explained itself with a pro-join sentence.
    *
    * Named rather than left as `reasons[0]` because the tray used to render
    * `reasons[0]` and `reasons[0]` was always the continuity sentence: the
@@ -181,6 +186,9 @@ const GAP_A_WHILE_MS = 20 * 60_000;
 const SAME_AT = 0.55;
 const SEPARATE_AT = -0.1;
 const CONFIDENT_AT = 0.5;
+
+/** What an `unsure` seam says instead of asserting a conclusion. */
+const UNSURE_REASON = "not clear enough to call — worth a look";
 
 /**
  * Words a sentence cannot end on.
@@ -439,7 +447,35 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
     .sort((x, y) => Math.abs(y.weight) - Math.abs(x.weight) || x.i - y.i);
 
   for (const r of ordered) reasons.push(r.text);
-  if (verdict === "unsure") reasons.push(`not clear enough to call — worth a look`);
+  if (verdict === "unsure") reasons.push(UNSURE_REASON);
+
+  /* Direction matters, and dropping it regenerated C37.
+     
+     The sort above is magnitude only, and `decidedBy` used to be
+     `ordered[0].text` -- so it named the LOUDEST signal whether or not that
+     signal pushed the way the verdict went. Of the nine weight combinations
+     that come out `unsure` -- every one of which `proposeGroups` proposes as
+     a break -- eight had a positive-weight `decidedBy`: a sentence arguing
+     SAME, printed under the split divider as the reason the clips were kept
+     apart. Reachable on a retake (restartRun >= 10, endsPunctuated, gap >=
+     20min, score 0.35): the split line read "X opens by re-saying 12 words Y
+     had just said -- that is him restarting the line he was cut off in",
+     which he would read, agree with, and then click Import. C37 was a bug
+     about a misleading sentence and its own fix printed a contradicting one.
+     
+     So the reason named is the strongest one that pushed TOWARD the verdict.
+     And an `unsure` verdict asserts nothing, because that is where a
+     confident-sounding sentence does the most damage: the rule has not
+     concluded anything for a sentence to be the explanation of. */
+  const towards = verdict === "same" ? 1 : verdict === "separate" ? -1 : 0;
+  const agreeing = towards === 0
+    ? undefined
+    : ordered.find((r) => Math.sign(r.weight) === towards);
+  /* `?? ordered[0]` is unreachable for `same` and `separate` -- a verdict
+     needs a same-signed contribution to have been reached at all -- and the
+     27-combination table in S38's test proves it over every reachable state
+     rather than leaving it as an argument. */
+  const decidedBy = towards === 0 ? UNSURE_REASON : (agreeing ?? ordered[0]).text;
 
   return {
     ...base,
@@ -447,7 +483,7 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
     score,
     confident: verdict !== "unsure" && Math.abs(score) >= CONFIDENT_AT,
     reasons,
-    decidedBy: ordered[0].text,
+    decidedBy,
     signals: { gapSec, restartRun, endsDangling, endsPunctuated, tailSilenceSec },
   };
 }
@@ -569,40 +605,34 @@ export function proposeGroups(clips: ClipForGrouping[]): GroupingProposal {
     groups,
     basis,
     seams: adjacent,
-    /* S38, PARTLY. The plumbing is fixed and this predicate is NOT, and the
-       reason is arithmetic rather than caution.
+    /* S38. Ask when the rule is not sure. **Kayer's ruling, 2026-09-11:**
+       asked whether a weak-but-correct split should be questioned, he said
+       *"sure ask me"* — he would rather be asked.
        
-       The row asks for every seam with `confident: false` to be flagged. That
-       cannot be done without turning correct splits into questions, because
-       the two thresholds disagree with each other:
+       That resolves a trade only he could price, and it resolves it against
+       the cheaper-looking option. The measurement put in front of him:
+       `!confident` flags the **-0.1** seam that wrongly split his three-clip
+       video AND the **-0.15** seam that correctly separates two different
+       products. Those are 0.05 apart, same verdict, same confidence, opposite
+       correctness, and no predicate over score/verdict/confident tells them
+       apart — so being asked about the wrong one is the price of being asked
+       about the right one.
        
-         SAME_AT = 0.55, so any `same` verdict already clears
-         CONFIDENT_AT = 0.5 -- every `same` is confident, always.
-         SEPARATE_AT = -0.1, so a `separate` verdict only clears 0.5 at
-         score <= -0.5. Every separate call in (-0.5, -0.1] is
-         `confident: false` BY CONSTRUCTION.
+       WHAT THIS COSTS HIM, because it is the honest consequence of his own
+       decision. The thresholds are asymmetric: `SAME_AT = 0.55` already
+       clears `CONFIDENT_AT = 0.5`, so **every `same` verdict is confident by
+       construction**, while `SEPARATE_AT = -0.1` only clears 0.5 at
+       `score <= -0.5`, so **every separate call in (-0.5, -0.1] is
+       `confident: false` by construction.** So until S37 sharpens the rule,
+       nearly every SPLIT is a question: one on tonight's three clips, four of
+       five seams on the six-clip batch. S37 is what brings that number down.
        
-       So `!confident` reads as "ask about nearly every split". Measured: it
-       flags the -0.1 seam that wrongly split his three-clip video, and it
-       also flags the -0.15 seam in `tests/grouping.test.mts` that CORRECTLY
-       separates two different products. Those two are 0.05 apart, same
-       verdict, same confidence, opposite correctness -- no predicate over
-       score, verdict and confident tells them apart, and separating them
-       means moving a threshold, which is S37's and not this row's.
-       
-       `tests/grouping.test.mts`'s "the common case should cost him one click,
-       not five" catches exactly that, and it is right to: it was written for
-       the promise this row also makes. That test was NOT edited to agree with
-       the change.
-       
-       What DID ship: `score`, `confident` and `decidedBy` now reach the tray
-       (they were dropped in `importBatch.ts`'s `trayseam`), and the tray marks
-       a verdict it could barely reach as "a close call" on the very line he
-       reads before clicking. So the row's own complaint -- that he cannot
-       tell a 0.95 "same" from a -0.1 "separate" -- is answered, without this
-       function deciding how chatty the tray should be. Whether a weak-but-
-       correct split deserves a question is a product call, and it is in the
-       row. */
-    needsYourEye: adjacent.filter((s) => s.verdict === "unsure"),
+       WHAT IT IS NOT. "Ask about everything" is not what he chose. He chose
+       "ask when you are not sure", and the shape that delivers is **silence
+       on joins, a question on weak splits** — `0060->0061` scored 0.55 with
+       `confident: true` and stays silent in the same run that asks about
+       `0061->0062`. That asymmetry is the anti-abdication half of Mara's
+       two-sided exit and it is asserted both ways. */
+    needsYourEye: adjacent.filter((s) => s.verdict === "unsure" || !s.confident),
   };
 }

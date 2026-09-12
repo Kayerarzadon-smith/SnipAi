@@ -412,7 +412,38 @@ test("four clips of one interrupted TikTok plus one standalone propose 2 project
     ["IMG_9905.MOV"],
   ]);
   assert.deepEqual(p.groups.map((g) => g.projectName), ["img-9901", "img-9905"]);
-  assert.equal(p.needsYourEye.length, 0, "the common case should cost him one click, not five");
+  /* KAYER'S RULING, 2026-09-11. This expectation is his, and it is recorded
+     here rather than in a commit message so that whoever reads it in three
+     months sees a founder's decision and not an assertion someone loosened
+     because it got in the way.
+     
+     It used to be `needsYourEye.length === 0`, with the message "the common
+     case should cost him one click, not five". That encoded a product
+     assumption -- that being asked is a cost to minimise -- and this fixture
+     is where the assumption bites: the standalone is separated at **-0.15**,
+     which is CORRECT, and which the rule cannot distinguish from the **-0.1**
+     that wrongly split his own three-clip video. 0.05 apart, same verdict,
+     same confidence, opposite correctness.
+     
+     Asked directly whether a weak-but-correct split should be questioned, he
+     said **"sure ask me"**. He would rather be asked. He is the only person
+     who can price that trade and he has priced it.
+     
+     So what is asserted now is the SHAPE he chose, which is tighter than
+     either number on its own: **silence on the joins, a question on the weak
+     split.** The three seams holding his interrupted recitation together
+     scored 0.55-1.0 and are confident, so they stay silent; the one the rule
+     could barely call is the one he is asked about. "Ask about everything" is
+     not what he chose. (ledger S38) */
+  assert.deepEqual(
+    p.needsYourEye.map((s) => `${s.from} -> ${s.to}`),
+    ["IMG_9904.MOV -> IMG_9905.MOV"],
+    "he is asked about the seam the rule could barely call, and about no other"
+  );
+  for (const s of p.needsYourEye) {
+    assert.equal(s.confident, false,
+      `${s.from} -> ${s.to} scored ${s.score} and is confident — he should not be asked about it`);
+  }
 });
 
 /* ---- 11. the seams a group was built from are the ones inside it ---- */

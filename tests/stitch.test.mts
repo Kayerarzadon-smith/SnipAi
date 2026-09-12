@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scratchDir } from "./scratch.mts";
+import type { ClipProbe } from "@/lib/clipProbe";
 
 /**
  * Joining one interrupted TikTok back into one recording. (DOCKET M0.8, R5a)
@@ -92,10 +93,28 @@ test("a muxer's placeholder date is not a capture time", () => {
 
 /* ---- ordering: by when it was filmed, never by how it was dropped ---- */
 
-function fakeProbe(name: string, iso: string | null): any {
+/**
+ * `: any` here was N18's escape hatch, in the file that tests the guard S34's
+ * fail-open broke.
+ *
+ * It returned no `rawDurationSec`, `videoDurationSec` or `videoRawDurationSec`
+ * -- the exact shape that made `editListTrimSec` produce `NaN`, which fails
+ * every comparison, which made `joinRefusal` wave through the one clip it
+ * exists to refuse. There is no live bug, because these tests only reach
+ * `orderProbes` and `joinBlocker`; but it is one `joinRefusal(...)` call from
+ * reproducing S34 invisibly, and `: any` meant N18's newly-enabled typecheck
+ * could not see it. Annotated so the compiler is armed over the fixture shape
+ * that caused both of today's bugs.
+ */
+function fakeProbe(name: string, iso: string | null): ClipProbe {
   return {
     path: `/clips/${name}`, name,
     durationSec: 10,
+    rawDurationSec: 10,
+    /* Equal to the duration: nothing hidden from the picture, which is what
+       all eight of his real clips measure. */
+    videoDurationSec: 10,
+    videoRawDurationSec: 10,
     creationTimeMs: iso === null ? null : Date.parse(iso),
     video: { codec: "hevc", width: 3840, height: 2160, fps: 30, rotation: -90 },
     audio: { codec: "aac", sampleRate: 48000, channels: "stereo" },
@@ -164,17 +183,24 @@ test("clips stamped the same second still order the same way every time", () => 
 /* ---- refusing a join that cannot be a stream copy ---- */
 
 test("clips that cannot be stream-copied together are refused, not re-encoded", () => {
+  /* The `!`s below are the second thing N18's typecheck found here the moment
+     `fakeProbe` stopped returning `any`: four reads of `.video`/`.audio`
+     without a null check. `ClipProbe` allows both to be null -- a file with no
+     audio track is real -- and this fixture always has them, so asserting
+     that once is honest where four silent `!`s would not be. */
   const a = fakeProbe("a.MOV", "2026-08-19T17:22:26Z");
+  assert.ok(a.video && a.audio, "the fixture stopped carrying a video and audio track");
+
   const portrait = fakeProbe("b.MOV", "2026-08-19T17:22:46Z");
-  portrait.video.width = 1080; portrait.video.height = 1920;
+  portrait.video!.width = 1080; portrait.video!.height = 1920;
   assert.match(joinBlocker(a, portrait) ?? "", /frame size/);
 
   const upright = fakeProbe("c.MOV", "2026-08-19T17:22:46Z");
-  upright.video.rotation = 0;
+  upright.video!.rotation = 0;
   assert.match(joinBlocker(a, upright) ?? "", /rotation/);
 
   const mono = fakeProbe("d.MOV", "2026-08-19T17:22:46Z");
-  mono.audio.channels = "mono";
+  mono.audio!.channels = "mono";
   assert.match(joinBlocker(a, mono) ?? "", /channels/);
 
   assert.equal(joinBlocker(a, fakeProbe("e.MOV", "2026-08-19T17:22:46Z")), null);

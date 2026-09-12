@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { scratchDir } from "../scratch.mts";
+import { at, clip } from "./_seams.mts";
 
 /**
  * LEDGER C37 (and S38's plumbing) -- the tray showed one sentence that was
@@ -51,43 +52,11 @@ fs.mkdirSync(path.join(sandbox, "projects"), { recursive: true });
 process.env.SNIPAI_DATA = sandbox;
 
 const { proposeGroups } = await import("@/lib/grouping");
-type ClipForGrouping = import("@/lib/grouping").ClipForGrouping;
 
 /* ---- fixtures, shaped like the three-clip run ---- */
-
-const T0 = Date.UTC(2026, 8, 9, 11, 59, 35);   // IMG_0060's real creation_time
-const at = (minutes: number) => T0 + minutes * 60_000;
-
-function probe(name: string, startMs: number, durationSec: number) {
-  return {
-    path: `/tmp/${name}`, name, durationSec, rawDurationSec: durationSec,
-    videoDurationSec: durationSec, videoRawDurationSec: durationSec,
-    creationTimeMs: startMs,
-    video: { codec: "hevc", width: 3840, height: 2160, fps: 30, rotation: -90 },
-    audio: { codec: "aac", sampleRate: 48000, channels: "stereo" },
-    dataStreams: 4,
-  };
-}
-
-function transcript(lines: string[]) {
-  let t = 1.2;
-  const segs = lines.map((text) => {
-    const words = text.trim().split(/\s+/);
-    const start = t;
-    const ws = words.map((w) => {
-      const s = t; t += 0.28;
-      return { w: ` ${w}`, s: Number(s.toFixed(2)), e: Number(t.toFixed(2)) };
-    });
-    const end = t; t += 0.6;
-    return { start: Number(start.toFixed(2)), end: Number(end.toFixed(2)), text: ` ${text}`, words: ws };
-  });
-  return { segs, endsAt: t };
-}
-
-function clip(name: string, startMs: number, lines: string[]): ClipForGrouping {
-  const { segs, endsAt } = transcript(lines);
-  return { probe: probe(name, startMs, Number((endsAt + 0.6).toFixed(2))), transcript: segs } as ClipForGrouping;
-}
+/* The builders are shared with S38's file (`_seams.mts`). They were inline
+   here first; a second copy would have been the third hand-rolled `probe()`
+   in this repo, and the first two each shipped missing a ClipProbe field. */
 
 /* Clip 1 stops on a function word, minutes before clip 2: the seam the rule
    calls confidently. Clip 2 ends on a finished sentence one minute before

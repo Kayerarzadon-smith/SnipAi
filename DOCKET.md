@@ -1658,6 +1658,76 @@ scratchpad was empty. Nothing lost, but **moved from where its author left it
 without asking** — the same class as the nightly picking a data root by
 fallback. **List before you write, and never delete what you did not create.**
 
+**2026-09-12: E9 is retracted before a line was written, and E7 returns to the
+front of M0.85. The step that caught it is the one I inserted an hour ago.**
+
+**E9 was wrong and the premise I ordered it on is false: the cut does not clip
+words.** `verify_removals.py:171-179` computes `floor = project_speech − 8` =
+**−34.7 dB**, while the build's removal decision comes from
+`silence_map.py:14`'s **hardcoded −28 dB**, passed no `--noise` at
+`lib/pipeline.ts:273`. **The floor sits 6.7 dB below the threshold the build was
+entitled to trust**, so `(−34.7, −28]` is a false-positive band by construction.
+All four flagged spans are **strictly inside regions ffmpeg itself certified
+below −28 dBFS**, matching `walk_pieces:232` **to the millisecond with 35 ms of
+margin**, and every beat carries `holes: []`. **The build did exactly what it
+promises.**
+
+**The tell is the one I should have asked for before ruling: her four means are
+−28.5, −32.4, −33.5, −34.4 — all pressed against the −28 ceiling and not one
+above it.** That is the signature of a threshold disagreement. **And her control
+corroborates rather than refutes** — `img-0063`'s band is only 3.9 dB wide and
+its removals sit at −53 to −62. **Her clip-3 clustering and monotonic rise are
+fully explained without the floor being per-clip-wrong**, which means she was
+right about the pattern and wrong only about which component owned it. **She also
+labelled the mechanism an inference, unprompted, which is why this cost a read
+and not a fix.**
+
+**M0.85 RE-ORDERED: E7 first, then E10, then H4, then E8.** I put E9 ahead of E7
+on the grounds that a cut clipping words cannot be put in front of Kayer for a
+tightness judgement. **That premise is gone, so the ruling goes with it.**
+
+**E9 becomes S47 plus three rows, and one of them changes what is possible
+rather than what is broken.** **S71** is the floor/detector disagreement — and
+the cheap fix is **one line**: clamp the verifier's floor so it is never more
+sensitive than the map the build cut against. **S72** is `calibrate_silence.py`,
+**which exists to derive the threshold per file, documents this exact hazard at
+lines 8-10, has never been called, and whose docstring claiming the app reads its
+output is false** — the **fourth** "built to ninety percent and never invoked"
+tonight. **And S73 is the important one: nothing on disk records that a source
+was joined.** `draft_beats.py:225-233` constructs a fresh dict with hardcoded
+`notes` and dumps it over `beats.json`, so the three-clip project's own note
+naming its clips **is gone**. With U13's discarded `JoinOutcome.ordered` and
+staged transcripts **28.3 s off at the second seam**, **nothing can answer "is
+this one clip or three, and where does clip 2 end?"**
+
+**S73 is why I am not taking the per-clip route on S71, and the reason is
+stronger than cost.** Nadia's per-clip intuition is sound and it belongs
+somewhere — **but a per-clip floor needs data that is not written down**, so it
+is not a costlier alternative, it is **blocked**. That is now measured rather
+than feared. **And S73 gates more than this**: E8's fragments come from clips the
+project can no longer name, and S56 is about the built order differing from the
+approved one with no record of the built order to compare against. **A
+data-model row rather than a bug, and it has quietly become a prerequisite of
+three things.**
+
+**One addition to E7 from all this, because it may be a different defect than
+the row describes:** the residual silence may be gaps **not detected** rather
+than gaps detected and left. The detector's level threshold is hardcoded at
+**−28 dB** and his room tone varies by **15 dB** across one join, so on a hot
+clip a real pause can sit above the threshold and never be found. **Establish
+which before touching the duration rule** — gaps-not-detected is S72's
+territory, gaps-detected-but-under-3s is E7's. **One pass of `silence.txt`
+against the finished cut's own gaps separates them.**
+
+**And the thing worth recording about the process rather than the defect: this
+is the fourth time tonight the reported cause and the real cause differed, and
+the FIRST caught by the role whose job it is, before any code was written.** S34,
+S35 and T20 were each caught by the implementer mid-fix — **valuable, and three
+times more expensive than this.** The one-step-before-Theo ruling cost a code
+read and saved a High row being filed against a build that is behaving
+correctly. **That step is now standing for any row whose mechanism is labelled
+an inference**, which is a rule the tester's own honesty makes cheap to apply.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

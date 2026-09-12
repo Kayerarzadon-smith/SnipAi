@@ -183,7 +183,21 @@ export function joinRefusal(ordered: ClipProbe[]): string | null {
     /* Fall back to the container floor only when the per-track measurement is
        missing. Absent is not zero: reading it as "nothing hidden" would let a
        genuinely trimmed clip through on a probe that simply failed. */
-    const hidden = hiddenPicture ?? editListTrimSec(p);
+    const container = editListTrimSec(p);
+
+    /* And when NEITHER can be measured, refuse rather than certify.
+       
+       Both functions used to answer 0 or NaN here instead of null, and
+       `NaN > allowance` is false, so a clip nobody could measure came back as
+       "no blocker" -- the guard failing OPEN on the one case it exists for. A
+       guard that fails open is worse than no guard, because the row says the
+       danger is handled. There is no evidence either way about this clip, and
+       "I cannot tell" may not resolve to "fine". */
+    if (hiddenPicture === null && container === null) {
+      return `${p.name} could not be measured — SnipAi cannot tell whether any of it was cut out after filming, and a join would bring back anything that was. Import ${p.name} on its own.`;
+    }
+
+    const hidden = hiddenPicture ?? container!;
     const allowance = hiddenPicture === null ? formatOverheadSec(p) : reorderAllowanceSec(p);
     if (hidden > allowance) {
       return `${p.name} was shortened after filming: ${hidden.toFixed(2)}s of it is still in the file, just hidden. Joining brings that back and pushes everything after it late. Duplicate it in Photos and import the copy if you trimmed it there. Otherwise import ${p.name} on its own.`;
@@ -327,7 +341,13 @@ export async function joinClips(
      allowance anyway, which keeps the window inside a tenth of a second for
      his footage while a dropped clip is seconds to minutes out. */
   const frame = 1 / (joined.video?.fps || 30);
-  const predictedReturn = ordered.reduce((n, p) => n + editListTrimSec(p), 0);
+  /* `?? 0` is the conservative direction, and it is chosen rather than
+     convenient: an unmeasurable part contributes nothing to the window, so
+     the drift check stays TIGHTER rather than being widened by a number
+     nobody has. Before `editListTrimSec` could answer null this summed NaN,
+     which made `tolerance` NaN and `Math.abs(drift) > NaN` false -- the same
+     fail-open as the guard above, one check along. */
+  const predictedReturn = ordered.reduce((n, p) => n + (editListTrimSec(p) ?? 0), 0);
   const tolerance = Math.max(frame, frame * ordered.length) + predictedReturn;
   if (Math.abs(driftSec) > tolerance) {
     /* Remove the file we just wrote. ffmpeg succeeded here -- this branch is

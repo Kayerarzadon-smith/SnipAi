@@ -81,6 +81,110 @@ function realProbe(r: (typeof REAL)[number]): ClipProbe {
   };
 }
 
+/* -------------------------------------------------------------------------
+ * S34's guard must not fail OPEN.
+ *
+ * Found while writing S38's test, from a different direction entirely:
+ * `tsconfig.json` includes `**\/*.ts` and `**\/*.tsx`, and every test here is
+ * `.mts`, so no test file has ever been typechecked. That is why
+ * `tests/grouping.test.mts`'s `probe()` still builds a `ClipProbe` without
+ * the two fields S42 added and nothing complained.
+ *
+ * The consequence is not cosmetic. A probe carrying `undefined` where this
+ * code expects `null` fails the `=== null` check, so the subtraction runs on
+ * `undefined`, produces `NaN`, and `NaN > allowance` is **false** -- so
+ * `joinRefusal` returns "no blocker" for a clip it cannot measure at all.
+ * **The one case this guard exists to catch is the one case it waves
+ * through**, and the ledger says the danger is handled.
+ *
+ * These probes are built by hand on purpose: that IS the defect's shape. No
+ * ffmpeg, no fixtures, no disk.
+ * ---------------------------------------------------------------------- */
+
+/** A probe shaped the way a caller that predates S42's fields builds one. */
+function probeMissingVideoFields(over: Partial<ClipProbe> = {}): ClipProbe {
+  const p = realProbe(REAL[0]);
+  // exactly what `tests/grouping.test.mts`'s probe() produces: absent, not null
+  delete (p as Partial<ClipProbe>).videoDurationSec;
+  delete (p as Partial<ClipProbe>).videoRawDurationSec;
+  return { ...p, ...over };
+}
+
+test("S34: an unmeasurable clip is not reported as measured-and-fine", async () => {
+  const { videoEditListTrimSec, editListTrimSec } = await import("@/lib/clipProbe");
+  const p = probeMissingVideoFields();
+
+  /* null means "I could not measure this". NaN means the arithmetic ran on
+     nothing and the answer is a number-shaped lie -- and every comparison
+     against it is false, which is what made the guard permissive. */
+  assert.equal(
+    videoEditListTrimSec(p), null,
+    `hidden picture reported as ${videoEditListTrimSec(p)} on a probe with no video measurements`
+  );
+  const q = probeMissingVideoFields();
+  delete (q as Partial<ClipProbe>).rawDurationSec;
+  assert.equal(
+    editListTrimSec(q), null,
+    `container trim reported as ${editListTrimSec(q)} on a probe with no raw duration`
+  );
+});
+
+test("S34: a clip the guard cannot measure is refused, not waved through", async () => {
+  /* The headline. This is the fail-open: the clip below hides 1.50s in its
+     container numbers -- a real trim, the case S34 is for -- and carries no
+     per-track measurement, which used to produce NaN and no blocker. */
+  const { joinRefusal } = await import("@/lib/stitch");
+  const trimmed = probeMissingVideoFields({
+    name: "TRIMMED.MOV",
+    durationSec: 60,
+    rawDurationSec: 61.5,
+  });
+  const clean = realProbe(REAL[1]);
+
+  const why = joinRefusal([trimmed, clean]);
+  assert.ok(
+    why,
+    "a clip hiding 1.50s, with no per-track measurement, was accepted for a join — " +
+    "the guard returned no blocker for the exact case it exists to catch"
+  );
+  assert.ok(why!.includes("TRIMMED.MOV"), `the refusal does not name the clip: "${why}"`);
+});
+
+test("S34: a clip with nothing measurable at all is refused, and says why", async () => {
+  /* Not the same case: here even the container numbers are missing, so there
+     is no evidence either way. "I cannot tell" must not resolve to "fine" --
+     that is the whole lesson of the row above. */
+  const { joinRefusal } = await import("@/lib/stitch");
+  const blind = probeMissingVideoFields({ name: "BLIND.MOV", durationSec: null, rawDurationSec: null });
+  const why = joinRefusal([blind, realProbe(REAL[1])]);
+  assert.ok(why, "a clip with no duration measurements at all was accepted for a join");
+  assert.ok(why!.includes("BLIND.MOV"), `the refusal does not name the clip: "${why}"`);
+  assert.doesNotMatch(
+    why!, /NaN|undefined|null/,
+    `the refusal leaks the missing measurement at him: "${why}"`
+  );
+});
+
+test("S34: an untouched clip is still accepted when only the per-track read is absent", async () => {
+  /* The other direction, so the fix is not "refuse anything unfamiliar". His
+     eight real clips report 0.05-0.09s of CONTAINER delta and nothing hidden
+     from the picture; with the per-track read missing, the container floor is
+     the fallback and it still clears them. Fail-closed must not mean
+     fail-always. */
+  const { joinRefusal } = await import("@/lib/stitch");
+  const pair = [0, 1].map((i) =>
+    probeMissingVideoFields({
+      name: REAL[i].name,
+      durationSec: REAL[i].dur,
+      rawDurationSec: REAL[i].raw,
+    })
+  );
+  assert.equal(
+    joinRefusal(pair), null,
+    `his own clips are refused when the per-track read is missing: ${joinRefusal(pair)}`
+  );
+});
+
 test("S34: the old instrument really did refuse all eight -- this file is not vacuous", async () => {
   /* Asserted before the fix is asserted, the way S8's file pins the harm
      first. If this ever goes green the premise has moved and the rest of the

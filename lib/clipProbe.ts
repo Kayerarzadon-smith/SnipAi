@@ -166,10 +166,36 @@ export function parseFfmpegBanner(stderr: string, file: string): ClipProbe {
   };
 }
 
-/** Seconds of media an edit list hides from a player, or 0 if there is none. */
-export function editListTrimSec(p: ClipProbe): number {
-  if (p.durationSec === null || p.rawDurationSec === null) return 0;
-  return Math.max(0, p.rawDurationSec - p.durationSec);
+/**
+ * A measurement, or null when there is not one.
+ *
+ * `=== null` was not enough. A `ClipProbe` built by a caller that predates a
+ * field carries `undefined` there, which passes a null check, and the
+ * subtraction below then runs on nothing and yields `NaN`. **Every comparison
+ * against NaN is false**, so a NaN "measurement" reads as "under every
+ * threshold" -- which turned `joinRefusal` into a guard that waved through
+ * exactly the clip it exists to refuse. Found because no test file has ever
+ * been typechecked (`tsconfig.json` includes `**\/*.ts`; the tests are
+ * `.mts`), so a fixture missing two fields raised nothing.
+ *
+ * So the question is "is this a usable number", not "is this not null".
+ */
+function measured(n: number | null | undefined): number | null {
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Seconds of media an edit list hides from a player.
+ *
+ * null when it cannot be measured -- NOT 0. Zero is a measurement that says
+ * nothing is hidden; null says nobody knows, and the caller has to decide
+ * what to do about not knowing rather than being handed a reassuring number.
+ */
+export function editListTrimSec(p: ClipProbe): number | null {
+  const shown = measured(p.durationSec);
+  const raw = measured(p.rawDurationSec);
+  if (shown === null || raw === null) return null;
+  return Math.max(0, raw - shown);
 }
 
 /* An untouched recording ALREADY has edit lists, and they already hide media.
@@ -210,8 +236,10 @@ const MAX_AAC_PRIMING_SAMPLES = 2048;
  * back rather than read a missing measurement as "nothing hidden".
  */
 export function videoEditListTrimSec(p: ClipProbe): number | null {
-  if (p.videoDurationSec === null || p.videoRawDurationSec === null) return null;
-  return Math.max(0, p.videoRawDurationSec - p.videoDurationSec);
+  const shown = measured(p.videoDurationSec);
+  const raw = measured(p.videoRawDurationSec);
+  if (shown === null || raw === null) return null;
+  return Math.max(0, raw - shown);
 }
 
 /** The most a B-frame encoder's reorder edit list can inherently hide. */

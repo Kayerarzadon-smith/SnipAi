@@ -1728,6 +1728,88 @@ read and saved a High row being filed against a build that is behaving
 correctly. **That step is now standing for any row whose mechanism is labelled
 an inference**, which is a rule the tester's own honesty makes cheap to apply.
 
+**2026-09-12: the gate is unblocked, `build_cut.py` is ruled in scope for E7,
+and C29b's non-status is corrected rather than accommodated.**
+
+**THE GATE: five rows reflowed, all readable, `no readable status` count is
+zero.** The faults were not all the same and the guard's own message was more
+accurate than my assumption: **E7's row genuinely broke across lines** (my edit
+did that), while **C19, C20, C38 and E9 had status cells that did not BEGIN with
+one of the four defined statuses** — *"retired →…"*, *"closed…"*, *"**NOT A
+DEFECT…"* — and `STATUS.match` anchors. C38 also carried **a fifth column in a
+four-column table.** All five are mine and the file's format is mine, so Theo
+was right to leave them. **T20's count goes from three to eight**, and **the
+guard found five more instances of the thing it was built to find on its first
+run after shipping** — which is the best argument available for having built it.
+
+**One thing that is red and should stay red until Theo clears it, not a
+defect:** `T20-a-row-with-two-statuses-is-not-read.test.mts` asserts those five
+ids are reported as unreadable, **and its own comment says *"named rather than
+counted, so this goes red when one is reflowed"*** with the failure message
+*"if its row was reflowed, drop it from this list."* **It went red exactly as
+designed and told me what to do about it.** That is a canary rather than a
+brittle test, and the design choice — naming the rows instead of counting them —
+is why it fails loudly with an instruction instead of drifting. **Dev drops the
+list; I am not editing his test.**
+
+**RULING: `build_cut.py`'s keep rule is IN SCOPE for E7, and I have written the
+general rule into the ledger header rather than deriving it a fifth time.**
+Four fixes have already reached into `ugc-edit-system/` on individual rulings —
+**E1** (`FRAME_PAD`), **S8** (`walk_pieces`), **S42** (`work/clips/`), now E7.
+**The rule they share: a pipeline file is in scope when it is the only lever on
+the open milestone's exit line.** Not when a pipeline row would be nice to fix —
+**when the app cannot keep a promise made to Kayer without it.** E7 qualifies
+plainly: M0.85's exit is his own sentence about his own videos, its air half is
+E7, and the diagnosis says every lever is in that keep rule. **What stays out is
+unchanged:** pipeline rows with no milestone depending on them still sit at the
+bottom, unworked unless asked. **Theo is unblocked on E7.**
+
+**And the diagnosis is why the ruling is safe rather than expansive.** It
+overturned the hypothesis I added to E7 an hour ago — which is what I added it
+for. **The silence is detected and KEPT, not never detected:** the −28 dB map
+already finds **22.48 s inside kept pieces, 18.4% of the cut**, and the −50 dB
+map finds **9.51 s / 7.8%**, bracketing the measured 5.6-6.2% from both sides.
+**The ending settles it: the final piece is 2.08 s of which 1.65 s reads as
+silence even at −50 dB — the strict map, the one edge snapping uses. It sees it.
+The out-point was simply not pulled in.** So **the threshold is the innocent
+number**, S72's calibration route is aimed at the wrong thing, and there is
+exactly one lever.
+
+**RULING on C29b: widen the id regex, and fix the row — do not teach the guard a
+new status.** `ID = r"[A-Z]{1,3}\d+"` cannot match a suffixed id, so **C29b has
+never been checked in any run**, and its status cell read *"needs a ruling"* — a
+**non-status**. **Both are fixed the same way and neither adds a status:** one
+character on the regex, and **a row awaiting a decision is `open`** — the
+decision is what it waits on, which is a qualifier, exactly as C38 and C41 are
+written. **The reason not to accommodate it: every status the guard must reason
+about is a new place for T20's class of bug**, and the header defines four.
+
+**S71 re-weighted DOWN to Medium, and the correction is mine.** `verify_removals.py`
+**is not invoked from `lib/`, `app/`, `scripts/`, `tests/` or `native/` at all** —
+hand-run only, **so its false alarm reaches a terminal and never reaches
+Kayer.** Tool hygiene rather than a product defect, and **the High I gave it was
+inherited from E9's framing rather than measured.** That is the second row
+tonight whose severity I took from a wrong diagnosis; both are now corrected.
+
+**Two instrument self-corrections worth keeping, both his.** **S71's first
+assertion was the wrong shape** — it asserted single-region containment, and a
+real removal failed it **while being 98.7% silence**, spanning two silent
+regions separated by a **15 ms** tick. *"Trimming across that is what pause
+trimming is for."* **And his note is the important half: an assertion calling
+that a defect would have been given slack until it passed — which is how a guard
+becomes decorative.** **And a T20 test of his conflated *"the selection change
+is quiet"* with *"nothing in the ledger is malformed"*** — only the first is
+T20's business, and the second was **false at the moment he wrote it**, as the
+five rows prove. **He narrowed it rather than deleting it**, which is the right
+move on a test that is half-right.
+
+**Theo can take E10 now without waiting on any of this**, and its diagnosis is
+already his: the three truncated-fragment pairs fail to match because **the
+shorter utterance's LCS ratio is measured against its own length**, so a
+two-word false start scores 1.00 while a six-word fragment of a sixteen-word
+line scores low. `lib/retakes.ts`, his file, no scope question. **E7 after, now
+that it is ruled.**
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

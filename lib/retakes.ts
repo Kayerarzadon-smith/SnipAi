@@ -81,12 +81,34 @@ import type { Beat } from "./types";
 export const RETAKE_SIMILARITY = 0.55;
 
 /**
- * Below this many words, a beat is a stumble rather than a line, and the
- * ratio stops meaning anything -- two tokens shared out of two is 1.00. Such
- * a fragment still collapses, but only into a neighbour it is contained in,
- * never on its own similarity score.
+ * Below this many words, a beat is a stumble rather than a line and the ratio
+ * stops meaning anything: two tokens shared out of three is 0.67 whether it
+ * is a retake or a coincidence. Such a fragment is judged by how much of it
+ * is UNACCOUNTED FOR instead -- see `isRetakeOf`.
  */
 const MIN_TOKENS_FOR_RATIO = 4;
+
+/**
+ * How many of a short fragment's own words may be missing from the beat it is
+ * an attempt at, and how many must match. (ledger E10)
+ *
+ * The rule this replaces was "a fragment collapses only if it is wholly
+ * contained", i.e. ratio 1.00. That is correct about false positives and
+ * wrong about his actual speech: he cuts himself off and restarts with a
+ * different word, so the fragment is nearly contained rather than exactly.
+ * Measured on the closing run of the three-clip project, the three surviving
+ * fragment pairs are all **2 of 3 words matched** --
+ *
+ *     "like shit after."        / "...not feel like shit."
+ *     "you use, could"          / "Could you use creatine without working out?"
+ *     "creatine's been helped," / "Creatine's been said to help cognitive function?"
+ *
+ * -- while five known-distinct short pairs from the same corpus match **0 or
+ * 1 of 3**. So one unaccounted word separates them, with a clear gap, and
+ * requiring two matches keeps a single shared article from joining anything.
+ */
+const FRAGMENT_MIN_MATCHED = 2;
+const FRAGMENT_MAX_UNMATCHED = 1;
 
 /**
  * The shortest beat the app will accept, from `pipeline/route.ts`'s PATCH
@@ -138,13 +160,30 @@ export function isRetakeOf(a: Beat, b: Beat): boolean {
   const B = tokens(b.text);
   const shorter = Math.min(A.length, B.length);
   if (!shorter) return false;
-  const ratio = similarity(a.text, b.text);
-  /* A very short fragment only joins a run when it is fully contained in its
-     neighbour. "You get an" before "You get an extra month of this for free."
-     is a false start and belongs to it; three words that merely overlap
-     something longer do not. */
-  if (shorter < MIN_TOKENS_FOR_RATIO) return ratio >= 1;
-  return ratio >= RETAKE_SIMILARITY;
+
+  /* A very short fragment is not judged by ratio. (ledger E10)
+     
+     It used to need full containment -- `ratio >= 1` -- which is what left
+     three truncated fragments standing beside the attempts that supersede
+     them. "like shit after." is two of its three words inside "...not feel
+     like shit.", so it scored 0.67 and stayed, and the cut said the line one
+     and a half times.
+     
+     The denominator was never the problem, which is worth writing down
+     because it was the reported cause: `similarity` already divides by the
+     SHORTER length, so a fragment wholly inside a long line scores 1.00.
+     What blocked these three is this branch demanding exactness of the
+     shortest beats, where one stumbled word is the difference.
+     
+     So: at least two words matched, and at most one of the fragment's own
+     words unaccounted for. Measured, that is the gap -- the three real
+     fragments match 2 of 3, five known-distinct short pairs match 0 or 1.
+     Requiring two matches is what stops a shared "the" joining two lines. */
+  const matched = lcsLength(A, B);
+  if (shorter < MIN_TOKENS_FOR_RATIO) {
+    return matched >= FRAGMENT_MIN_MATCHED && shorter - matched <= FRAGMENT_MAX_UNMATCHED;
+  }
+  return matched / shorter >= RETAKE_SIMILARITY;
 }
 
 /**

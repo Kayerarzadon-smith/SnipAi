@@ -1769,9 +1769,7 @@ overturned the hypothesis I added to E7 an hour ago — which is what I added it
 for. **The silence is detected and KEPT, not never detected:** the −28 dB map
 already finds **22.48 s inside kept pieces, 18.4% of the cut**, and the −50 dB
 map finds **9.51 s / 7.8%**, bracketing the measured 5.6-6.2% from both sides.
-**The ending settles it: the final piece is 2.08 s of which 1.65 s reads as
-silence even at −50 dB — the strict map, the one edge snapping uses. It sees it.
-The out-point was simply not pulled in.** So **the threshold is the innocent
+**The ending settles it: the final piece is 2.08 s of which 1.65 s reads as silence even at −50 dB — the strict map, the one edge snapping uses. It sees it. CORRECTED: the out-point is correct; the gap is interior and upstream of it.** So **the threshold is the innocent
 number**, S72's calibration route is aimed at the wrong thing, and there is
 exactly one lever.
 
@@ -1809,6 +1807,72 @@ shorter utterance's LCS ratio is measured against its own length**, so a
 two-word false start scores 1.00 while a six-word fragment of a sixteen-word
 line scores low. `lib/retakes.ts`, his file, no scope question. **E7 after, now
 that it is ruled.**
+
+**2026-09-12: two corrections to E7, both to numbers I wrote down, and one
+design ruling that stops a sixth field being built with no reader.**
+
+**Correction 1 — the head/tail/interior split was backwards, and I relayed it.**
+The first figures came from a classifier that counted silence as *head* if it
+**began** within 0.30 s of a piece's in-point, which **misfiles every piece
+opening with a short utterance followed by a gap.** Reclassified by segment
+position: **−28 dB head 5.32 / tail 4.17 / interior 13.00; −50 dB head 2.13 /
+tail 0.64 / interior 6.74.** **Both maps agree on the shape — interior is 58%
+and 71% of the total, and head is the smallest of the three at −50 dB.** So
+**interior gap removal is the largest lever by 2.4×, not in-point snapping.**
+Two pieces carry the swing: `theyre-theyre-running-2` at 2.04 s and the final
+piece at 1.73 s — **3.77 s the old rule filed as head.**
+
+**Correction 2 — "exempt the cut's final piece" would have exempted the second
+largest gap in the cut, and the sentence I kept is retracted.** The final piece
+is `silence 0.00→0.03 | SPEECH 0.03→0.20 | silence 0.20→1.81 | SPEECH
+1.81→2.08`. **The cut ends on a word.** So *"the out-point simply was not pulled
+in"* is false — **pulling it in would truncate the last 0.26 s of his speech.**
+The out-point is correct; the hole is upstream of it. **A general tail exemption
+is still worth having and is cheap** (0.64 s across the whole cut at −50 dB,
+largest single tail 0.24 s, matching his two non-zero references at 0.44 s and
+0.54 s, both tail). **Narrowing it to the final piece is the one place it is
+actively wrong.**
+
+**The exit now pins a concentrated number instead of a global one:** interior
+gaps over 0.25 s — **8 gaps holding 5.99 s (4.9%) at −28 dB, 4 holding 4.37 s
+(3.6%) at −50 dB** — against the measured 5.6-6.2%. **The remainder is 7.00 s of
+sub-0.25 s slivers, which at −28 dB is largely the quiet word tails
+`calibrate_silence.py` warns about, and is exactly where "do not aim at zero"
+bites.** Concentrated enough to be a keep-rule change rather than a tuning pass.
+**And the easy route is closed: no EDL piece is 100% silence, count zero.**
+
+**The first assertion must be the final piece's INTERIOR 1.65 s gap, not its
+supposed trailing silence** — because the trailing-silence version **would pass
+a fix that truncates his last word.** That is the difference between a test and
+a test-shaped object.
+
+**RULING on "deliberate beat": do not add the field yet.** The converged shape —
+trim interior and head, leave trailing silence alone generally — is right, and
+**a human-set field defaulting off is the right eventual answer**, because
+nothing in the data model marks a beat deliberate and inferring a
+pause-before-a-punchline is a judgement rather than a measurement. **Default off
+is also correct against his own practice:** five of seven references measure
+0.00 s internal, the two exceptions are tail, and his words are *"I cut out dead
+space so there's zero dead air."* **But a field with no control to set it is
+`Batch.proposal.basis` again — and that would be the sixth thing built to ninety
+percent and never wired tonight**, after `reference/inspiration/`, H4,
+`glossary.json`, `calibrate_silence.py` and U13's six dead fields. **So the field
+lands with its control or not at all.** E7 ships the trimming; the exemption
+field is a separate row that arrives with a surface.
+
+**On the process, and this is the part I want on the record.** Sixth time
+tonight a stated cause was wrong; **second where the wrong number was the
+coordinating seat's and not the implementer's.** And the circumstance matters:
+**he ran his own diagnosis down another level after it had already been accepted
+and after I had granted a scope ruling on the strength of it.** Every incentive
+was to stop. **A scope ruling granted on a diagnosis is exactly when nobody
+re-checks the diagnosis**, which is why this one was worth more than the four
+caught mid-fix.
+
+**Housekeeping done: `audits/LEDGER.md`'s FORMAT NOTE is past-tensed rather than
+deleted**, so the count stays findable — six rows were invisible, all six
+reflowed, the guard now reads 36 ids across 219 tests with no unreadable rows.
+**T20's original count was three and the true count was eight.**
 
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|

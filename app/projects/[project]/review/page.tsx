@@ -508,7 +508,12 @@ export default function ReviewPage({ params }: { params: { project: string } }) 
       try {
         const res = await fetch(`/api/projects/${project}/pipeline`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ step: "build" }),
+          /* `auto` is what tells the server he did not ask for this. Without
+             it this posted the same body as the Build button, and every
+             automatic re-export came back at full resolution -- 20 MB to
+             505 MB for deleting one line (ledger S42). An automatic build
+             keeps the resolution of the cut already on disk. */
+          body: JSON.stringify({ step: "build", auto: true }),
         });
         if (res.status === 202) pollBuild((await res.json()).jobId);
       } catch { /* the badge still says the picture is behind */ }

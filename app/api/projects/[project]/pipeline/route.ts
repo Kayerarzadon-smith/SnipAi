@@ -14,7 +14,19 @@ import { readJsonObject } from "@/lib/requestBody";
    dev. */
 export const dynamic = "force-dynamic";
 
-type Body = { step: "transcribe" | "draft-beats" | "build" | "check" | "source-proxy" | "auto" };
+type Body = {
+  step: "transcribe" | "draft-beats" | "build" | "check" | "source-proxy" | "auto";
+  /**
+   * True when the app asked for this build rather than the person.
+   *
+   * The auto-apply after an edit used to post a body identical to the Build
+   * button's, so the server could not tell them apart and rendered every
+   * automatic re-export at full resolution -- 24.7x the bytes for deleting
+   * one line (ledger S42). An automatic build keeps the resolution of the cut
+   * already on disk; an explicit one is free to change it.
+   */
+  auto?: boolean;
+};
 
 /**
  * Runs one step of the existing pipeline against a real project. Every step
@@ -114,10 +126,13 @@ export async function POST(req: NextRequest, { params }: { params: { project: st
   }
 
   if (body.step === "build") {
+    if (body.auto !== undefined && typeof body.auto !== "boolean") {
+      return NextResponse.json({ error: "auto must be a boolean" }, { status: 400 });
+    }
     const job = createJob(project, "build");
     // Fire and forget — a real render can take minutes; the client polls
     // /pipeline/jobs/[id] for progress instead of holding this request open.
-    runBuildJob(job.id, project).catch((err) => {
+    runBuildJob(job.id, project, { keepResolution: body.auto === true }).catch((err) => {
       // runBuildJob handles its own failJob() calls; this only catches a
       // genuinely unexpected throw so the job doesn't hang as "running" forever.
       failJob(job.id, err instanceof Error ? err.message : String(err));

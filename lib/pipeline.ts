@@ -498,6 +498,33 @@ async function buildCut(
     }
   }
 
+  /* S42, and the reason this is emptied rather than swept afterwards.
+     
+     `build_cut.py:527` names each piece `p{i:02d}_{label}.mp4` -- a DERIVED
+     key. Delete a line and every index after it shifts, and re-slug a label
+     and the name changes, so the new set lands under new filenames beside the
+     old one instead of overwriting it. Measured on qa-sandbox/img-0060: 142
+     files, 72 distinct indices, two complete generations --
+     `p00_could-use-creatine.mp4` sitting next to `p00_use-could-0.mp4`.
+     
+     Emptying it here makes that impossible instead of tidying it up later:
+     there is no surviving generation for a shifted index to land beside. A
+     post-hoc sweep would have to work out which files the new EDL references,
+     which is the same derived-key guess that caused the problem.
+     
+     Safe to empty, checked rather than assumed: nothing in `lib/`, `app/` or
+     `tools/` READS this directory -- it is written at build_cut.py:360 and
+     :527 and consumed by `extract.sh` and the concat inside this same
+     function -- and no step's `done()` check tests it (`:427` tests `cuts/`,
+     `:426` tests the proxy). So emptying it cannot make a step re-run or a
+     skip go wrong. */
+  const clipsDir = path.join(workDir, "clips");
+  if (fs.existsSync(clipsDir)) {
+    const had = fs.readdirSync(clipsDir).length;
+    fs.rmSync(clipsDir, { recursive: true, force: true });
+    if (had) log(`clearing ${had} intermediate clip(s) from the last build`);
+  }
+
   log("building edit list (build_cut.py)...");
   const build = await runTool("build_cut.py",
     opts.proxy ? ["--project", projAbs, "--proxy"] : ["--project", projAbs],
@@ -566,13 +593,110 @@ async function buildCut(
     return null;
   }
 
+  /* The pieces have been stitched, so they are now dead weight -- 482 MiB of
+     it on img-0060 at full resolution. Removed only on the success path: a
+     build that failed part way is worth being able to look at, and the
+     clear at the top of the next build collects them either way. */
+  try {
+    if (fs.existsSync(clipsDir)) {
+      fs.rmSync(clipsDir, { recursive: true, force: true });
+      log("removed the intermediate clips");
+    }
+  } catch {
+    /* not worth failing a finished build over; the next build clears it */
+  }
+
   await runChecksAndCache(project, cutFileName, cutRelPath, log);
   return cutFileName;
 }
 
-export async function runBuildJob(jobId: string, project: string): Promise<void> {
+/**
+ * Is the cut on disk a DOWNSCALE of its source, rather than a full-resolution
+ * render of it?
+ *
+ * Asked by comparing the cut against the source rather than against 720,
+ * because a fixed threshold cannot tell a downscale from footage that was
+ * already small: `min(w,h) <= 720` calls a full-resolution render of a 480p
+ * clip a proxy. The real question is whether anything was scaled away.
+ *
+ *   his footage   source 2160x3840   proxy cut 406x720   -> downscaled
+ *                                    full cut 2160x3840  -> not
+ *
+ * The SHORT side is what is compared, so it does not matter which way up the
+ * footage is. 2px of slack absorbs `scale=-2:720`'s rounding to even widths.
+ *
+ * null when it cannot be answered -- no cut yet, or either probe failed -- so
+ * the caller leaves the choice alone rather than guessing from a missing
+ * measurement.
+ *
+ * KNOWN EDGE, stated rather than hidden: on a source whose short side is
+ * already under 720, `--proxy`'s `scale=-2:720` UPSCALES, so such a cut reads
+ * as "not downscaled" and an automatic re-export of it goes full resolution.
+ * That costs nothing on a clip that small, and no phone Kayer shoots on
+ * produces one.
+ *
+ * The import is dynamic on purpose: `lib/clipProbe.ts` imports `runCommand`
+ * and `resolvedFfmpeg` from this module, so a top-level import here would be
+ * a cycle. Deferring it to call time keeps the dependency one-way at load.
+ *
+ * Exported because it IS the decision S42 turns on, and asserting it directly
+ * costs two probes where going through a build costs a Whisper model load.
+ */
+export async function existingCutIsDownscaled(project: string): Promise<boolean | null> {
+  const name = latestCut(project);
+  if (!name) return null;
+  const beats = loadBeatsForSource(project);
+  if (!beats?.source) return null;
+  try {
+    const { probeClip } = await import("./clipProbe");
+    const dir = projectDir(project);
+    const [cut, src] = await Promise.all([
+      probeClip(path.join(dir, "cuts", name)),
+      probeClip(path.join(dir, beats.source)),
+    ]);
+    if (!cut.video?.width || !cut.video?.height) return null;
+    if (!src.video?.width || !src.video?.height) return null;
+    const shortSide = (v: { width: number; height: number }) => Math.min(v.width, v.height);
+    return shortSide(cut.video) < shortSide(src.video) - 2;
+  } catch {
+    return null;
+  }
+}
+
+export async function runBuildJob(
+  jobId: string,
+  project: string,
+  opts: { keepResolution?: boolean } = {}
+): Promise<void> {
   const log = (line: string) => appendLog(jobId, line);
-  const cut = await buildCut(project, log);
+
+  /* S42. An AUTOMATIC re-export must not change the picture's resolution.
+     
+     Deleting one line turned a 20,466,228-byte 406x720 cut into a
+     505,401,938-byte 2160x3840 one -- 24.7x the bytes -- and nobody pressed
+     Build. The auto-apply in `review/page.tsx` posted the same
+     `{step:"build"}` body as the Build button, so this function could not
+     tell them apart and always took the full-resolution route at `:575`,
+     while the build that PRODUCED that cut came through `runPipelinePhases`
+     with `{ proxy: true }`.
+     
+     The rule here is deliberately narrow and product-neutral: an action he
+     did not ask for keeps what is already there. It does not decide whether a
+     one-click import ought to end in a full-resolution render -- that is the
+     open question in Part 5 #9 and it is Kayer's, not this function's. It
+     also holds in the other direction: after an explicit full-resolution
+     Build, an automatic re-export stays full resolution rather than quietly
+     downgrading his picture. */
+  let proxy: boolean | undefined;
+  if (opts.keepResolution) {
+    const downscaled = await existingCutIsDownscaled(project);
+    if (downscaled !== null) {
+      proxy = downscaled;
+      log(`matching the resolution of the cut already on disk (${downscaled ? "proxy" : "full"})`);
+    }
+  }
+
+  const cut = await buildCut(project, log, proxy === undefined ? {} : { proxy });
   if (!cut) { failJob(jobId, "build failed — see log"); return; }
   finishJob(jobId, cut);
 }

@@ -60,7 +60,8 @@ process.env.SNIPAI_DATA = LIB;
 const { createBatch, recordStagedFile, stagedPath, confirmBatch, readBatch } =
   await import("@/lib/importBatch");
 const { createJob, getJob } = await import("@/lib/jobs");
-const { GET } = await import("@/app/api/import/[batch]/route");
+const { GET, DELETE } = await import("@/app/api/import/[batch]/route");
+const { sweepAbandonedBatches } = await import("@/lib/importBatch");
 
 type Observed = {
   status: number;
@@ -231,6 +232,73 @@ test("S54: a clean import leaves none of his clips staged", async () => {
   });
   assert.equal(fs.existsSync(stagedPath(id, "IMG_0010.MOV")), false, "a clip stayed staged after a clean import");
   assert.ok(readBatch(id), "the record went, so the tray could not have confirmed the outcome");
+});
+
+/* ----------------------------------------------------------- the reclaim
+ *
+ * MARA'S CONDITION on the change above, and she was right to make it: the
+ * assertion this fix replaced in `tests/import-batch.test.mts` was quietly
+ * doing a second job nobody had named -- proving the record does not
+ * accumulate. Keeping it until observed trades a silent "done" for a slow
+ * leak unless something actually reclaims it, and S58 is already an open row
+ * about that class. So both reclaim paths are asserted, not assumed.
+ * ---------------------------------------------------------------------- */
+
+test("S54: the tray's DELETE reclaims a terminal batch", async () => {
+  /* The path the fix relies on: the tray deletes the record once it has
+     observed a clean outcome. If this stopped working, every import would
+     leave one behind until the sweeper's 24 hours were up. */
+  const id = stage(["IMG_0011.MOV"]);
+  const job = createJob("s54-reclaim", "import");
+  await confirmBatch(job.id, id, [{ project: "s54-reclaim", files: ["IMG_0011.MOV"] }], {
+    join: OK_JOIN, pipeline: OK_PIPELINE,
+  });
+  assert.ok(readBatch(id), "nothing to reclaim -- the record was already gone");
+
+  const res = await DELETE(new Request(`http://127.0.0.1:4737/api/import/${id}`, { method: "DELETE" }), {
+    params: { batch: id },
+  });
+  assert.ok(res.ok, `the tray's DELETE answered ${res.status}`);
+  assert.equal(readBatch(id), null, "the record survived the DELETE the tray sends");
+  const seen = await whatTheTrayCanSee(id);
+  assert.equal(seen.status, 404, "the batch is reclaimed but still answers");
+});
+
+test("S54: and the sweeper reclaims one nobody came back for", async () => {
+  /* The other path, for a browser closed mid-import. `sweepAbandonedBatches`
+     already existed for exactly this and its own comment says so; what is
+     new is that it is now load-bearing rather than a tidy-up. */
+  const id = stage(["IMG_0012.MOV"]);
+  const job = createJob("s54-abandoned", "import");
+  await confirmBatch(job.id, id, [{ project: "s54-abandoned", files: ["IMG_0012.MOV"] }], {
+    join: OK_JOIN, pipeline: DEAD_PIPELINE,
+  });
+  assert.ok(readBatch(id), "nothing to sweep");
+
+  /* Age 0: everything terminal is old enough. */
+  const swept = sweepAbandonedBatches(0);
+  assert.ok(swept.includes(id), `the sweeper left ${id} behind; it swept ${JSON.stringify(swept)}`);
+  assert.equal(readBatch(id), null, "the record survived the sweep");
+});
+
+test("S54: the sweeper will not reclaim one that is still running", async () => {
+  /* The direction that would be a disaster: sweeping a live import deletes
+     the clips out from under it. `sweepAbandonedBatches` skips `importing`
+     and `analysing`, and that has to keep being true now that the terminal
+     records it collects are the ones this fix leaves behind. */
+  const { readBatch: rb, writeBatch } = await import("@/lib/importBatch");
+  const id = stage(["IMG_0013.MOV"]);
+  const b = rb(id)!;
+  b.status = "importing";
+  writeBatch(b);
+  /* Prove the fixture took. Without this the test passes whenever the write
+     silently missed, because a batch the sweeper cannot read is skipped for a
+     different reason entirely. */
+  assert.equal(rb(id)?.status, "importing", "the fixture did not mark the batch as running");
+
+  const swept = sweepAbandonedBatches(0);
+  assert.ok(!swept.includes(id), "the sweeper took a batch that was still importing");
+  assert.ok(rb(id), "a running import's record was reclaimed under it");
 });
 
 /* ------------------------------------------------- the client, not proven */

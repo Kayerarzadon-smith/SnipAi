@@ -201,28 +201,82 @@ def run_board():
     return b
 
 
+# The safest reading first: a row this guard cannot read unambiguously is
+# treated as the most open of its candidate statuses, because the condition
+# this guard exists to catch is "test green, row still open". Guessing
+# "fixed" on an ambiguous row is the one error that hides work.
+OPEN_MOST = ("regressed", "open", "fixed", "wontfix")
+
+
+def cell_status(cell):
+    """The status a cell declares, or None.
+
+    `.match` anchors, so a row narrating "fixed 2026-09-11" in the MIDDLE of
+    its defect column does not register -- checked, because T20 was filed on
+    the belief that it did. Only a cell that BEGINS with a status word counts,
+    which is what a status column looks like.
+    """
+    low = re.sub(r"[*_`]", "", cell).strip().lower()
+    m = STATUS.match(low)
+    return m.group(1) if m else None
+
+
 def ledger():
-    """{id: status} from the tables -- a later row wins, the detail table is lower."""
-    rows = {}
+    """{id: status} from the tables, plus the rows that could not be read.
+
+    A later row wins, the detail table being lower down.
+
+    WHY THIS NO LONGER TAKES THE FIRST STATUS-BEARING CELL AND STOPS.
+    (ledger T20)
+
+    It used to `break` on the first cell that began with a status word,
+    whichever column that happened to be. That is fine until a row grows an
+    extra column -- and on 2026-09-11 four of them did, when a status was
+    APPENDED as a new cell ahead of the old one. The rows then read
+    `[fixed, open]`, the guard took `fixed`, and it printed "the ledger
+    agrees with the bug board" over four rows whose status column said open.
+    **Three malformed rows passed three green runs in one night, and the
+    third was a row about a guard.** Verified against tonight's history:
+    at 952d039 the S34, S36, S42 and T19 rows all read `[fixed, open]`.
+
+    So every status-bearing cell is collected. Agreement is the answer;
+    disagreement is not something to interpret. **A row with two statuses is
+    a malformed row, and saying so is the correct output** -- it goes to the
+    unreadable list, not the disagreement list (T21's distinction), and its
+    status is taken as the most open of the candidates so the guard can only
+    ever complain more, never less.
+
+    Measured before shipping: of 209 rows today, 12 carry more than one
+    status-bearing cell and **none of them disagree**, so this flags nothing
+    that is currently correct. A stricter rule -- every row must match its
+    table's column count -- would have flagged 44, most of them long-standing
+    and harmless, which is a flood rather than a guard.
+    """
+    rows, unreadable = {}, []
     try:
         text = LEDGER.read_text()
     except OSError as e:
         print(f"  could not read {rel(LEDGER)}: {e}")
-        return None
-    for line in text.splitlines():
+        return None, None
+    for n, line in enumerate(text.splitlines(), 1):
         cells = [c.strip() for c in line.split("|")]
         if len(cells) < 4 or not ROW_ID.fullmatch(cells[1]):
             continue
-        for c in cells[2:]:
-            # statuses are written by hand and get decorated: "open",
-            # "**fixed 2026-09-09** -- lib/splitBeat.ts divides instead of
-            # copying", "wontfix". Strip the emphasis and read the first word.
-            low = re.sub(r"[*_`]", "", c).strip().lower()
-            m = STATUS.match(low)
-            if m:
-                rows[cells[1]] = m.group(1)
-                break
-    return rows
+        found = [(i, cell_status(c)) for i, c in enumerate(cells[2:], 2)]
+        found = [(i, st) for i, st in found if st]
+        if not found:
+            continue
+        seen = {st for _, st in found}
+        if len(seen) > 1:
+            where = ", ".join(f"cell {i} says {st}" for i, st in found)
+            unreadable.append(
+                f"{cells[1]} (line {n}) declares more than one status -- {where}. "
+                f"Reading it as the most open of them; fix the row"
+            )
+            rows[cells[1]] = min(seen, key=OPEN_MOST.index)
+        else:
+            rows[cells[1]] = found[0][1]
+    return rows, unreadable
 
 
 def coverage(board, rows):
@@ -257,11 +311,16 @@ def coverage(board, rows):
 
 def main():
     board = run_board()
-    rows = ledger()
+    rows, unreadable = ledger()
     if rows is None:
         return 1
 
-    wrong = list(board.problems)
+    # "I could not read my input" and "the ledger is stale" are different
+    # findings and used to print under one heading -- the stale one, which
+    # sends whoever reads it to edit the ledger when the fault is a filename,
+    # a parse error, or a row with two statuses. (ledger T21)
+    unread = list(board.problems) + list(unreadable)
+    wrong = []
     for tid in board.ids:
         passed = board.passed[tid]
         status = rows.get(tid)
@@ -274,11 +333,16 @@ def main():
         elif not passed and status == "fixed":
             wrong.append(f"{tid} FAILS, but the ledger calls it fixed")
 
+    if unread:
+        print("  this guard could not read part of its input:")
+        for u in unread:
+            print(f"    {u}")
     if wrong:
         print("  the ledger and the bug board disagree:")
         for w in wrong:
             print(f"    {w}")
         print(f"  {rel(LEDGER)} is what tells you what to work on next")
+    if unread or wrong:
         coverage(board, rows)
         return 1
     print("  the ledger agrees with the bug board")

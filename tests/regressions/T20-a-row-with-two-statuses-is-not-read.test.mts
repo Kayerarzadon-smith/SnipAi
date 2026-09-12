@@ -267,21 +267,61 @@ test("T20: no row in the REAL ledger declares two statuses", () => {
   );
 });
 
-test("T20: and a row the guard cannot see at all is reported, not skipped", () => {
+test("T20: a row the guard cannot see at all is reported, not skipped", () => {
   /* The third way this guard has been blind, found while diagnosing E7 and
-     fixed with the same function. A row in a Status table whose cell content
-     breaks across lines parses short, loses its status column, and lands in
-     NEITHER list -- so a green run said nothing whatsoever about it. E7 was
+     fixed with the same function. A row in a Status table whose status cell
+     does not BEGIN with a defined status parses as no status at all, lands in
+     NEITHER list, and a green run says nothing whatever about it. E7 was
      being diagnosed at the time and the guard had no opinion about it.
      
-     Five rows are in that state, and they are named rather than counted, so
-     this goes red when one is reflowed rather than silently drifting. */
+     Driven against a FIXTURE rather than by naming real rows. The first
+     version listed the five live offenders so that reflowing one would turn
+     this red -- which is exactly what it did, and Mara refused to edit it and
+     reflowed the rows instead. That was the right outcome once; as a standing
+     assertion it makes the test a maintenance task on someone else's file.
+     The fixture form asks the same question and cannot go stale. */
+  const statusless =
+    "| S34 | `lib/stitch.ts` | **The guard fires on untrimmed clips.** " +
+    "| needs a ruling | yes, not yet written |";
+  const r = runGuard(GUARD, statusless);
+  assert.equal(r.code, 1, `a row with no readable status passed the guard:\n${r.out}`);
+  assert.match(r.out, /could not read part of its input/, r.out);
+  assert.match(r.out, /S34 \(line \d+\) has no readable status/, r.out);
+});
+
+test("T20: and the real ledger has none of them left", () => {
+  /* The reflow, guarded. Five rows were invisible when this check shipped --
+     C19, C20, C38, E7 and E9 -- and Mara reflowed all five. This is the
+     regression guard for that, stated as a count so it does not need editing
+     when a row moves. */
   const r = onRealLedger();
-  assert.match(r.out, /has no readable status/, `no invisible row is reported:\n${r.out}`);
-  for (const id of ["C19", "C20", "C38", "E7", "E9"]) {
-    assert.match(r.out, new RegExp(`\\b${id} \\(line \\d+\\) has no readable status`),
-      `${id} is no longer reported as unreadable -- if its row was reflowed, drop it from this list`);
-  }
+  assert.doesNotMatch(
+    r.out, /has no readable status/,
+    `a row has gone invisible to the guard again:\n${r.out}`
+  );
+});
+
+test("T20: a suffixed id is a real id -- C29b's class is no longer invisible", () => {
+  /* The fourth blind spot, closed on Mara's ruling. `ID = r"[A-Z]{1,3}\\d+"`
+     could not match `C29b`, so that row had never been checked in ANY run --
+     not agreeing, not disagreeing, not reported. It was left alone at first
+     because the row's status read "needs a ruling" and widening the pattern
+     would have flagged it wrongly; she ruled instead that a row awaiting a
+     decision is `open` with the decision as a qualifier, and that the guard
+     should reason about the four statuses the header defines and no more --
+     every extra status being a fresh place for this exact class of bug.
+     
+     Driven through a fixture whose id carries a suffix, so the claim is that
+     the guard ATTRIBUTES it rather than that the live ledger happens to. */
+  const row =
+    "| C29b | `lib/follow.ts` | **A decision, not a defect.** | open — needs a ruling | no |";
+  const r = runGuard(GUARD, row, "C29b-passes.test.mts");
+  assert.equal(r.code, 1, `a green test over an open row passed:\n${r.out}`);
+  assert.match(
+    r.out, /C29b passes, but the ledger still calls it open/,
+    `the guard did not attribute the suffixed id at all:\n${r.out}`
+  );
+  assert.doesNotMatch(r.out, /names no ledger id/, "the board file's suffixed id was not recognised");
 });
 
 test("T20: a statusless row in a table with no Status column is left alone", () => {

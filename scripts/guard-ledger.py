@@ -73,7 +73,11 @@ LEDGER = pathlib.Path(os.environ.get("SNIPAI_LEDGER") or ROOT / "audits" / "LEDG
 BOARD = pathlib.Path(os.environ.get("SNIPAI_BOARD_DIR") or ROOT / "tests" / "regressions")
 
 # S2, C16, N1, P19, T8, E1, CG1 ... every family the ledger uses.
-ID = r"[A-Z]{1,3}\d+"
+# A suffixed id is a real id: the ledger carries C29b, and until 2026-09-12
+# this pattern could not match it, so that row had never been checked in any
+# run. One character, on Mara's ruling. FILE_ID gets it too, so a board file
+# named C29b-*.test.mts would be attributed rather than reported as nameless.
+ID = r"[A-Z]{1,3}\d+[a-z]?"
 FILE_ID = re.compile(rf"^({ID})-.+\.test\.mts$")
 ROW_ID = re.compile(rf"{ID}\Z")
 STATUS = re.compile(r"(wontfix|fixed|open|regressed)\b")

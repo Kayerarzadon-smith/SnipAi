@@ -1430,6 +1430,72 @@ safe. **Ignoring is not deleting** — her line, and it is the right one.
 
 **Order: T20 → S61 → then the M0.8 verification run is worth Nadia's 2h40m.**
 
+**2026-09-12: T20 and T21 merged. Two of the three causes I wrote into T20 were
+disproved by the person fixing it, and the malformed rows were mine. S61 is
+next, unchanged.**
+
+**The correction, and I am recording it as a correction rather than editing it
+away.** T20's real defect is an **extra column**: at `952d039` the S34, S36, S42
+and T19 rows each read `[fixed, open]`, and the guard took `fixed` and **printed
+agreement over four rows whose status column said `open`.** **Both of my stated
+mechanisms are false and are now pinned as not-reproducing by tests** — the
+regex is effectively case-insensitive because `ledger()` lowercases first, and
+`STATUS.match` anchors so prose narrating *"fixed 2026-09-11"* never registers.
+**The second one was my inference from how I write this file, and it was wrong.**
+
+**And the malformed rows were mine, from commits including `fadeb5e` — which is
+the part worth saying plainly.** I own this file's format. A row with an extra
+column is my defect regardless of which keystroke added the pipe, and **I filed
+a row about a guard misreading the ledger without checking whether the ledger
+was malformed.** That is the same shape as the thing the row is about.
+
+**Third time tonight the reported cause and the real cause differed and the
+implementer caught it** — S34's fail-open, S35's unreproducible premise, now
+this. **First of the three where the wrong cause was mine**, which makes the
+count worth keeping: reading code adversarially catches defects, and
+**implementing against a row is what catches the row.**
+
+**The fix's scope was chosen by measurement and that is why it is right.** A row
+declaring two statuses is read as the **most open** of its candidates, so **the
+guard can only ever complain more, never less** — the property that makes a
+stricter guard safe to land unattended. **12 live rows carry more than one
+status cell and none disagree**, so it flags nothing currently correct; the
+principled alternative, header-based column indexing, **would have flagged 44**,
+mostly long-standing and harmless. *"That is a flood, not a guard"* — and those
+44 rows are the argument, not taste.
+
+**S54's condition is met, and the direction he added is better than the one I
+asked for.** I asked for the reclaim to be asserted. He added the **inverse** —
+**the sweeper must not reclaim a batch still importing** — with the test proving
+its own fixture took, *"because otherwise it passes whenever the write silently
+misses."* **That is a test that cannot go vacuous**, which is the property S8's
+sweep had and the reason I trusted it. My condition would have caught a leak;
+his addition catches a live import being swept out from under someone.
+
+**T23 filed, and it is the fourth guard-shaped instance tonight** after T8, T15
+and T20: run from outside the checkout, `ROOT` resolves to `/` and **every board
+test reports as failing** — so a guard that cannot find the repo says *"your
+tests fail."* **The harm is that the wrong answer is plausible.** That confident
+misreading survived half an hour and three wrong theories. **And the method note
+is in the row because it cost most of that time:** an A/B built by extracting a
+script elsewhere tests the extraction as much as the script, and the extraction
+regex had swallowed its own constant twice. **The A/B now reverts only the
+selection inside the current file.**
+
+**Order unchanged: S61 next, then the M0.8 verification run.** Theo confirms the
+asymmetry argument reads right from the code, which is the confirmation that
+matters — it was a code-reading claim and he read the code.
+
+**`QA_BUGREPORT2026-09-12.md` stays untracked and untouched.** Its six findings
+are filed and triaged, but `qa-screenshots/` is now ignored wholesale, so the
+report is the last artefact of that run still sitting in the repo root. **It
+moves to `~/Documents/SnipAi-evidence/` with the screenshots** — that is the
+durable answer already ruled, and it is Ruth's to carry out, not a deletion.
+
+**Six things still wait on Kayer and the count has not moved**: the relaunch, R6
+(watch a cut), the seven references into `reference/inspiration/`, B8's number,
+B9's boundary question, and the nightly routine only he can reach (G9).
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

@@ -815,6 +815,53 @@ into Settings → *Videos to learn the style from*. Also waiting: **R6** (watch 
 cut), what **`5ca5169e`** is, and B8 itself. **Nobody should guess any of the
 four.**
 
+**2026-09-11, 23:50 — closing the night. Both items done, one new action for
+tomorrow, and a routing rule.**
+
+**`master` is at `b481e72`, fast-forwarded not merged, 7 commits unpushed per
+his standing instruction.** Correct.
+
+**Routing: mechanical local git does not need Ruth, and here is the line so it
+is not asked again.** Ruth's lane is not *"runs git commands"* — it is
+**whether what exists can leave this Mac**. A local fast-forward does not leave
+this Mac, so it is execution and whoever types it is a detail. **A push, a tag,
+or producing a bundle does leave**, and those are hers, with a checklist rather
+than a command. **What Ruth genuinely should be dispatched for, and soon:** G1
+(now **7** unpushed commits), G2 and G3 (stale remote and merged local
+branches), and the growing pile of untracked artefacts at the repo root — her
+full checklist **minus the push**, which his standing instruction forbids. That
+is a real job and it has been waiting all day.
+
+**The nightly is filed as G9, and it is filed because it cannot be closed from
+here.** Four registries are empty — `crontab`, `launchctl`,
+`list_scheduled_tasks`, `CronList` — and a run still fired and wrote 25 KB into
+the repo, so the remaining candidate is a **server-side cloud routine on his
+account**, reachable only by him. **I am not having the `snipai-nightly-qa`
+skill created tonight**, and the reason is this project's own worst pattern
+rather than caution: a skill whose only consumer is a process we cannot see,
+cannot invoke and cannot verify picked it up is a fix whose success is
+**unobservable until the next run**. That is a thing reporting success about
+something nobody measured, which is M1's entire subject. It waits on the
+routine's prompt, which is his.
+
+**ONE NEW ACTION FOR TOMORROW, and the timing is measured rather than assumed.**
+`05:08 UTC` is **22:08 local** (confirmed: `date` reads 23:50 PDT, UTC-0700), so
+the nightly **already fired tonight** and next fires in about **22 hours** —
+there is no midnight scramble and I am not inventing one. But before 22:08
+tomorrow: **copy `~/Movies/SnipAi/qa-m08/qa-transcripts` (252 KB) to somewhere
+outside `~/Movies/SnipAi/`.** It is still sitting in the exact tree the fallback
+selected and wrote a synthetic `.mov` into. **Copy, not move** — a copy disturbs
+nothing and leaves the original where every row already points. **Claude's
+safety lane, not an agent's**, and outside the library root rather than into the
+repo, because these are transcripts of his speech verbatim and G5/G6 are still
+unresolved. 252 KB against 42 minutes of transcription that cannot be re-run
+without his footage and another evening.
+
+**The order for tomorrow is unchanged otherwise**, and the line that still
+matters most: **the biggest item on the board is gated on one action by Kayer** —
+eight reference videos into Settings → *Videos to learn the style from*, which
+unblocks both halves of M0.85. Plus R6, and what `5ca5169e` is.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

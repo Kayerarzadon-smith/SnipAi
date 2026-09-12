@@ -1330,6 +1330,106 @@ check.** That is S54's defect, N18's defect, and this evening's process defect,
 in one sentence. **Standing correction: "you have them" is not a handoff. The
 content is the handoff.**
 
+**2026-09-12: S54 merged. Three rulings — the test change is approved with one
+condition, T20 goes ahead of S61, and the filler question is closed by
+measurement rather than built.**
+
+**RULING 1 — the changed assertion is approved, and it is the right kind of
+change.** `tests/import-batch.test.mts` asserted `existsSync(batchDir(id)) ===
+false` after a clean import. **That assertion cannot both hold and let the
+client observe an outcome**, so something had to give. He kept its stated
+intent — *"staging is gone only because every clip found a home"* — by asserting
+**that** instead: no clip of his remains staged. **Approved, because it replaces
+a proxy with the property.** The batch record's lifetime is an implementation
+detail; **where his footage is, is the invariant**, and the new assertion tests
+the invariant directly. That is the seventh instance tonight of proxy-versus-
+property and **the first one where the fix runs in the right direction.**
+
+**One condition, and it is not a formality: the reclaim has to be asserted
+too.** The old assertion was doing a second job nobody named — proving the
+record does not accumulate. Without that, this trades a silent *"done"* for a
+slow leak, **and S58 is already an open row about exactly that class** (a batch
+whose status never moves is never swept). **So: a test that a terminal batch is
+actually reclaimed, by the tray's `DELETE` and by `sweepAbandonedBatches`.**
+With that, approved as it stands.
+
+**And the fix being better than the scope is worth recording.** Desmond scoped
+*reorder `failJob` before `discardBatch`*. Theo worked out that **reordering
+would not have worked** — the gap is a few filesystem operations against a
+1200 ms poll, so the client essentially always arrives after the delete and
+reads a 404 it cannot distinguish from *"vanished"*. **He fixed what the client
+can observe rather than what order the statements run in.** Third time tonight
+that the reported cause and the real cause differed and the implementer caught
+it (S34's fail-open, S35's unreproducible premise, this).
+
+**RULING 2 — T20 goes ahead of S61, and I applied a test to myself before ruling
+it.** This is the **fourth** "repair the instrument first" ruling tonight
+(N18, S38, S54, now T20) and four in a row is a habit rather than a judgement
+unless it survives a check. **The test: does the blindness compound, and is
+there a downstream signal that would catch the thing anyway?** **T20 compounds
+with every row filed and has no downstream signal — a masked row simply stays
+masked.** **S61 does not compound (each import is independent) and it gained a
+downstream signal tonight when S54 landed — a dropped clip now surfaces as a
+failure instead of being swallowed by a "done".** So **S61 got safer tonight and
+T20 got worse**, and that is why the order changes rather than because
+instruments come first as a rule.
+
+**The specific reason T20 is worse than it reads: it is blinded by how I
+write.** Rows here narrate previous fixes in prose — *"fixed 2026-09-11"*,
+*"FIXED by Theo tonight"* — and **the guard can be satisfied by the word `fixed`
+appearing anywhere earlier in a row while the status column still says `open`.**
+That is the unsafe direction, because the guard exists to catch *test green, row
+open*. **Three malformed rows passed three green runs in one night, and the third
+was a row about a guard.** Every row I have filed tonight sits under an
+instrument that cannot check it.
+
+**RULING 3 — the filler question is closed, not re-scoped, and it needed no
+code.** Measured: **zero `um` or `uh` in his finished cuts or his raw** — he does
+not say them. Discourse markers **2.9% finished against 2.7% raw**, so **his rate
+is his voice and he does not reduce it**; stripping them would make him sound
+less like himself. The app measures **3.9%** and **strips nothing**, so a single
+point of excess with no stripping at all means **the excess is weaker takes, not
+a missing filter** — his raw clips range 0.0% to 4.6% and the markers cluster in
+the attempts he would discard. **`SNIPAI_QA_SPEC.md` Part 5 #3 is rewritten from
+a known gap into a decision with evidence: "the app removes whole bad takes
+instead" is the correct design, E5 is the fix, do not build a filler pass.**
+**The control is what makes this conclusive** — the same rule that saved the
+J-cut measurement from being read as a falsification.
+
+**E8 needs nothing from me and the answer improves it.** `retakes` is the same
+shape with opposite semantics — alternatives of which exactly one is live, where
+E8 needs segments that all play — so overloading it would make *"what is on
+screen for this line"* ambiguous, which is the `types.ts:16-19` invariant E8
+exists to preserve. **A sibling field, not a reuse.** And the useful half: **E5
+now preserves every attempt rather than discarding it, so E8's fragments are
+already on disk in `beats.json`, and E8 inherits E5's widened picker region** —
+the same span a composition would draw from.
+
+**T22 filed from the cascade**, and it is not a footnote: an assertion placed
+before its own `clean()` teardown leaked its projects into later tests, so **one
+changed assertion took two unrelated tests down and looked like a
+disagreement.** The whole file shares the trap. **Same lifetime-ownership class
+as T19**, and the reason it gets a row is that **a cascade misattributes a
+failure** — which is how a green suite and a broken one become hard to tell
+apart.
+
+**Ruth's `.gitignore` is taken, and her closing question is answered.** She
+ignored the whole `qa-screenshots/` directory rather than the per-date
+carve-out, on the argument that these are **frames of his real library — his
+footage, his products, his project names — and a git history cannot be
+un-committed without a rewrite, in a repo whose public status is unconfirmed
+(G5, G6).** Correct, and she also caught that the old comment's claim
+(*"the five screenshots attached to specific bugs are tracked"*) was **false —
+they were neither tracked nor ignored**, which is why they sat in `git status`
+for a day looking like an oversight. **Her question — where QA evidence lives
+durably — is mine and the answer already exists in practice: `~/Documents/SnipAi-evidence/`,
+outside the repo and outside `~/Movies/SnipAi`.** The transcript corpus is
+already there. **The screenshots and the nightly's 38 frames go there too**, and
+the ledger keeps citing them by filename, which is what makes ignoring them
+safe. **Ignoring is not deleting** — her line, and it is the right one.
+
+**Order: T20 → S61 → then the M0.8 verification run is worth Nadia's 2h40m.**
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

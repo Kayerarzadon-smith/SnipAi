@@ -261,9 +261,16 @@ The rule, borrowed from how a real team avoids this:
   `app/dashboard/DropZone.tsx` are the contended files, and almost every open
   client row lives in one of them. If a second implementer ever exists, the WIP
   limit of one row is the thing that breaks first — see the ruling in DOCKET.
-- **Re-read `git log -1` and `git status` immediately before committing shared
-  state — never `--amend` on a shared branch, and always `git add` by explicit
-  path.** Added 2026-09-11 after this happened in **both** directions within an
+- **Before committing a shared file, diff it and confirm every hunk is yours.**
+  **Theo's formulation, 2026-09-12, and it replaces a weaker rule of mine.**
+  Mine said *"add by explicit path"*. **That is not enough and the evidence is
+  his own commit: `git add audits/LEDGER.md` is an explicit path, and it swept
+  up twelve of the PM's rows anyway — the path was correct and the content was
+  not his.** In his words: *"Explicit path wasn't enough; I needed to check the
+  diff. I'll verify content, not just paths, from here."* He then did it
+  per-file across five files and confirmed two insertions, both his. **Also:
+  re-read `git log -1` before committing, and never `--amend` on a shared
+  branch.** Added 2026-09-11 after this happened in **both** directions within an
   hour: the PM amended the developer's commit instead of its own (reverted
   exactly; the branch the work sat on is what made the restore provable), and
   the developer's next commit swept up the PM's uncommitted ledger rows and said

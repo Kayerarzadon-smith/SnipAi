@@ -29,6 +29,21 @@ ugc-edit-system/projects/
 qa/last-run.json
 qa/last-api.json
 qa-rebuild.log
-# the five screenshots attached to specific bugs are tracked; nightly sweeps
-# are 2.4MB a time against a 6.4MB repo, and there is one every night
-qa-screenshots/*-nightly/
+# QA screenshots are never tracked -- the whole directory, not a per-date
+# carve-out. They are frames of Kayer's real library: his footage, his product,
+# his project names. A path carrying his name in a tracked file is already a
+# finding (G5); frames of the footage itself are the same class and worse,
+# because a git history cannot be un-committed without a rewrite. This repo is
+# private today and need not stay private.
+#
+# The comment here used to claim "the five screenshots attached to specific
+# bugs are tracked". They never were -- neither tracked nor ignored, which is
+# how they sat in `git status` for a day looking like someone's oversight.
+#
+# `qa-screenshots/*-nightly/` was the old rule and it needed extending every
+# time a nightly invented a new dated directory. This one does not.
+#
+# Ignoring is not deleting: the frames stay on disk, and the ledger cites them
+# by filename. Where QA evidence lives DURABLY is a separate open question --
+# it is not answered by git, and it is not mine to answer.
+qa-screenshots/

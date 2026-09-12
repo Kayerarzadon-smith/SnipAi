@@ -361,7 +361,7 @@ If a project's edit file becomes unreadable, it **still appears on the queue**, 
 |---|---|---|
 | 1 | **The word being spoken is not highlighted** as the video plays | Line-level highlighting works. Word-level is written but never renders — a confirmed open defect, cause not yet found |
 | 2 | **No captions/subtitles anywhere** | Never built. The word-level transcript exists but nothing renders captions |
-| 3 | **No filler-word removal** ("um", "uh") | Never built. The app removes whole bad takes instead |
+| 3 | **No filler-word removal** ("um", "uh") | **Not a gap — a decision, settled by measurement 2026-09-12 and vindicated as written.** Measured across the videos Kayer cut himself: **zero `um` or `uh` in either his finished cuts or his raw footage — he does not say them**, so the feature has nothing to remove. And discourse markers are **2.9% of his finished videos against 2.7% of his raw** — **his rate is his voice and he does not reduce it**, so stripping them would make him sound less like himself. The app measures **3.9%**, and the control is what makes this conclusive: **the app strips nothing and is only one point worse**, so the excess comes from **keeping weaker takes** — his raw clips range 0.0% to 4.6% and the markers cluster in the attempts he would discard. **So "the app removes whole bad takes instead" is the correct design and E5 is the fix**, not a filler pass. Do not build one |
 | 4 | **No audio levelling and no music bed** | Never built |
 | 5 | **No redo** | Never built |
 | 6 | **All eight Connectors say "not connected"** | Placeholder; needs a developer account per platform |

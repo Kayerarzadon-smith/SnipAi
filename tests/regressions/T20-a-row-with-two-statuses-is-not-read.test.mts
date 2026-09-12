@@ -245,18 +245,60 @@ test("T20: an unreadable row is read as the most OPEN of its candidates", () => 
   assert.match(r.out, /most open of them/i, `the safest-reading rule is not stated in the output:\n${r.out}`);
 });
 
-test("T20: this fix flags nothing in the REAL ledger, which was measured first", () => {
-  /* A guard that floods is not a guard. Of the rows in the live ledger, 12
-     carry more than one status-bearing cell and none of them disagree -- so
-     this change cannot be discovered by a wall of new complaints. The
-     stricter rule considered and rejected, "every row must match its table's
-     column count", would have flagged 44.
+test("T20: no row in the REAL ledger declares two statuses", () => {
+  /* A guard that floods is not a guard, and this is the claim that keeps the
+     selection change honest: of the rows in the live ledger, 12 carry more
+     than one status-bearing cell and NONE disagree, so nothing currently
+     correct is flagged. The stricter rule considered and rejected -- every row
+     must match its table's column count -- would have flagged 44.
      
-     The real LEDGER with a fixture BOARD: the unreadable check depends only
-     on parsing the ledger, so this asks the real question without running the
-     whole regression board a second time. Every invocation of this guard runs
-     the board it is pointed at, which is why the rest of this file points it
-     at a single-file one. */
+     Narrowed from "no unreadable output at all", which is what this asserted
+     first and which the visibility check below then broke. That earlier form
+     conflated two claims: "the selection change is quiet" and "nothing in the
+     ledger is malformed". Only the first is this fix's business, and the
+     second is false -- five rows really are malformed.
+     
+     Real LEDGER with a fixture BOARD: the ledger parse is all this needs, and
+     every invocation of the guard runs the board it is pointed at. */
+  const r = onRealLedger();
+  assert.doesNotMatch(
+    r.out, /declares more than one status/,
+    `a live row declares two statuses:\n${r.out}`
+  );
+});
+
+test("T20: and a row the guard cannot see at all is reported, not skipped", () => {
+  /* The third way this guard has been blind, found while diagnosing E7 and
+     fixed with the same function. A row in a Status table whose cell content
+     breaks across lines parses short, loses its status column, and lands in
+     NEITHER list -- so a green run said nothing whatsoever about it. E7 was
+     being diagnosed at the time and the guard had no opinion about it.
+     
+     Five rows are in that state, and they are named rather than counted, so
+     this goes red when one is reflowed rather than silently drifting. */
+  const r = onRealLedger();
+  assert.match(r.out, /has no readable status/, `no invisible row is reported:\n${r.out}`);
+  for (const id of ["C19", "C20", "C38", "E7", "E9"]) {
+    assert.match(r.out, new RegExp(`\\b${id} \\(line \\d+\\) has no readable status`),
+      `${id} is no longer reported as unreadable -- if its row was reflowed, drop it from this list`);
+  }
+});
+
+test("T20: a statusless row in a table with no Status column is left alone", () => {
+  /* The direction that would be a flood. The design-goal tables ("# | The one
+     rule | Rows | Where it is broken") carry no status and never did -- 11
+     rows -- and flagging them would bury the five that matter. */
+  const r = onRealLedger();
+  for (const id of ["CG1", "CG4", "PG1", "PG5"]) {
+    assert.doesNotMatch(
+      r.out, new RegExp(`\\b${id} \\(line`),
+      `${id} is in a table with no Status column and should not be reported`
+    );
+  }
+});
+
+/** The guard against the real ledger, with a one-file board so it is quick. */
+function onRealLedger(): Run {
   const dir = scratchDir("t20-live");
   const board = path.join(dir, "board");
   fs.mkdirSync(board, { recursive: true });
@@ -268,7 +310,5 @@ test("T20: this fix flags nothing in the REAL ledger, which was measured first",
     cwd: ROOT, encoding: "utf8", timeout: 600_000,
     env: { ...process.env, SNIPAI_BOARD_DIR: board },   // real SNIPAI_LEDGER
   });
-  const out = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
-  assert.doesNotMatch(out, /could not read part of its input/,
-    `the live ledger now trips the unreadable check:\n${out}`);
-});
+  return { code: r.status ?? -1, out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
+}

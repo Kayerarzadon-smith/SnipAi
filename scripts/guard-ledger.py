@@ -77,6 +77,8 @@ ID = r"[A-Z]{1,3}\d+"
 FILE_ID = re.compile(rf"^({ID})-.+\.test\.mts$")
 ROW_ID = re.compile(rf"{ID}\Z")
 STATUS = re.compile(r"(wontfix|fixed|open|regressed)\b")
+# A table header, which is what says whether its rows carry a status at all.
+HEADER = re.compile(r"^\|\s*(ID|id|#)\s*\|")
 
 
 def sort_key(tid):
@@ -258,13 +260,35 @@ def ledger():
     except OSError as e:
         print(f"  could not read {rel(LEDGER)}: {e}")
         return None, None
+    in_status_table = False
     for n, line in enumerate(text.splitlines(), 1):
+        if HEADER.match(line):
+            # Which table we are in decides whether a statusless row is a
+            # defect or the normal shape. The design-goal tables ("# | The one
+            # rule | Rows") carry no status and never did.
+            in_status_table = "status" in [c.strip().lower() for c in line.split("|")]
+            continue
         cells = [c.strip() for c in line.split("|")]
         if len(cells) < 4 or not ROW_ID.fullmatch(cells[1]):
             continue
         found = [(i, cell_status(c)) for i, c in enumerate(cells[2:], 2)]
         found = [(i, st) for i, st in found if st]
         if not found:
+            # A row in a Status table with no readable status is INVISIBLE:
+            # it lands in neither the agreement list nor the disagreement
+            # list, so a green run says nothing about it at all. That is the
+            # third way this guard has been unable to see a malformed row,
+            # after taking the first of two statuses (T20) and printing
+            # "could not read" as "the ledger disagrees" (T21). Live on six
+            # rows when this was written -- C29b, C19, C20, C38, E7 and E9 --
+            # all of them rows whose cell content breaks across lines, so they
+            # parse short and lose their status column. E7 was being diagnosed
+            # at the time and the guard had no opinion about it whatsoever.
+            if in_status_table:
+                unreadable.append(
+                    f"{cells[1]} (line {n}) has no readable status -- {len(cells) - 3} cell(s) "
+                    f"before the end of the row. Its content probably breaks across lines"
+                )
             continue
         seen = {st for _, st in found}
         if len(seen) > 1:

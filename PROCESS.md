@@ -19,6 +19,39 @@ Kayer named the team on 2026-09-11 so the work can be talked about in
 people rather than in slugs — "Nadia found it and Theo fixed it" carries
 who did what in a way that `snipai-tester` and `snipai-dev` do not.
 
+**AMENDED 2026-09-11 by Kayer: Mara sequences, Claude executes and
+reports.** His words: *"why don't you let Mara in the driver's seat. I want
+this app done right, solid, bulletproof. Not criticizing your skills just
+don't want to rush and want to utilize the team you and I built to their
+fullest potential."* It followed something he spotted an hour earlier —
+*"I feel like you're doing Mara's job — is that a fair statement?"* — and it
+was. Arriving with the sequence pre-built and asking for ratification is not
+handing someone a decision.
+
+**What moved:** deciding what is next, and in what order, is the PM's. Claude
+brings evidence — measurements, what is blocked by what, what came back from
+whom — and executes the order that comes back. Disagreement is argued against
+the PM's decision, not in place of it.
+
+**Two things deliberately did NOT move, named so there is no gap.**
+**Safety:** if something is about to write into `~/Movies/SnipAi/projects`, or
+files appear nobody can account for, Claude halts it and asks afterwards — the
+PM is built to refuse code and defect judgements, which makes it the wrong seat
+for "stop everything now". **And Kayer:** he talks to Claude, Claude talks to
+the five. Routing him through the PM was considered below and rejected for a
+reason that still holds.
+
+**The evidence for the change, recorded because it is the argument:** in the two
+hours before it, the PM corrected the coordinating seat four times — a
+recommended target band wrong at both ends *and* wrong in shape; "most of the
+reduction must come from editorial judgement" wrong on Kayer's own numbers
+(20.3% kept by hand against the app's 16.8%, so it already cuts harder than he
+does); the DOM harness called unowned when it had been M2's first exit clause
+all along; and eight reference videos belonging in `reference/inspiration/`, a
+feature already built, never fed, with the **median** already chosen as the
+statistic that makes the outlier problem vanish. **All four would have shipped.**
+That is not a rough patch — it is what speed costs.
+
 **Kayer talks to Claude. Claude talks to the five.** That is the shape, and
 it was unclear for most of a day because the coordinating seat had no name
 on it. Kayer is the founder; Claude is accountable to him for whether the

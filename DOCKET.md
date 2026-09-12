@@ -739,6 +739,82 @@ eight videos, and worse, a band encodes a constraint he does not hold — he run
 37s to 83s by content. I argued against a soft target on the grounds it was
 hardest to verify; the evidence says it was right about the shape.
 
+**2026-09-11, end of day. Kayer put the PM in the driver's seat; here is the
+order, and tonight's answer is "two things, then stop."**
+
+His words: *"why don't you let Mara in the driver's seat. I want this app done
+right, solid, bulletproof... don't want to rush and want to utilize the team you
+and I built to their fullest potential."* Recorded in PROCESS.md with what moved
+and what deliberately did not. **Filed as R9.**
+
+**"Fullest potential" is not "everyone busy", and the distinction governs
+tonight.** Four roles are idle at midnight. Using them fully means not shipping
+the four errors that were caught in the previous two hours — it does not mean
+finding each of them something to do before morning. Kayer asked for no rushing
+explicitly, so **stopping is a decision here, not a default.**
+
+**TONIGHT — two things, neither of which builds anything.**
+
+**1. Ruth: fast-forward `master` to `76cba1d`.** Verified safe:
+`git merge-base --is-ancestor master HEAD` passes, master is 5 behind, it is a
+fast-forward and not a merge. **Do not push** — his standing instruction. The
+reason this does not wait for morning is **G1**, a filed row about this exact
+exposure: every fix from a session existing only on one branch on one Mac. It
+makes today durable without constructing anything.
+
+**2. Claude: establish where the nightly's schedule lives. A question, not an
+action.** I checked before ordering containment and **the evidence does not
+support urgency, so I am not ordering it** — `crontab -l` and `launchctl list`
+show **no snipai or nightly entry on this machine**, so I cannot say it will
+fire again at 05:08 and will not pretend otherwise. **And the run behaved far
+better than its provenance suggested**, which I had assumed it would not: it
+opened `~/Movies/SnipAi/projects` **read-only**, generated a synthetic 185s
+`.mov` rather than using his footage, had deletion refused by a safety
+classifier and **moved its staging to `_to_delete/` instead of removing
+anything**, and declared all of it in its own first twenty lines. Six findings,
+nothing critical.
+
+**Two real process defects remain and get rows in the morning, not tonight:**
+the skill it was meant to invoke, `snipai-nightly-qa`, **does not exist**, so it
+ran an embedded fallback copy that its own header says will drift; and it
+**selected its data root by fallback**, landing on `qa-m08` — the tree holding
+the preserved transcript corpus. Verified intact: library 1023 files / 8.8 GB
+unchanged, `qa-transcripts` 252 KB / 11 files. **Nothing was harmed and that was
+partly design and partly luck, and the fallback data-root selection is N1's
+shape** — a process choosing a library at runtime with no owner.
+
+**TOMORROW, in this order.**
+
+1. **Claude (PM lane): file Desmond's fifteen and triage the nightly's six.**
+   My own backlog is the blocker on everything else — findings living in
+   messages are not findings, and nothing should be dispatched against a
+   half-filed board. **Check one thing first:** the nightly's own second
+   headline — *"a guard that is supposed to keep the ledger honest reports a
+   parse failure as a disagreement"* — may **be T20**, and a duplicate id is
+   worse than a late one.
+2. **Theo: the empty-transcript scoring.** `[]` is truthy, so a silent clip
+   reads as *"ends on a complete thought: \"\""* at −0.15 toward separate and
+   `notTranscribed` never fires. **First because it is in the code that shipped
+   tonight**, it is S39's family — a wrong answer wearing his own words — and
+   `grouping.ts:76`'s own comment names the distinction the code fails to make.
+3. **Theo: `qa --full` runs the regression board twice**, because
+   `guard-ledger.py` re-runs it for per-id results. S42's ~90s of real ffmpeg is
+   paid twice per run and **compounds with every video-touching board file**.
+   Same rule as N18: repair the instrument before leaning on it.
+4. **Theo: `Info.plist` into `bundle-app`** — one line, **P16**, and the
+   difference between this app existing on one Mac and existing in the repo.
+5. **Ruth: `_to_delete/` (9.4 MB) and `.qa-stage/`**, after confirming both are
+   the nightly's staging and nothing else.
+
+**BLOCKED ON KAYER, and this is the important line: the biggest item on the
+board is gated on one action by him.** **M0.85** needs B8's number, and my own
+ruling says that number should be **measured from `reference/inspiration/`**
+rather than chosen — and **E7** needs the eight references somewhere a test can
+reach. So both halves of *"super tightly cut"* wait on him putting eight files
+into Settings → *Videos to learn the style from*. Also waiting: **R6** (watch a
+cut), what **`5ca5169e`** is, and B8 itself. **Nobody should guess any of the
+four.**
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |
@@ -796,6 +872,7 @@ hardest to verify; the evidence says it was right about the shape.
 | R5 | Several clips that are really one video | Asked 2026-09-11. He records one TikTok across several takes/files and wants them treated as ONE project with ONE cut — and the take picker choosing across all of them, so a line said better in clip 3 wins over clip 1. **Today:** the uploader accepts multiple files but makes each its own project (`DropZone.tsx:211`), and `lib/types.ts:24` is `source: string` — singular. 68 sites assume one source (26 TS, 42 Python). **Two ways, and the cheap one is probably right.** (a) *Concatenate at import*: join the dropped clips into one `raw/` file before anything else runs; everything downstream sees one continuous recording and needs no change, and the take picker spans all clips for free. `-c copy` if codec/resolution/fps match (same phone, same mode: they will), re-encode if not. Roughly one function. (b) *True multi-source*: `source: string` becomes a list and all 68 sites learn about it. Correct, much larger, and buys little beyond (a) for his actual workflow. **Recommend (a)**, and only reach for (b) if mixed-format sources become normal. **Exit condition:** drop four clips of one TikTok at once, get one project, one cut, and a take chosen from a clip other than the first **Status 2026-09-11 after the first real-footage run: built, and not working for him.** Route (a) is implemented across three slices and the tray proposes and waits — but on **his** clips the join is refused every time (ledger **S34**) and the grouping proposed five projects for two videos (**S37**). Nothing he owns can be imported as one video today. Stays `open`, and it is M0.8's blocker, not a later milestone's | open |
 | R4 | "No more scrolling when I'm not scrolling" | Said 2026-09-11, and **said before** — the `pointerDown` guard in `review/page.tsx` quotes the first report. That fix covered dragging only. Mechanism found and filed as ledger **C22**: `yield4s` hands the list over when you scroll, then four seconds later actively yanks it back (`setFollowTick`), instead of just resuming. Also runs while paused. **Updated 2026-09-10:** bigger than one fix. C22 is a **regression** — `setFollowTick` arrived in `bb4bd5f` as a deliberate feature — and C19 turned out to be a third trigger of the same rule, not a rendering bug. Now ledger group **CG1**: three call sites, one guard that is wrong for all three. It is M2's exit condition, so it gets a test, not just a patch. Third report would be the one that matters **Not done, despite C22/C28/C29 being merged.** Ledger **C27** is the same bug one axis over: `Timeline.tsx:501-507` writes `el.scrollLeft` to keep the playhead centred, guarded against five drag states but **never against the video being paused**, and with **no yield at all** — so scrolling the timeline by hand during playback is taken straight back. He would experience that as the app still scrolling when he is not scrolling, which would be the **third** report. **R4 does not close while C27 is open**, and that link is written here rather than left to memory, because a request marked done with a live half is precisely the fade-handle failure this docket exists to prevent |
 | R2 | Products & links | The form writes a file only an uninvoked tool reads |
+| R9 | **"Let Mara in the driver's seat... don't want to rush and want to utilize the team you and I built to their fullest potential."** | Said 2026-09-11, after he spotted the real thing first — *"I feel like you're doing Mara's job — is that a fair statement?"* — and it was. **Recorded in PROCESS.md** as an amendment with what moved (the sequence) and what deliberately did not (safety halts, and his own line of contact). **Not a preference about org chart: it is a decision about error rate.** The argument is in PROCESS.md — four corrections in two hours, all four of which would otherwise have shipped. **The standing reading of "fullest potential": it means not shipping avoidable errors, not keeping five roles occupied.** Done, and kept here because a role change nobody wrote down is a role change that lapses | done |
 | R8 | **"I want this app bulletproof solid and these videos to be super tightly cut. my usual time i have a finished video is about a minute."** | Said 2026-09-11, and it is **the most consequential thing he has said about output** — it is the first time anyone has stated what *finished* means. **Two requirements in one sentence.** *"Super tightly cut"* and the minute are **M0.85**. *"Bulletproof solid"* is a standing instruction and is already live — it is why the S34 fail-open was hunted and closed (`bb345e7`), and Desmond is auditing the multi-clip guards for more of the same shape. **Do not read the second half as mood.** **Measured against the number: never once delivered.** Six versions of `img-9817` ending at 1:38, `img-9823` abandoned at 2:59, tonight's three-clip cut at 3:10. **The app has no target-length machinery at all** — one grep, one hit, and it is a character cap on learnings text. **Closes when he says a cut is tight**, not when a metric says so | open |
 | R7 | **"Will my app clean itself instead of littering all over my computer?"** | Asked 2026-09-11, in those words. **He was told the honest answer: not yet.** Four of the app's eight written locations have a cleanup owner and four have none, so the app's footprint grows with use and never comes back down — `~/Movies/SnipAi` is **8.8 GiB for two projects**, and one delete-and-rebuild cost **~1 GB** (S42). **Scoped as M0.9**, behind S42 which is the acute instance. One number is his and is in Blocked as **B7**; everything else is ours. **Does not close when the policy is written — it closes when disk stops growing over a session**, which is clause 2 of M0.9's exit | open |
 | R6 | **Watch the joined cut, and say if it is right** | **Added 2026-09-11, and it is the last step of M0.8's exit line.** Two of his clips are one cut and every machine-checkable property of it passes — no A/V drift across the seam, no black frames, 17 beats from the second clip carrying the whole CTA, transcript clean across the join. **Nobody has watched it.** No agent can: there is no Screen Recording grant for the tester's shell, proven rather than assumed. One command in his own library — `open cuts/img-0060-v1.mp4` — and M0.8's last item is either done or has a real defect behind it. **Not blocked on code, money or a credential; blocked on one pair of eyes** | open |

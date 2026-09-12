@@ -86,6 +86,22 @@ here than there is.
 | **Ruth** | Release Engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
 | **Ines** | Site Reliability Engineer | `snipai-sre` | What the app consumes; files whose lifetime nobody owns | Delete anything, ever; touch app behaviour |
 
+**From Kayer to the five, 2026-09-12, in his words:** *"You are doing such a
+fantastic job I am so eager to get this up and running!"* — and then *"Tell the
+team."* It is recorded here rather than left in a message because it is the
+first thing on the record from him about the **team** rather than about the
+work, and because every role reads this file on dispatch.
+
+**It is also load-bearing, which is why it sits in the process file and not in a
+changelog.** He is **eager**, and this file exists because nine features once
+got to eighty percent. **Those two facts will collide, repeatedly** — his
+eagerness against item 7 of the Definition of Done, the exit condition verified
+by the role that can verify it. **When they collide, the exit line wins, and
+that is not a refusal of his eagerness — it is the thing he asked for in the
+same breath.** He has said *"bulletproof"*, *"built right"* and *"done right"*
+more often tonight than he has said *"fast"*. A role that reads his enthusiasm
+as permission to skip a verification run has misread him.
+
 Titles are the industry-standard ones rather than descriptions of the
 mechanism, so the roles read the way they would anywhere else. The split
 between Desmond and Nadia is the one worth understanding: **Desmond reads
@@ -276,6 +292,12 @@ Listed so nobody helpfully adds them back.
   not a standing role. A role whose job is improving code will always find
   code to improve, and this repo's problem has never been a shortage of
   building.
+- **No estimates — internally. AMENDED 2026-09-12: the rule does not survive
+  Kayer asking directly.** *"I don't do estimates"* is not an answer to the
+  founder asking whether he can post this weekend. When he asks, he gets a
+  number, **with its arithmetic and with what would falsify it**, and it goes in
+  DOCKET so that when it is wrong the reason is findable. The rule still holds
+  for everything else: no dates on rows, no dates on milestones, no velocity.
 - **No estimates.** One person, one WIP slot. The exit line is the
   commitment; a date is a guess wearing a suit.
 - **No status meeting.** `./scripts/docket` prints what is open.

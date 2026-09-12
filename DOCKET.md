@@ -932,6 +932,145 @@ unpushed), G2, G3 and the repo-root pile — her checklist **minus the push**.
 since "a bad example" reads as exclusion but that is an inference and the folder
 is his to fill.
 
+**2026-09-12, and this one reverses my own "nothing more tonight" for exactly
+one action. He named the mechanism, and it is already three-quarters built.**
+
+**His words:** *"there is a slight trick I do... when I cut each clip I separate
+the audio from the clip... start the sound a millisecond or two early so it's
+like it's mixing in sound a bit like a dj mixing in songs but way smaller."*
+Then: **"That's how it sounds so tight. I want you to match my videos."** And
+the magnitude, asked and answered: **"I mean a frame or two sometimes 3"** —
+**1-3 frames, 33-100 ms at 30 fps**, not the 1-2 ms the first description
+implied.
+
+**That is a J-cut, and it is H4 — which has been sitting in Half-built as a
+feature nobody asked for.** He has now asked for it by name as the cause of the
+quality he has been describing all night. **So H4 leaves Half-built and becomes
+work, and that is the section doing its job:** the product question a HALF-BUILT
+row exists to put in front of him was answered by him, unprompted, before
+anybody built against a guess.
+
+**Verified line by line rather than recalled:** `lib/types.ts:10-11` already
+carries `audioStart?`/`audioEnd?`; `build_cut.py:346-350` already builds a
+`detached` map from them; `build_cut.py:506` writes `cuts/cut.mp4` while
+`lib/pipeline.ts:220`/`:711` match only `/-v(\d+)\.(mp4|mov)$/i`. **The UI, the
+API and the Python all exist; the script has never been invoked and could not
+succeed if it were.**
+
+**THE ONE ACTION TONIGHT, and it is an exception I am naming rather than a
+quiet reversal.** Run the audio-onset versus scene-change correlation across his
+seven references. **The reason it earns the exception: it is the only action
+available that can change WHAT tomorrow's work is, rather than advance it.**
+Measurement that could invalidate a plan is worth more before the plan than
+after — and if a measured J-cut is how he reaches ~0.00s internal silence, then
+**E5, E7 and H4 are one piece of work rather than three**, which reshapes
+tomorrow entirely.
+
+**Pre-registered prediction, so the result cannot be read charitably after the
+fact — which is this project's oldest failure:** audio should precede picture by
+**33-100 ms consistently** across the seven. **If it does, the fix has a
+measured constant instead of a remembered one. If it does not, H4 is NOT the
+mechanism, something he has not named is, and we stop before building it.**
+
+**Who runs it: Claude, not Desmond.** Desmond reads code and never runs
+anything — measuring media files is neither code review nor app operation, and
+dispatching him into it would break the refusal that makes him useful. It is
+evidence gathering, which is the executing seat's lane and has produced every
+measurement tonight. One script, no rendering, against
+`~/Documents/SnipAi-evidence/`, zero disk, nothing near his library.
+
+**And the real difficulty of H4 is not the filename — it is three offsets.** His
+33-100 ms, `--snap-lead`'s 10 ms applied to the whole segment, and E1's 40 ms
+`FRAME_PAD` already inside the `afade`-out maths. **The two that exist were each
+derived for a different reason, and a naive lead on top of both is three
+interacting offsets tuned by whoever notices last.** In H4's row.
+
+**The estimate: recorded, endorsed, and amended with what would falsify it.**
+Two to four working sessions, most likely three, for the narrow finish line —
+retakes collapsed, dead air at zero, the J-cut running, the preview clock
+honest. **PROCESS.md's "no estimates" rule is amended rather than broken:** it
+does not survive Kayer asking directly, because *"I don't do estimates"* is not
+an answer to the founder asking whether he can post this weekend. **What I am
+adding, and it is the conservative read: the estimate assumes no discovery like
+H4, and tonight produced four scope changes in one session** — H4 re-weighted, a
+retarget, a reversal on B7, and a withdrawn reference. At that rate three is
+optimistic. **But one scheduling fact pulls the other way and is worth more than
+the caution: the rate limit is verification runs, not implementation.** Each
+change is two to four hours; a verification run on his footage cost **2h40m**.
+So **the four changes should be batched into as few verification runs as
+possible**, and if tonight's measurement shows E5/E7/H4 are one mechanism, three
+sessions becomes achievable rather than hopeful. **If he wants a firmer number
+he gets mine, and it will be built on that batching rather than on optimism.**
+
+**2026-09-12: Kayer lifted the stop — *"Keep working around the clock!"* Here is
+who starts on what, and why the WIP limit is untouched by dispatching four
+roles at once.**
+
+**What his instruction changes and what it does not.** It lifts the pause. It
+does not lower the bar — he has said *"bulletproof"* and *"built right"* three
+times tonight against *"don't want to rush"* once, and the verification standard
+stays exactly where it was. **And the half of my stop that was about error rate
+still stands:** it was never that the agents tire, it was that four wrong calls
+shipped in two hours from the seat that was moving fastest. Continuous operation
+is compatible with that as long as sequencing stays here and evidence keeps
+arriving as evidence.
+
+**THE WIP LIMIT IS NOT BEING BROKEN, and the distinction is the same one that
+declined a front-end engineer this evening.** PROCESS.md says one row. **One row
+means one thing being *changed*.** Of the four roles going out, **only Theo
+writes code.** Desmond reads and produces nothing; I file rows; Claude measures
+artifacts. That is the loop in PROCESS.md running normally around a single row,
+not parallelism — and it is why the Chad ruling was about *two implementers*
+rather than about five roles.
+
+**1. Claude — the audio-lead measurement, first, and it gates Theo's
+ASSIGNMENT rather than his start.** One script, no rendering, no disk, against
+`~/Documents/SnipAi-evidence/`. It runs in minutes, so sequencing Theo behind it
+costs nothing. **Pre-registered prediction, written before the result so it
+cannot be read charitably afterwards: audio precedes picture by 33-100 ms
+consistently across the seven. If it does, H4's constant is measured off his own
+work rather than remembered. If it does not, H4 is not the mechanism, something
+he has not named is, and we stop before building it.**
+
+**And not Desmond, for the second time it has been proposed.** He reads code and
+never runs anything; measuring media is neither code review nor app operation,
+and using him as a measurement harness spends the refusal that makes him
+valuable. **There is a better use of him that IS his lane — item 2.**
+
+**2. Desmond — verify the nightly's six findings against the code**, starting
+with whether its *"a guard reports a parse failure as a disagreement"* **is
+T20**. That is exactly his charter: read adversarially, confirm or refute, file
+nothing. A duplicate id is worse than a late one, and the report came from a
+process that could not find its own skill, so its claims get read before they
+get believed.
+
+**3. Me — file Desmond's fifteen.** My own backlog is the standing blocker;
+findings living in messages are not findings.
+
+**4. Theo — assignment decided by item 1.** If audio leads consistently, then
+**E5, E7 and H4 are one mechanism and he gets them as one scoped row**, which I
+will write. If it does not, **E5 alone**, as already ruled — justified on
+repetition, which is why it survived the minute being withdrawn.
+
+**5. Ruth — G1 (8 unpushed), G2, G3 and the repo-root pile, her checklist minus
+the push.** **One hard constraint: she does not touch `QA_BUGREPORT2026-09-12.md`
+until items 2 and 3 are done.** It is the only copy of that run's findings and
+it is untracked, so a hygiene sweep would delete evidence.
+
+**6. Nadia — idle by design, and this is a decision rather than an oversight.**
+Her run costs **2h40m and several gigabytes**, and there is nothing new to
+verify: everything merged was already verified. **Her next run is the batched
+verification of E5/E7/H4/S26 together**, which is the scheduling fact the
+estimate rests on — the rate limit is verification runs, not implementation, so
+four changes through one run is the difference between three sessions and six.
+**Also: the nightly fires at 22:08 local, ~21 hours out, from a session none of
+us can see or stop (G9), so a Nadia run should not be in flight across it.**
+
+**The unfixed data-root fallback is accepted risk until Kayer can reach the
+routine.** The corpus is duplicated outside the library and verified
+byte-identical, `qa-m08` is a throwaway tree, and his real projects were opened
+read-only last time. **It is not fixed, it is survivable, and it is his to fix.**
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

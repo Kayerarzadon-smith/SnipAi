@@ -51,12 +51,37 @@ here than there is.
 | **Nadia** | QA Engineer | `snipai-tester` | Running the real app, both surfaces, as a user | Edit app code |
 | **Theo** | Software Engineer | `snipai-dev` | Fixing one ledger row at a time, test first | Invent scope; touch BLOAT/HALF-BUILT unasked |
 | **Ruth** | Release Engineer | `snipai-release` | Clean tree, pushed work, reproducible build | Decide what to build; fix defects |
+| **Ines** | Site Reliability Engineer | `snipai-sre` | What the app consumes; files whose lifetime nobody owns | Delete anything, ever; touch app behaviour |
 
 Titles are the industry-standard ones rather than descriptions of the
 mechanism, so the roles read the way they would anywhere else. The split
 between Desmond and Nadia is the one worth understanding: **Desmond reads
 code and never runs it; Nadia runs the app and never reads it as an
 author.** Neither can find the other's bugs, which is why both exist.
+
+**Ines is the third inspector, and Kayer framed her better than the design
+did** on 2026-09-11: *"the bug finder is finding what's wrong inside, and
+this reliability person is just like the building inspector seeing what
+needs to be fixed, and then does my developer fix it?"* Yes — that is the
+shape. Desmond reads the blueprints, Nadia walks the building, **Ines
+inspects the utilities**: what the thing consumes while it runs, and which
+of the files it writes have nobody responsible for removing them. Code does
+not tell a reader it has grown to 8.8 GB; a person using the app does not
+notice 75 directories appearing in a hidden system folder. That blind spot
+went four days unattended, cost a QA run, and had nobody's name on it.
+
+**She holds no tools and never deletes anything.** Her deliverable is a
+punch list; the repairs are Theo's, sequenced by Mara, like every other
+finding. That is deliberate — a role measured on reducing disk usage gets
+better at reducing disk usage whether or not anything is wrong. And she is
+**triggered, not scheduled**: an inspector who visits daily starts writing
+up hairline cracks. No trigger, no report.
+
+Her findings also aim at a gate rather than a sweep. The valuable output of
+the fixture leak was never the 273 MB reclaimed — it was *"~75 per run"*,
+which became T19 and eighteen tests that fail if it returns. Every time this
+project has reached for "someone should watch this", the better answer has
+been "a number that fails the build".
 
 The names are labels for roles, not claims to be people. Use them in
 reports and commit messages where it reads better; the agent slug is what

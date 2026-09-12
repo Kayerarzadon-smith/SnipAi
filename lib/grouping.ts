@@ -104,6 +104,19 @@ export type Seam = {
   confident: boolean;
   /** plain English, for the tray. Every seam has at least one. */
   reasons: string[];
+  /**
+   * The reason that actually decided this verdict -- the one contributing the
+   * most to `score`, whichever way it pushed.
+   *
+   * Named rather than left as `reasons[0]` because the tray used to render
+   * `reasons[0]` and `reasons[0]` was always the continuity sentence: the
+   * SAME words above a `same` verdict and above a `separate` one, with the
+   * deciding reason sitting at `reasons[1]` both times (ledger C37). A line
+   * that is constant across the outcomes it explains carries no information
+   * about the decision. `reasons` is now ordered strongest-first as well, but
+   * the tray reads this field, so a later re-sort cannot quietly undo it.
+   */
+  decidedBy: string;
   signals: SeamSignals;
 };
 
@@ -302,6 +315,7 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
       reasons: [
         `${humanGap(gapSec)} between ${a.probe.name} ending and ${b.probe.name} starting — he was away, not interrupted`,
       ],
+      decidedBy: `${humanGap(gapSec)} between ${a.probe.name} ending and ${b.probe.name} starting — he was away, not interrupted`,
       signals: {
         gapSec,
         restartRun: null,
@@ -328,6 +342,8 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
       score: 0,
       confident: false,
       reasons,
+      // nothing was weighed, so the first thing said is the whole of it
+      decidedBy: reasons[0],
       signals: { gapSec, restartRun: null, endsDangling: null, endsPunctuated: null, tailSilenceSec: null },
     };
   }
@@ -351,21 +367,27 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
 
   let score = 0;
 
+  /* Each reason is recorded with the weight it contributed, so the one that
+     DECIDED the verdict can be named instead of guessed at by position. The
+     weights themselves are untouched -- this only remembers them. (C37) */
+  const weighed: { text: string; weight: number }[] = [];
+  const say = (weight: number, text: string) => { weighed.push({ text, weight }); };
+
   /* does clip N+1 open by re-saying or carrying on clip N's last line? */
   if (restartRun >= RUN_CONCLUSIVE) {
     score += 0.85;
-    reasons.push(
+    say(0.85,
       `${b.probe.name} opens by re-saying ${restartRun} words ${a.probe.name} had just said — that is him restarting the line he was cut off in`
     );
   } else if (restartRun >= RUN_STRONG) {
     score += 0.55;
-    reasons.push(`${b.probe.name} picks up ${restartRun} words that ${a.probe.name} ended on`);
+    say(0.55, `${b.probe.name} picks up ${restartRun} words that ${a.probe.name} ended on`);
   } else if (restartRun >= RUN_WEAK) {
-    reasons.push(
+    say(0,
       `${restartRun} words carry over the seam, which counts for nothing — his hook ends on the same four words every time`
     );
   } else {
-    reasons.push(`${b.probe.name} does not pick up where ${a.probe.name} left off`);
+    say(0, `${b.probe.name} does not pick up where ${a.probe.name} left off`);
   }
 
   /* Did clip N end on a complete sentence? This is the design's discriminator,
@@ -382,31 +404,41 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
      back to `unsure` when he was away twenty minutes or more. */
   if (endsDangling) {
     score += 0.55;
-    reasons.push(`${a.probe.name} stops on "${lastWord}", mid-sentence — that is not how a finished video ends`);
+    say(0.55, `${a.probe.name} stops on "${lastWord}", mid-sentence — that is not how a finished video ends`);
   } else if (endsPunctuated) {
     score -= 0.25;
-    reasons.push(`${a.probe.name} ends on a finished sentence: "${shorten(lastText)}"`);
+    say(-0.25, `${a.probe.name} ends on a finished sentence: "${shorten(lastText)}"`);
   } else {
     score -= 0.15;
-    reasons.push(`${a.probe.name} ends on a complete thought: "${shorten(lastText)}"`);
+    say(-0.15, `${a.probe.name} ends on a complete thought: "${shorten(lastText)}"`);
   }
 
   /* the gap, as a tiebreaker only -- he batch-films, so minutes mean nothing
      on their own */
   if (gapSec === null) {
-    reasons.push(`no usable capture time on one of them, so how long he was away is unknown`);
+    say(0, `no usable capture time on one of them, so how long he was away is unknown`);
   } else if (gapSec * 1000 <= GAP_MINUTES_MS) {
     score += 0.15;
-    reasons.push(`only ${humanGap(gapSec)} between them`);
+    say(0.15, `only ${humanGap(gapSec)} between them`);
   } else if (gapSec * 1000 >= GAP_A_WHILE_MS) {
     score -= 0.25;
-    reasons.push(`${humanGap(gapSec)} between them, which is a while to be interrupted for`);
+    say(-0.25, `${humanGap(gapSec)} between them, which is a while to be interrupted for`);
   } else {
-    reasons.push(`${humanGap(gapSec)} between them, which could be either`);
+    say(0, `${humanGap(gapSec)} between them, which could be either`);
   }
 
   score = Number(Math.max(-1, Math.min(1, score)).toFixed(3));
   const verdict: SeamVerdict = score >= SAME_AT ? "same" : score <= SEPARATE_AT ? "separate" : "unsure";
+
+  /* Strongest first, so `reasons.join(". ")` reads as an argument rather than
+     as whatever order the checks happen to run in. A stable sort keeps the
+     original order among equal weights -- the zero-weight ones, which are
+     said because they were checked and not because they decided anything. */
+  const ordered = weighed
+    .map((r, i) => ({ ...r, i }))
+    .sort((x, y) => Math.abs(y.weight) - Math.abs(x.weight) || x.i - y.i);
+
+  for (const r of ordered) reasons.push(r.text);
   if (verdict === "unsure") reasons.push(`not clear enough to call — worth a look`);
 
   return {
@@ -415,13 +447,28 @@ export function evaluateSeam(a: ClipForGrouping, b: ClipForGrouping): Seam {
     score,
     confident: verdict !== "unsure" && Math.abs(score) >= CONFIDENT_AT,
     reasons,
+    decidedBy: ordered[0].text,
     signals: { gapSec, restartRun, endsDangling, endsPunctuated, tailSilenceSec },
   };
 }
 
+/**
+ * The tail of a sentence, cut at a word boundary.
+ *
+ * `t.slice(-45)` is a CHARACTER slice, so it beheaded his own speech inside
+ * quotation marks: *"…traight up a supplement powerhouse for women."* The
+ * word is "straight". Quoting someone is the one place a string may not be
+ * cut wherever the arithmetic lands. (ledger C37)
+ */
 function shorten(s: string): string {
   const t = s.replace(/\s+/g, " ").trim();
-  return t.length <= 48 ? t : `…${t.slice(-45)}`;
+  if (t.length <= 48) return t;
+  const tail = t.slice(-45);
+  /* Drop the first partial word. There is always a space to find unless the
+     last 45 characters are one unbroken token, in which case the raw slice is
+     the best available answer. */
+  const cut = tail.indexOf(" ");
+  return `…${cut === -1 ? tail : tail.slice(cut + 1)}`;
 }
 
 /* ---- the batch ---- */
@@ -522,6 +569,40 @@ export function proposeGroups(clips: ClipForGrouping[]): GroupingProposal {
     groups,
     basis,
     seams: adjacent,
+    /* S38, PARTLY. The plumbing is fixed and this predicate is NOT, and the
+       reason is arithmetic rather than caution.
+       
+       The row asks for every seam with `confident: false` to be flagged. That
+       cannot be done without turning correct splits into questions, because
+       the two thresholds disagree with each other:
+       
+         SAME_AT = 0.55, so any `same` verdict already clears
+         CONFIDENT_AT = 0.5 -- every `same` is confident, always.
+         SEPARATE_AT = -0.1, so a `separate` verdict only clears 0.5 at
+         score <= -0.5. Every separate call in (-0.5, -0.1] is
+         `confident: false` BY CONSTRUCTION.
+       
+       So `!confident` reads as "ask about nearly every split". Measured: it
+       flags the -0.1 seam that wrongly split his three-clip video, and it
+       also flags the -0.15 seam in `tests/grouping.test.mts` that CORRECTLY
+       separates two different products. Those two are 0.05 apart, same
+       verdict, same confidence, opposite correctness -- no predicate over
+       score, verdict and confident tells them apart, and separating them
+       means moving a threshold, which is S37's and not this row's.
+       
+       `tests/grouping.test.mts`'s "the common case should cost him one click,
+       not five" catches exactly that, and it is right to: it was written for
+       the promise this row also makes. That test was NOT edited to agree with
+       the change.
+       
+       What DID ship: `score`, `confident` and `decidedBy` now reach the tray
+       (they were dropped in `importBatch.ts`'s `trayseam`), and the tray marks
+       a verdict it could barely reach as "a close call" on the very line he
+       reads before clicking. So the row's own complaint -- that he cannot
+       tell a 0.95 "same" from a -0.1 "separate" -- is answered, without this
+       function deciding how chatty the tray should be. Whether a weak-but-
+       correct split deserves a question is a product call, and it is in the
+       row. */
     needsYourEye: adjacent.filter((s) => s.verdict === "unsure"),
   };
 }

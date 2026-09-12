@@ -906,6 +906,10 @@ a.qcard:hover { border-color: var(--accent); box-shadow: 0 6px 20px -12px rgba(1
   .player-modes .pm-note { flex-basis: 100%; order: 3; margin-top: 2px; }
 }
 .import-row.rejected, .import-row .rejected { color: var(--text-faint); }
+/* A seam the rule could barely call. Said quietly next to the reason rather
+   than as a badge: it qualifies the sentence it follows, and the question
+   itself is already asked under "Worth your eye". (ledger S38) */
+.import-close-call { color: var(--warn); }
 
 /* ---- Trim waveform -------------------------------------------------------
    An in/out point should be visible, not typed. The kept range is drawn in

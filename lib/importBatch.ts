@@ -129,12 +129,31 @@ export type ProposedProject = {
   files: string[];
   totalDurationSec: number | null;
   /** why these clips are together, in plain English. Empty for a lone clip */
-  joinedBy: { from: string; to: string; verdict: string; reasons: string[] }[];
+  joinedBy: TraySeam[];
   /** why this is not part of the group before it. Null for the first card */
-  separatedBy: { from: string; to: string; verdict: string; reasons: string[] } | null;
+  separatedBy: TraySeam | null;
   /** why these cannot be joined after all, with what to do about it */
   blocker: string | null;
   interleaved: boolean;
+};
+
+/**
+ * What the tray is told about one seam.
+ *
+ * Everything the person needs to judge the guess, and nothing that is only
+ * the rule's working.
+ */
+export type TraySeam = {
+  from: string;
+  to: string;
+  verdict: string;
+  /** -1..1. Persisted so a run's own evidence records what it decided by */
+  score: number;
+  /** strong enough to act on without asking him */
+  confident: boolean;
+  /** the reason that actually decided it (C37) */
+  decidedBy: string;
+  reasons: string[];
 };
 
 export type Batch = {
@@ -148,8 +167,9 @@ export type Batch = {
   proposal?: {
     basis: string;
     projects: ProposedProject[];
-    /** seams the rule would not call: proposed as a break, and asked about */
-    needsYourEye: { from: string; to: string; reasons: string[] }[];
+      /** seams the rule could not call CONFIDENTLY -- unsure, or a verdict too
+     *  weak to act on without asking. See grouping.ts's needsYourEye. */
+    needsYourEye: TraySeam[];
     /** clips whose transcript could not be read, so the seam had nothing to
      *  go on. Named, because a silent degradation here is a silent wrong
      *  grouping */
@@ -253,8 +273,29 @@ const realDeps: AnalyseDeps = {
   },
 };
 
-function trayseam(s: Seam) {
-  return { from: s.from, to: s.to, verdict: s.verdict, reasons: s.reasons };
+/**
+ * A seam as the tray receives it.
+ *
+ * `score`, `confident` and `decidedBy` were being dropped here (ledger S38),
+ * so the tray got a bare verdict and a sentence and he could not tell a 0.95
+ * "same" from a -0.1 "separate" -- the two read identically on screen. The
+ * score is carried because the persisted proposal is the only durable record
+ * of a run that costs nineteen minutes of transcription; the tray renders the
+ * English, not the number.
+ *
+ * `signals` is deliberately still left off: it is the rule's working, it has
+ * no reader, and S37 will change its shape.
+ */
+function trayseam(s: Seam): TraySeam {
+  return {
+    from: s.from,
+    to: s.to,
+    verdict: s.verdict,
+    score: s.score,
+    confident: s.confident,
+    decidedBy: s.decidedBy,
+    reasons: s.reasons,
+  };
 }
 
 /**
@@ -351,7 +392,7 @@ export async function analyseBatch(
     b.proposal = {
       basis: proposal.basis,
       projects,
-      needsYourEye: proposal.needsYourEye.map((s) => ({ from: s.from, to: s.to, reasons: s.reasons })),
+      needsYourEye: proposal.needsYourEye.map(trayseam),
       notTranscribed: [...transcripts.entries()].filter(([, t]) => t === null).map(([n]) => n),
     };
     writeBatch(b);

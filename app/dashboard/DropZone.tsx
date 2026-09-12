@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isVideoName, projectNameFor } from "@/lib/videoFiles";
 import { useRouter } from "next/navigation";
+/* Imported rather than re-declared. This file had its own copy of the wire
+   shape, and the copies drifted: `score`, `confident` and `decidedBy` were
+   added to the server's seam and this one still said four fields, so the tray
+   could not have shown the confidence even once it was being sent (ledger
+   S38). `import type` is erased at build time, so a client component may take
+   it from a module that touches node:fs -- same as `review/page.tsx` does
+   with `Job`. The rest of this file's local proposal types are still
+   duplicates; that is a row, not a detour. */
+import type { TraySeam } from "@/lib/importBatch";
 
 type Existing = { project: string; name: string; size: number }[];
 
@@ -21,7 +30,6 @@ type Queued = {
 /* The shapes the server sends back. Kept narrow on purpose: the tray renders
    sentences the server wrote, and inventing its own wording here is how a
    proposal starts promising something the import does not do. */
-type TraySeam = { from: string; to: string; verdict: string; reasons: string[] };
 type ProposedProject = {
   project: string;
   files: string[];
@@ -34,7 +42,7 @@ type ProposedProject = {
 type Proposal = {
   basis: string;
   projects: ProposedProject[];
-  needsYourEye: { from: string; to: string; reasons: string[] }[];
+  needsYourEye: TraySeam[];
   notTranscribed: string[];
 };
 type BatchState = {
@@ -542,7 +550,9 @@ export function DropZone({
               {proposal.needsYourEye.map((s) => (
                 <div key={`${s.from}-${s.to}`} className="import-eye-row">
                   <span className="mono">{s.from} → {s.to}</span>: {s.reasons.join(". ")}.
-                  {" "}Kept separate for now — join them below if they are one video.
+                  {" "}{s.verdict === "same"
+                    ? "Joined below, but only just — split them if they are two videos."
+                    : "Kept separate for now — join them below if they are one video."}
                 </div>
               ))}
             </div>
@@ -566,7 +576,17 @@ export function DropZone({
                   <div className="import-split">
                     <span className="import-split-line" />
                     <span className="import-split-why">
-                      {split ? split.reasons[0] : "kept as separate videos"}
+                      {/* `decidedBy`, not `reasons[0]`. `reasons[0]` was
+                          always the continuity sentence -- the same words
+                          above this `separate` verdict as above the `same`
+                          verdict on the seam below, with the deciding reason
+                          at `reasons[1]` both times. A line that does not
+                          change with the outcome explains nothing about it
+                          (ledger C37). */}
+                      {split ? split.decidedBy : "kept as separate videos"}
+                      {split && !split.confident && (
+                        <span className="import-close-call"> — a close call</span>
+                      )}
                     </span>
                     <button className="btn btn-ghost btn-xs" onClick={() => mergeWithNext(i - 1)} disabled={busy}>
                       Actually one video
@@ -593,7 +613,10 @@ export function DropZone({
                       {k > 0 && (
                         <div className="import-seam">
                           <span className="import-seam-why">
-                            {seamFor(g.files[k - 1], f)?.reasons[0] ?? "joined because you said so"}
+                            {seamFor(g.files[k - 1], f)?.decidedBy ?? "joined because you said so"}
+                            {seamFor(g.files[k - 1], f)?.confident === false && (
+                              <span className="import-close-call"> — a close call</span>
+                            )}
                           </span>
                           <button className="btn btn-ghost btn-xs" onClick={() => splitAt(i, k)} disabled={busy}>
                             Split here

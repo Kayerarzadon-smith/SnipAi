@@ -19,6 +19,9 @@ type Queued = {
   file: File;
   name: string;
   status: "ready" | "duplicate" | "uploading" | "done" | "error" | "rejected";
+  /** set when another clip already had this name, so this one was kept beside
+   *  it rather than over it (ledger S61) */
+  takenAs?: string;
   duplicateOf?: string;
   message?: string;
   /** 0-100 while the bytes are moving. fetch() cannot report this at all,
@@ -98,7 +101,7 @@ function upload(
   batch: string,
   file: File,
   onProgress: (pct: number) => void
-): Promise<{ ok: boolean; body: { file?: string; error?: string } }> {
+): Promise<{ ok: boolean; body: { file?: string; takenAs?: string | null; droppedAs?: string; error?: string } }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/import/${batch}/files`);
@@ -113,7 +116,7 @@ function upload(
     // smaller window, so the row says what is actually happening.
     xhr.upload.onload = () => onProgress(100);
     const done = (ok: boolean, fallback: string) => {
-      let body: { file?: string; error?: string } = {};
+      let body: { file?: string; takenAs?: string | null; droppedAs?: string; error?: string } = {};
       try { body = JSON.parse(xhr.responseText); } catch { body = { error: fallback }; }
       resolve({ ok, body });
     };
@@ -310,7 +313,16 @@ export function DropZone({
         setQueued((q) =>
           q.map((x, n) =>
             n === i
-              ? { ...x, status: ok ? "done" : "error", pct: undefined, message: ok ? undefined : body.error }
+              ? {
+                  ...x,
+                  status: ok ? "done" : "error",
+                  pct: undefined,
+                  message: ok ? undefined : body.error,
+                  /* Another clip already had this name, so the server kept
+                     this one beside it. Said on the row rather than silently
+                     renaming his footage (ledger S61). */
+                  takenAs: ok && body.takenAs ? body.takenAs : undefined,
+                }
               : x));
       }
 
@@ -524,7 +536,9 @@ export function DropZone({
                   (q.pct === undefined ? "copying…"
                    : q.pct < 100 ? `copying ${q.pct}%`
                    : "filing it away…")}
-                {q.status === "done" && "✓ copied"}
+                {q.status === "done" && (q.takenAs
+                  ? `✓ copied — another clip is already called ${q.name}, so this one is kept as ${q.takenAs}`
+                  : "✓ copied")}
                 {q.status === "error" && `✕ ${q.message ?? "failed"}`}
                 {q.status === "rejected" && `✕ ${q.message}`}
               </span>

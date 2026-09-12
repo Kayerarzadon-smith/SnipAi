@@ -7,6 +7,7 @@ import {
   readBatch,
   recordStagedFile,
   stagedPath,
+  stagedNameFor,
   refuseFile,
   safeFileName,
   freeBytes,
@@ -70,9 +71,18 @@ export async function POST(req: NextRequest, { params }: { params: { batch: stri
     }
   }
 
+  /* The name it will be staged under, which is not always the one he dropped.
+     Two clips from different folders can share a basename and used to
+     overwrite each other silently (ledger S61). Resolved BEFORE the bytes are
+     written, so the write and the record cannot disagree about where it went. */
+  let stagedName: string;
+  let takenAs: string | null;
   let dest: string;
   try {
-    dest = stagedPath(params.batch, originalName);
+    const resolved = stagedNameFor(params.batch, originalName, declaredSize);
+    stagedName = resolved.name;
+    takenAs = resolved.takenAs;
+    dest = stagedPath(params.batch, stagedName);
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
@@ -100,9 +110,18 @@ export async function POST(req: NextRequest, { params }: { params: { batch: stri
     return NextResponse.json({ error: `${safeFileName(originalName)} arrived empty` }, { status: 400 });
   }
 
-  const updated = recordStagedFile(params.batch, originalName, stat.size);
+  const updated = recordStagedFile(params.batch, stagedName, stat.size, originalName);
   return NextResponse.json(
-    { batch: params.batch, file: safeFileName(originalName), sizeBytes: stat.size, files: updated?.files.length ?? 0 },
+    {
+      batch: params.batch,
+      file: stagedName,
+      /* Non-null only when he needs to know: another clip already had this
+         name, so this one was kept beside it rather than over it. */
+      takenAs,
+      droppedAs: takenAs ? safeFileName(originalName) : undefined,
+      sizeBytes: stat.size,
+      files: updated?.files.length ?? 0,
+    },
     { status: 201 }
   );
 }

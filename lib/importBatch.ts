@@ -110,7 +110,20 @@ function transcriptPath(id: string, fileName: string): string {
 
 /* ---- what a batch is ---------------------------------------------------- */
 
-export type StagedFile = { name: string; sizeBytes: number };
+export type StagedFile = {
+  /** the name it is staged under, which is unique within the batch */
+  name: string;
+  sizeBytes: number;
+  /**
+   * What he actually dropped, when that is not the name it was staged under.
+   *
+   * Two clips from different folders can share a basename -- the picker hands
+   * over basenames only -- and they used to overwrite each other silently
+   * (ledger S61). The second is now staged beside the first, and this is what
+   * lets the tray say so rather than the app quietly renaming his footage.
+   */
+  originalName?: string;
+};
 
 export type BatchStatus =
   | "collecting"
@@ -211,11 +224,75 @@ export function createBatch(): Batch {
   return b;
 }
 
-export function recordStagedFile(id: string, fileName: string, sizeBytes: number): Batch | null {
+/**
+ * A staged name that is free, so two clips sharing one cannot overwrite each
+ * other. (ledger S61)
+ *
+ * `safeFileName` reduces every name to a basename, so `A/IMG_0060.MOV` and
+ * `B/IMG_0060.MOV` resolved to the same destination -- and the file picker
+ * hands over basenames only, so no odd characters are needed to trigger it.
+ * He shoots on a phone where `IMG_` numbering recycles across folders. The
+ * second upload streamed over the first, `recordStagedFile` deduped by that
+ * same name so `b.files` held one entry, and the tray marked both rows
+ * copied. Five clips in, five in the head count, one gone.
+ *
+ * SAME NAME AND SAME SIZE IS TREATED AS THE SAME CLIP, not a collision: an
+ * upload retried into the same batch has to stay idempotent, and that is what
+ * the client's own queue dedupe already assumes (`name` plus `size`). A
+ * different size is a different clip and gets its own name.
+ *
+ * THE DISAMBIGUATOR IS A PREFIX, and that is not cosmetic. `filenameNumber`
+ * in `lib/stitch.ts` reads the TRAILING number of a name to order a roll when
+ * the capture stamps are missing -- so `IMG_0060-2.MOV` would read as 2 and
+ * sort ahead of `IMG_0060.MOV`, quietly reordering his video. `2-IMG_0060.MOV`
+ * leaves the trailing number alone.
+ *
+ * Returns the name to stage under, and the name to tell him about when it is
+ * not the one he dropped.
+ */
+export function stagedNameFor(
+  id: string,
+  fileName: string,
+  sizeBytes: number
+): { name: string; takenAs: string | null } {
+  const safe = safeFileName(fileName);
+  const b = readBatch(id);
+  const existing = b?.files.find((f) => f.name === safe);
+  const onDisk = (n: string) => {
+    try {
+      return fs.existsSync(path.join(batchDir(id), "clips", n));
+    } catch {
+      return false;
+    }
+  };
+  /* Free, or the same clip arriving again. */
+  if (!existing && !onDisk(safe)) return { name: safe, takenAs: null };
+  if (existing && existing.sizeBytes === sizeBytes) return { name: safe, takenAs: null };
+
+  /* Taken by something else. Both the record and the disk are checked,
+     because this row's own aftermath is a file with no entry beside it. */
+  for (let n = 2; n < 1000; n++) {
+    const cand = `${n}-${safe}`;
+    const claimed = b?.files.some((f) => f.name === cand) || onDisk(cand);
+    if (!claimed) return { name: cand, takenAs: cand };
+  }
+  throw new Error(`too many clips called ${safe} in one import`);
+}
+
+export function recordStagedFile(
+  id: string,
+  fileName: string,
+  sizeBytes: number,
+  originalName?: string
+): Batch | null {
   const b = readBatch(id);
   if (!b) return null;
   const name = safeFileName(fileName);
-  b.files = [...b.files.filter((f) => f.name !== name), { name, sizeBytes }];
+  const entry: StagedFile = { name, sizeBytes };
+  /* Only when it differs, so an ordinary clip carries no extra field and the
+     tray has nothing to explain. */
+  if (originalName && safeFileName(originalName) !== name) entry.originalName = originalName;
+  b.files = [...b.files.filter((f) => f.name !== name), entry];
   b.status = "collecting";
   writeBatch(b);
   return b;

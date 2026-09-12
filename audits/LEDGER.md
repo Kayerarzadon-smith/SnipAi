@@ -364,6 +364,27 @@ renders (C2, C8, C16, C21).
 only C14 and C22 were still accurate. All corrected below. If you are reading
 a client row written before this date somewhere else, distrust its line.
 
+**Two findings in flight against S38, recorded 2026-09-11 so they are durable
+if the commit carrying them does not name them.** Both are Desmond's, both land
+inside the row Theo has open right now (`lib/grouping.ts`), so they are written
+here rather than into S38's or C37's own rows — those rows are his to flip and
+a second writer on the same lines is the collision this file has a rule about.
+
+1. **`confident` is arithmetically empty on joins.** Enumerated over all 27
+   signal combinations: **13 of 13 `same` verdicts come out confident, and 1 of
+   5 `separate` verdicts does.** So the field S38 exists to surface is nearly a
+   constant on exactly the verdict it would matter least for, and nearly always
+   false on the one where being wrong costs him a re-shoot. A flag that is
+   `true` for every join is not a confidence signal.
+2. **The `decidedBy` sort discards direction**, so **8 of the 9 `unsure`
+   combinations print a pro-join sentence underneath a split.** That is C37's
+   defect reached through the fix for C37: the card would name *a* deciding
+   reason and name one arguing the opposite way. **Whoever closes C37 has to
+   assert on the direction, not only on which reason scored highest.**
+
+**If Theo's commit records both, delete this block.** It exists only because a
+finding that lives in a message is not a finding.
+
 ### Root causes — the dispatch unit
 
 The 22 rows are **six jobs**. The ids stay (each has its own exit condition,

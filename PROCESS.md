@@ -206,6 +206,12 @@ The rule, borrowed from how a real team avoids this:
   leaving it exposed**, and says in the message that it came from elsewhere.
 - **Long parallel work goes on a branch**, the way `qa/issues-*` already did.
   `master` is the integration point, not the workbench.
+- **One writer per file, and the shared-state rule covers code — not just
+  `DOCKET.md` and `audits/LEDGER.md`.** Added 2026-09-11 when a second
+  implementer was considered and declined: `review/page.tsx` (2,614 lines) and
+  `app/dashboard/DropZone.tsx` are the contended files, and almost every open
+  client row lives in one of them. If a second implementer ever exists, the WIP
+  limit of one row is the thing that breaks first — see the ruling in DOCKET.
 - **Re-read `git log -1` and `git status` immediately before committing shared
   state — never `--amend` on a shared branch, and always `git add` by explicit
   path.** Added 2026-09-11 after this happened in **both** directions within an

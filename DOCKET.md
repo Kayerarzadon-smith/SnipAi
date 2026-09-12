@@ -614,6 +614,45 @@ thing about it: **an export of a three-minute video he will not post is not
 worth exporting.** The export milestone was correctly placed against a standard
 of *correctness* and is wrongly placed against a standard of *postability*.
 
+**2026-09-11, delegated ruling: no front-end engineer. And the DOM harness is
+not unowned — it is M2's exit line, which is the other half of the answer.**
+
+Kayer delegated it: *"If we do, name him Chad. If Mara deems it unnecessary then
+nevermind."* **Declined, recorded as Parked P2 with the full reasoning** so it
+is findable rather than re-litigated. The short version: a second implementer
+cannot coexist with a WIP limit of one, the roles work by refusal rather than
+throughput, and the best argument for him is actually an argument for a designer.
+
+**The harness question had a false premise and it is worth correcting, because
+it was treated all day as an obvious good with nobody owning it.** It has an
+owner and a place: **`A DOM harness exists` is the first clause of M2's exit
+line**, already on the roadmap, and it is a dev row — M2's first slice. Nothing
+needs placing.
+
+**It stays where it is, behind M0.85, M0.95 and M0.9.** Every row it unblocks
+(C39, C40, C41, S26's display half, Desmond's finding 11) is Medium, and **none
+of them loses footage or fills his disk** — which is the bar this roadmap has
+used all day for jumping the line. M0.85 is what he actually asked for and its
+exit needs no harness.
+
+**With a named trigger, so it does not float again: M2 moves up the moment a
+row that needs the harness becomes the sole blocker on an earlier milestone's
+exit line.** That is not hypothetical — it is exactly what happened when
+C22/CG1 became M-app's blocker and left M2 for it. The precedent exists and the
+rule is already written into M2's row.
+
+**The boundary is written even though the answer is no**, because it is cheaper
+than discovering it: **one writer per file**, and `review/page.tsx` and
+`DropZone.tsx` are the named contended files. It is in PROCESS.md under "More
+than one session at a time", beside the `--amend` rule from this morning, since
+it is the same rule extended from two shared documents to the code.
+
+**What is actually waiting on Kayer tonight — two things, both small, both
+his.** **R6**: watch a cut (one `open` command; it is the last step of M0.8's
+exit line and no agent can do it). **B8**: confirm or change the 45-75s band.
+Nothing else on the board needs him, and neither of these should be guessed at
+in the morning if he has not answered.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |
@@ -707,6 +746,7 @@ code, and no agent could do it.
 
 | # | What | Why |
 |---|------|-----|
+| P2 | **A front-end engineer ("Chad")** | **Asked and declined 2026-09-11, by Kayer's delegation — his words: *"If we do, name him Chad. If Mara deems it unnecessary then nevermind."*** Kept rather than deleted so the reasoning is findable if it changes. **Three reasons, strongest first.** (1) **A second implementer is structurally incompatible with a WIP limit of one row.** That was handed to me as a constraint rather than a question, but it is the decisive argument: with one row in flight, either he idles or the limit breaks — and the limit is not housekeeping, it is the direct counter to the failure this whole process exists to prevent, nine features at eighty percent. Adding hands to a system whose governing rule is *one thing at a time* means the rule loses. (2) **The five roles work by refusal, not throughput.** Each refuses the other four's job and that refusal is what makes the output honest. Chad refuses nothing that is not already refused. **Ines was worth adding because she covered a blind spot nobody *could* see; this covers a queue nobody has *reached*** — every row cited for him (C30, C39, C40, C41, S26, the truncated waveform words, Desmond's finding 11) is **already found and already filed**. Capacity, not vision. (3) **The strongest argument in his favour is an argument for a different role.** *"Nobody is shaped for: the review screen is exhausting to use"* is true and is a real gap — but a front-end **engineer** does not fix *exhausting* either. That is design judgement, which is Kayer's seat to hold and mine to frame, and answering it with an implementation hire is how you get a well-built screen nobody decided the shape of. **If he wants a design opinion that is a separate question and worth asking separately.** **Two counters dismantled rather than dismissed.** *"M0.85 is partly front-end"* — **S26 is not front-end work**: its mechanism is that `beats.json` records zero holes while the builder cut 67 beats into 123 pieces, so the fix is making the edit model carry what the builder did (`lib/` and the pipeline) and the display follows for free; and M0.85's exit is *he says it is tight*, verified by Kayer, which needs no new surface. *"A harness does not fix anything"* — correct, and the fixes it unblocks are **row-sized, not person-sized**: C39 is *separate select from edit*, C40 is a condition. Those are afternoons. **What to do instead is already on the roadmap — see M2** |
 | P1 | AI overlay — the aged-neck shot, click, freeze, revert | He called it off after seeing the per-image cost. Everything but the generation call is built and committed: `ai_shot.py`, `lib/imagegen.ts`, `scripts/connect-image-provider`. One key away |
 
 ## Done

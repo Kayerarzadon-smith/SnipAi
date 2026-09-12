@@ -290,7 +290,24 @@ tell his hand-cut work from output with none of the technique in it is not
 measuring the technique.**
 
 **The rule: any measurement of his work is run against the app's output as a
-control before it is believed.** If the instrument cannot separate them, it is
+control before it is believed.**
+
+**And the same rule one layer in, added 2026-09-12 after it caught three
+fixtures in one night: assert the premise before the claim.** A test asserting
+that a guard works must first assert that the thing it guards against still
+reproduces — otherwise it passes for whatever reason happens to be true.
+**Three caught in one night, every one by the implementer rather than by a
+gate:** E5's, T20's, and S61's — where a sanitisation case used `my clip!.MOV`
+and `my-clip@.MOV`, which **do not collapse to the same safe name**, so it
+proved nothing until it asserted the collapse itself (`my clip!.MOV` and
+`my+clip?.MOV` both reduce to `my_clip_.MOV`).
+
+**These are one rule with two applications and it is worth seeing them as one:**
+a measurement needs a control that would have separated the cases; a test needs
+an assertion that would have failed before the fix. **In both, the thing being
+checked is the instrument rather than the subject.** S8's 775-case sweep is the
+standing example — its first assertion proves the harm still reproduces, which
+is the only reason the sweep can be believed. If the instrument cannot separate them, it is
 not measuring the thing, and the result is a **null** rather than a
 falsification.
 

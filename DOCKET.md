@@ -1496,6 +1496,89 @@ durable answer already ruled, and it is Ruth's to carry out, not a deletion.
 (watch a cut), the seven references into `reference/inspiration/`, B8's number,
 B9's boundary question, and the nightly routine only he can reach (G9).
 
+**2026-09-12: S61 in, all three holds cleared. RUTH REBUNDLES, THEN NADIA —
+and what her run must show for M0.8 to close is written below so the run is not
+wasted and so I cannot close it on partial evidence.**
+
+**The rebundle is not a thoroughness choice, it is arithmetic.** The packaged
+app's `BUILD_ID` is **Sep 11 22:13** and contains **S42, C37, S38's plumbing,
+S34's fail-open and T19 — and nothing since.** It is missing **E5, S54, S61, T20
+and T21.** M0.8's exit is stated **against the packaged app**, so a run now
+would verify five-fixes-stale code and tell us nothing about what is on master.
+**Ruth first. Disk is 9.7 GiB, the nightly is nineteen hours out, nothing
+collides.**
+
+**WHAT NADIA'S RUN MUST SHOW FOR M0.8 TO CLOSE — stated before the run, because
+item 7 of the Definition of Done is the one that gets skipped and I have closed
+a milestone on a merge once already.** Four things, and a miss on any one leaves
+it open: **(1)** the tray proposes **one** project for `{0060,0061,0062}`, **or
+flags `0061→0062` and asks** — and in the same run does **not** ask about
+`0060→0061`, which the rule calls confidently. **(2)** on confirm, **one**
+stitched cut, with at least one beat demonstrably taken from a clip other than
+the first. **(3)** the standalone clip in the same batch becomes its **own**
+project — that clause has never been exercised and it is half the exit line.
+**(4)** his library fingerprints identical before and after. **What does NOT
+close it: a green suite, a clean `verify-bundle`, or a cut that plays.** Those
+are all true today.
+
+**CONFIRMING Theo's reading of "propose, do not decide", because it is my rule
+and inheriting it would be worse than ruling it — and his reading is right.**
+He read it as being about **judgements over his content** — which clip belongs to
+which video — **not about where a file lands on disk.** Correct, and the
+underlying test is worth writing down rather than leaving to instinct:
+
+**Propose when being wrong costs him something he cannot recover, or when the
+judgement is about his content. Decide when being wrong costs nothing and the
+alternative is making him do work the app can do.** Silent grouping was the
+recorded failure because both errors are expensive — a garbage cut or a
+re-shoot. **A filename collision is neither: nothing is lost either way, and a
+refusal sends him to Finder to rename his own footage for something the app
+handles without losing a byte.**
+
+**And the distinction that makes it safe is that there are three modes, not
+two:** *propose* (ask), **decide-and-disclose** (act, and say so), and *decide
+silently* (never, for anything he would want to know). **His fix is the middle
+one** — the tray reads *"another clip is already called IMG_0060.MOV, so this one
+is kept as 2-IMG_0060.MOV"* and `StagedFile.originalName` preserves what he
+dropped. **The docket's complaint was never "the app decided", it was "the app
+decided and did not say."**
+
+**The prefix-not-suffix finding is cross-referenced into S61 and it is the most
+valuable thing in that report.** `filenameNumber` reads the **trailing** number
+of a name to order a roll when capture stamps are missing, so `IMG_0060-2.MOV`
+would have read as **2** and **sorted ahead of `IMG_0060.MOV` — reordering his
+video in order to fix a filename clash.** That is **S56's exact mechanism
+arriving through a fix for something else**, and it was avoided only by checking
+the ordering fallback *before* choosing a suffix. **The obvious answer would
+have looked completely fine**, which is the whole point.
+
+**`PROCESS.md` gains "assert the premise before the claim", and it belongs
+beside the control condition rather than under one role's habits.** Three
+fixtures caught in one night — E5's, T20's, and S61's, where `my clip!.MOV` and
+`my-clip@.MOV` do not collapse to the same safe name so the test proved nothing.
+**These are one rule with two applications: a measurement needs a control that
+would have separated the cases; a test needs an assertion that would have failed
+before the fix. In both, the thing being checked is the instrument rather than
+the subject.**
+
+**T23 takes the generalisation, and it is sharper than "instruments lie":** an
+instrument's **plausible** failure is the dangerous one. Three instances share
+it exactly — `ROOT` resolving to `/`, a `du -sh` misreading, and the nightly's
+two surfaces agreeing because they read one variable. **An implausible wrong
+answer gets a second look for free.**
+
+**The queue after the rebundle and the run**, so nobody idles waiting for me:
+**S55** (the empty transcript scored as a finished thought), then **S57** (two
+unknowns matching, which can stream-copy half a 4K source sideways), then
+**S60** (check-then-act on the one-at-a-time guard — *"took this Mac down"*),
+then **S62/S63** together since they are the same constant from both ends, then
+**S56, S58, S59, S64, C43, T22, T23.**
+
+**The relaunch is now the one waiting item with a growing consequence: the app
+on his Mac is five fixes behind, not one.** Six things still wait on him and the
+count has not moved — the relaunch, R6, the seven references, B8, B9, and G9's
+routine.
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

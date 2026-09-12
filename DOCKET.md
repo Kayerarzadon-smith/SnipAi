@@ -1262,6 +1262,74 @@ expensive mistake available tonight was one question away.** When a row's size
 depends on how he works, **ask before scoping**, and ask one question rather
 than a list.
 
+**2026-09-12: Desmond's fifteen are filed — S54-S64, C43, U13. Desmond is
+unblocked. And two of them are prerequisites of the M0.8 verification run
+rather than queue-jumpers.**
+
+**Thirteen new rows for fifteen findings.** Two were already fixed by Theo
+tonight (`decidedBy`'s direction in `a0550d2`; `fakeProbe(): any` after
+`5829ecc`, whose annotation then revealed **four more unchecked `.video`/`.audio`
+reads the `any` had hidden**) and one is inside S38 (`confident` being
+arithmetically empty — 13/13 `same`, 0/9 `unsure`, 1/5 `separate`).
+
+**FIX-FIRST IS S54, and I am adopting Desmond's argument verbatim rather than
+restating it: *you cannot tell whether the app is solid while its most expensive
+operation reports the same thing either way.*** A failed *join* throws correctly
+because clips stay staged; a failed *pipeline* happens after `moveInto`, so the
+batch is discarded and **the tray says "done" on an import that produced
+nothing.** The honest case is the one where nothing happened.
+
+**S61 is second, and the pairing is the point.** Two clips whose names resolve
+to the same staged file **silently overwrite each other while both report
+`✓ copied`** — and the realistic trigger needs no sanitisation at all, because
+the picker hands over basenames and he shoots on a phone where `IMG_` numbering
+recycles across folders. **S54 is what would make S61 visible.** One drops a
+clip; the other guarantees he is not told.
+
+**AND THAT IS WHY NEITHER IS JUMPING THE QUEUE — they are prerequisites of the
+run that closes the open milestone.** M0.8's exit is a tester run against the
+packaged app. **A run cannot be believed while every failure in the import path
+renders identically and a clip can be dropped without a word.** That is the same
+ruling shape as N18 before the rebundle and S38 before S37: **repair the
+instrument before leaning on it.** Third time tonight, same reasoning, and it is
+the one pattern I have not had to revise.
+
+**Order: Theo finishes E5 (in flight, `lib/types.ts` and `lib/retakes.ts`), then
+S54, then S61 — and only then is the M0.8 verification run worth Nadia's 2h40m.**
+The remaining nine (S55-S60, S62-S64, C43) are High-to-Medium and queue behind
+that; **S55 sits immediately after, since it is the empty-transcript row already
+handed back and it is S39's family at the limit case.**
+
+**One relationship in the slice that changes how a row gets fixed rather than
+when: S63 is S35's constant from the opposite end.** S35's reported premise was
+that the drift window is too **tight**, and it never reproduced across three
+attempts. S63 is a measured demonstration that the same window is too **loose**
+and fails open — six clips at 30fps gives ≈0.6s, so a dropped 0.4s clip passes
+and `beats.json` records six clips joined for a file containing five. **Both
+cannot be fixed by moving the number. The shape has to change**, and whoever
+takes either should read both. S63 also catches a comment asserting a bound the
+code does not have — `:340-342` claims S34 bounds the parts, but `joinRefusal:202`
+compares the per-track figure and never inspects `container`.
+
+**U13 is filed as a sweep rather than six rows, because two of its dead fields
+ARE why a High row cannot be seen.** `Batch.proposal.basis` is rendered nowhere
+and **it is the one field that would have told him the batch fell back to
+filename ordering** — S56's trigger. `JoinOutcome.basis`/`ordered` are returned
+and never read, **which is why S56 is undetectable from any surface**: the join
+reports the order it actually used and nobody listens. **A dead field and a High
+defect turning out to be the same thing seen twice is the sharpest item in the
+sweep.**
+
+**On the handoff itself, and then it is closed:** the symmetry Desmond's
+coordinator drew is exact and worth keeping — *a fix whose success is
+unobservable* (my reason for not creating the `snipai-nightly-qa` skill) and *a
+handoff whose failure is unobservable*, because the receiving seat cannot know
+what it was not sent. **The general form covers both: a step whose failure
+produces no signal will fail silently and for as long as nobody happens to
+check.** That is S54's defect, N18's defect, and this evening's process defect,
+in one sentence. **Standing correction: "you have them" is not a handoff. The
+content is the handoff.**
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

@@ -1,3 +1,13 @@
+/* `registerHooks` is Node 22.15+/24 and this repo's `@types/node` is 20.14.15
+   -- four majors behind the runtime it describes (checked: `node -v` is
+   v24.20.0). So the type definitions genuinely do not know about it, and the
+   expect-error is about the types lagging rather than about the API being
+   absent. It is runtime-verified continuously: the entire suite loads through
+   this file, and if `registerHooks` were missing nothing could resolve `@/` at
+   all. Narrowed to this one line on purpose -- `@ts-expect-error` fails if the
+   error stops happening, so a future `@types/node` bump removes it for us
+   rather than leaving a stale suppression. (N18) */
+// @ts-expect-error -- see above: @types/node@20 predates registerHooks
 import { registerHooks } from "node:module";
 import { existsSync, mkdirSync, openSync, closeSync } from "node:fs";
 import { scratchDir } from "./scratch.mts";
@@ -110,7 +120,15 @@ function firstThatExists(base: string): string | null {
 }
 
 registerHooks({
-  resolve(specifier, context, nextResolve) {
+  /* Typed by hand for the same reason as the import above: @types/node@20 has
+     no `ResolveHook` to borrow. The shapes are the two fields this hook
+     actually touches, not the whole documented surface -- a wider guess would
+     be a claim about an API these types do not describe. */
+  resolve(
+    specifier: string,
+    context: { parentURL?: string },
+    nextResolve: (s: string, c?: { parentURL?: string }) => { url: string; shortCircuit?: boolean },
+  ) {
     // "@/lib/paths" -> <root>/lib/paths, the alias tsconfig.json declares
     if (specifier.startsWith("@/")) {
       const hit = firstThatExists(path.join(ROOT, specifier.slice(2)));

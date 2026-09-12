@@ -193,8 +193,13 @@ test("S34: the old instrument really did refuse all eight -- this file is not va
   for (const r of REAL) {
     const p = realProbe(r);
     const oldThreshold = 1 / (p.video!.fps || 30);
+    /* `editListTrimSec` answers null for "not measurable" now, so the null is
+       handled rather than compared through -- comparing through it is the
+       whole of the fail-open this file also covers. */
+    const container = editListTrimSec(p);
+    assert.notEqual(container, null, `${r.name}'s container delta is not measurable in this fixture`);
     assert.ok(
-      editListTrimSec(p) > oldThreshold,
+      container! > oldThreshold,
       `${r.name} would have passed the old guard, so it is the wrong witness for S34`
     );
   }

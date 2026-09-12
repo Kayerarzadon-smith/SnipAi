@@ -11,6 +11,15 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // The tests import each other by explicit ".mts" path ("./scratch.mts"),
+    // which is what Node's ESM resolver requires. Without this, every one of
+    // those imports is TS5097 -- 134 of the 148 errors that appeared the
+    // moment the .mts glob was added, and not one of them a real defect.
+    // Safe here because this project never emits from tsc: noEmit is on.
+    // NB line comments, not a block: a tsconfig comment containing a glob
+    // like "**/" closes a block comment early, because "*/" is inside it.
+    // That silently cost the "paths" mapping and produced 1211 errors.
+    "allowImportingTsExtensions": true,
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
@@ -18,6 +27,26 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  // The .mts glob is here because it was not, and nobody could see that. (N18)
+  //
+  // Every test in this repo is .mts -- 21 of 21, zero .ts -- so this list
+  // typechecked lib/, app/ and scripts/ and not one line of tests/, for as
+  // long as the suite has existed. scripts/bundle-app reads scripts/test's
+  // exit code as the release gate, and that run's typecheck was never looking
+  // at the tests, so "tsc clean" meant less than everyone quoting it believed.
+  //
+  // It cost two real fail-opens: the incomplete ClipProbe fixtures in
+  // grouping.test.mts and import-batch.test.mts both feed
+  // analyseBatch -> joinRefusal, and the typechecker names them in its first
+  // two lines.
+  //
+  // scripts/guard-typecheck.py fails the run if a file under tests/ is
+  // outside this set, so the next sibling extension cannot repeat it. It
+  // found one on its first run: tests/native/fake-occupant.mjs, an 88-line
+  // fake server that N8's launch probe drives and that nothing was checking.
+  // Hence the .mjs glob -- allowJs is already on, so the three .mjs files in
+  // this repo are parsed rather than type-checked, which is enough to catch a
+  // syntax error in a test helper and costs nothing.
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.mts", "**/*.mjs", ".next/types/**/*.ts"],
   "exclude": ["node_modules", "ugc-edit-system"]
 }

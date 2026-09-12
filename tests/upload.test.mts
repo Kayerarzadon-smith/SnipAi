@@ -48,7 +48,7 @@ describe("importing footage", () => {
   test("a raw body lands on disk byte for byte", async () => {
     const bytes = new Uint8Array(256 * 1024);
     for (let i = 0; i < bytes.length; i++) bytes[i] = i % 251;
-    const res = await POST(rawReq(NAME, "IMG_1234.MOV", bytes) as never, undefined as never);
+    const res = await POST(rawReq(NAME, "IMG_1234.MOV", bytes) as never);
     assert.equal(res.status, 201, await res.clone().text());
     const written = fs.readFileSync(path.join(dir, "raw", "IMG_1234.MOV"));
     assert.equal(written.length, bytes.length);
@@ -64,12 +64,12 @@ describe("importing footage", () => {
   });
 
   test("a second import of the same name is refused, not merged", async () => {
-    const res = await POST(rawReq(NAME, "IMG_1234.MOV", new Uint8Array(8)) as never, undefined as never);
+    const res = await POST(rawReq(NAME, "IMG_1234.MOV", new Uint8Array(8)) as never);
     assert.equal(res.status, 409);
   });
 
   test("something that is not footage never creates a project", async () => {
-    const res = await POST(rawReq("zz-test-upload-2", "notes.txt", new Uint8Array(8)) as never, undefined as never);
+    const res = await POST(rawReq("zz-test-upload-2", "notes.txt", new Uint8Array(8)) as never);
     assert.equal(res.status, 400);
     assert.match((await res.json()).error, /isn't a video/);
     assert.equal(fs.existsSync(path.join(PROJECTS_ROOT, "zz-test-upload-2")), false,
@@ -78,8 +78,7 @@ describe("importing footage", () => {
 
   test("a filename cannot escape the project's raw folder", async () => {
     const res = await POST(
-      rawReq("zz-test-upload-3", "../../../../etc/evil.mov", new Uint8Array(8)) as never,
-      undefined as never);
+      rawReq("zz-test-upload-3", "../../../../etc/evil.mov", new Uint8Array(8)) as never);
     assert.equal(res.status, 201);
     // basename first, then the character filter -- the traversal is gone,
     // not merely rewritten into something that still climbs

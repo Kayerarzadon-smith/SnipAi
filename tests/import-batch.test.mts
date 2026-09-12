@@ -42,6 +42,16 @@ function probeFor(file: string, startMs: number | null, durationSec: number): Cl
     name: path.basename(file),
     durationSec,
     rawDurationSec: durationSec,
+    /* Per track, and equal on purpose: measured on all eight of his real
+       clips, the VIDEO track is identical with and without its edit list --
+       nothing is hidden from the picture. Omitting these was not cosmetic.
+       `undefined` passes a `=== null` check, so `videoEditListTrimSec` used
+       to return NaN here, and NaN fails every comparison -- which made
+       `joinRefusal` wave through the one clip it exists to refuse. Both of
+       this repo's probe fixtures feed `analyseBatch -> joinRefusal`, and
+       neither was typechecked until N18. (S34, N18) */
+    videoDurationSec: durationSec,
+    videoRawDurationSec: durationSec,
     creationTimeMs: startMs,
     video: { codec: "hevc", width: 3840, height: 2160, fps: 30, rotation: -90 },
     audio: { codec: "aac", sampleRate: 48000, channels: "stereo" },

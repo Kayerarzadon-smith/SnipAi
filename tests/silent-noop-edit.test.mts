@@ -52,8 +52,21 @@ describe("saveBeats says whether it wrote", () => {
 
   test("updateBeatRange reports the same way", () => {
     write([{ label: "a", start: 10, end: 20 }]);
-    assert.equal(updateBeatRange(P, "a", 11, 19).changed, true);
-    assert.equal(updateBeatRange(P, "a", 11, 19).changed, false,
+    /* `.ok` is checked before `.changed` is read, which it was not before.
+       `RangeUpdate` became a union when S8 made a trim refusable, and that
+       row's stated protection was "tsc, not review, is what stops a call site
+       reading `.changed` without having handled the refusal". This was such a
+       call site, and tsc was not looking at it until N18. It would have failed
+       loudly rather than passed wrongly -- `undefined !== false` under strict
+       assert -- but it would have blamed the arithmetic instead of naming the
+       refusal. */
+    const first = updateBeatRange(P, "a", 11, 19);
+    assert.ok(first.ok, first.ok ? "" : `the trim was refused: ${first.error}`);
+    assert.equal(first.changed, true);
+
+    const again = updateBeatRange(P, "a", 11, 19);
+    assert.ok(again.ok, again.ok ? "" : `the second trim was refused: ${again.error}`);
+    assert.equal(again.changed, false,
       "trimming an edge to where it already is changed nothing");
   });
 });

@@ -57,7 +57,7 @@ function qaRegressions(board: string): string {
   // and a node that sees it reports over an internal channel instead of
   // stdout. This test IS such a child, and `scripts/qa` in real use is not:
   // dropping it here gives the script the environment it actually ships into.
-  const env = { ...process.env, SNIPAI_BOARD_DIR: board };
+  const env: NodeJS.ProcessEnv = { ...process.env, SNIPAI_BOARD_DIR: board };
   delete env.NODE_TEST_CONTEXT;
   return execFileSync("./scripts/qa", ["--regressions"], { cwd: ROOT, encoding: "utf8", env });
 }

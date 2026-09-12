@@ -20,6 +20,11 @@ swept=$(./scripts/sweep-fixtures)
 printf "\n%s== types ==%s\n" "$BOLD" "$OFF"
 if npx tsc --noEmit -p tsconfig.json; then printf "  %sclean%s\n" "$OK" "$OFF"
 else printf "  %sfailed%s\n" "$ERR" "$OFF"; fail=1; fi
+# ...and that "clean" covered the tests. It did not, for the life of this
+# suite: every test is .mts and the include set named **/*.ts, so the gate
+# bundle-app quotes was never looking there (ledger N18). A typecheck whose
+# coverage nobody checks is the thing that hid two fail-opens.
+./scripts/guard-typecheck.py || fail=1
 
 printf "\n%s== app ==%s\n" "$BOLD" "$OFF"
 # The node warning about a type-less package.json is noise on every file, but

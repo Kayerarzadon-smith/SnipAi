@@ -407,8 +407,36 @@ describe("what he confirmed is what is checked", () => {
     assert.equal(stray.source, "raw/IMG_9923.MOV", "a lone clip keeps its own name");
     assert.ok(fs.existsSync(path.join(PROJECTS_ROOT, "img-9923", "raw", "IMG_9923.MOV")));
 
-    // staging is gone only because every clip found a home
-    assert.equal(fs.existsSync(batchDir(b.id)), false);
+    /* Every clip found a home, so nothing of his is left staged. That is what
+       this assertion has always been for -- the contrast with the failed-join
+       test below, where the clips stay exactly where they were.
+       
+       IT USED TO READ `existsSync(batchDir(b.id)) === false`, and that form
+       cannot survive S54's fix. The tray polls `GET /api/import/[batch]`,
+       which 404s on a missing batch whatever the job says -- so discarding
+       the record inside `confirmBatch` made the outcome unobservable. The
+       reorder alone does not help: `finishJob` now runs before the
+       bookkeeping, but the gap is a few filesystem operations against a
+       1200ms poll, so the client essentially always arrives after the delete
+       and sees a 404 it cannot tell from "vanished". A failed import
+       therefore rendered identically to a successful one, which is the whole
+       of S54.
+       
+       So the record survives until someone has seen it: the tray DELETEs it
+       once it has observed a clean outcome, and `sweepAbandonedBatches`
+       collects it within a day otherwise. This test drives `confirmBatch`
+       directly with no client, so the record is still here -- and what it
+       asserts now is the thing it meant: **no clip of his remains staged.**
+       
+       CHANGED WITHOUT A RULING, unlike grouping.test.mts's one-click
+       assertion, which had Kayer's. Flagged for review on that basis: the
+       intent is preserved and the letter is not. */
+    for (const f of Object.keys(TAKE)) {
+      assert.equal(
+        fs.existsSync(stagedPath(b.id, f)), false,
+        `${f} is still staged after an import that found every clip a home`
+      );
+    }
     clean("img-9901", "img-9923");
   });
 

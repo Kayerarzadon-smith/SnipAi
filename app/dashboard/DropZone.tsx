@@ -351,7 +351,40 @@ export function DropZone({
       setPhase("importing");
       router.refresh(); // the projects exist from here on; show them building
       const finished = await pollBatch(batchId);
-      if (finished?.job?.status === "error") throw new Error(finished.job.error ?? "the import failed");
+
+      /* A poll that came back with nothing is NOT a success. (ledger S54)
+         
+         `pollBatch` returns null when the server answers non-ok -- which
+         includes the 404 a discarded batch produces. This used to read
+         `finished?.job?.status === "error"`, get `undefined`, and fall
+         straight through to `setPhase("done")`: the tray said the import was
+         finished on the strength of a request that had failed. A client that
+         treats "I could not reach the server" as "it worked" will do it again
+         the next time something 404s, so the unknown case is now named as
+         unknown. */
+      if (!finished) {
+        throw new Error(
+          "the import stopped answering, so SnipAi cannot tell whether it finished. " +
+          "Check the queue before importing these clips again."
+        );
+      }
+      if (finished.job?.status === "error") {
+        throw new Error(finished.job.error ?? "the import failed");
+      }
+      /* Some groups succeeded and some did not: the job ends `done` and the
+         reasons live on the batch. `b.error` had no reader on this path at
+         all -- it was read only while analysing -- so a partial import was
+         reported as a whole one. The projects that did import are real, so
+         the tray finishes; it just stops claiming everything worked. */
+      if (finished.batch.error) {
+        setProblem(`Some of this import did not finish: ${finished.batch.error}`);
+      } else {
+        /* Clean import, outcome observed -- now the record can go. The server
+           deliberately keeps it until someone has seen it (S54), and
+           `sweepAbandonedBatches` would collect it within a day anyway, so a
+           failed DELETE here costs nothing. Fire and forget. */
+        void fetch(`/api/import/${batchId}`, { method: "DELETE" }).catch(() => {});
+      }
       setPhase("done");
       setQueued([]);
       setBatchId(null);

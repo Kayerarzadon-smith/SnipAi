@@ -610,25 +610,53 @@ export async function confirmBatch(
     }
   }
 
-  /* Staging goes only when every clip in it has found a home. A failed join
-     leaves his footage exactly where it was, which is the difference between
-     "try again" and "re-shoot". */
-  const leftovers = b.files.filter((f) => fs.existsSync(stagedPath(id, f.name)));
-  if (leftovers.length === 0) {
-    discardBatch(id);
-  } else {
-    b.status = failures.length ? "failed" : "imported";
-    b.error = failures.join("; ") || undefined;
-    writeBatch(b);
-  }
-
+  /* The job reaches its terminal state BEFORE any of the bookkeeping below,
+     because the bookkeeping used to delete the only record of the failure one
+     statement before the code that reported it. (ledger S54) */
   if (failures.length === groups.length) {
     failJob(jobId, failures.join("; "));
-    return;
+  } else {
+    if (failures.length) log(`some of this import did not finish: ${failures.join("; ")}`);
+    appendLog(jobId, "PROGRESS 100");
+    finishJob(jobId, lastCut);
   }
-  if (failures.length) log(`some of this import did not finish: ${failures.join("; ")}`);
-  appendLog(jobId, "PROGRESS 100");
-  finishJob(jobId, lastCut);
+
+  /* Staging goes only when every clip in it has found a home. A failed join
+     leaves his footage exactly where it was, which is the difference between
+     "try again" and "re-shoot".
+     
+     AND THE BATCH RECORD SURVIVES ANY FAILURE, which is the other half of
+     S54 and the half that reordering alone would not have fixed. The tray
+     polls `GET /api/import/[batch]`, and that route 404s on a missing batch
+     whatever the job says -- so discarding the batch made the failure
+     unobservable no matter when `failJob` ran.
+     
+     The asymmetry this removes: a failed JOIN leaves clips staged, so
+     `leftovers` was non-empty, the batch survived and the tray threw
+     correctly. A failed PIPELINE happens after `moveInto` has consumed the
+     staged clips, so `leftovers` was empty, the batch was discarded, and the
+     tray said "done" on an import that produced nothing -- **the case
+     reported honestly was the one where nothing had happened, and the case
+     reported as success was the one where his footage had already moved.**
+     
+     Partial failure was silent by a second route: some groups succeed, the
+     job ends `done`, and `b.error` was written into a file that had just been
+     deleted. It is now readable, and `DropZone` reads it on this path too.
+     
+     So the record is not deleted here at all. Discarding it on the clean path
+     too would only move the race: the job reaches `done` before this runs, but
+     a client polling a moment later still gets the 404 and would now read it
+     as "stopped answering". `sweepAbandonedBatches` already collects terminal
+     batches after a day -- its own comment says that is what it is for -- and
+     the tray deletes one explicitly once it has seen the outcome. Observable
+     first, tidied second, in that order. */
+  const leftovers = b.files.filter((f) => fs.existsSync(stagedPath(id, f.name)));
+  b.status = failures.length ? "failed" : "imported";
+  b.error = failures.join("; ") || undefined;
+  if (leftovers.length) {
+    log(`${leftovers.length} clip(s) are still in staging, exactly where they were`);
+  }
+  writeBatch(b);
 }
 
 /** Rename where it can, copy where it cannot -- the staging area and the

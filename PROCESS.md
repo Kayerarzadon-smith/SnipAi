@@ -269,6 +269,34 @@ The rule, borrowed from how a real team avoids this:
   the developer's next commit swept up the PM's uncommitted ledger rows and said
   nothing about them. Nothing was lost either time, and that was luck twice.
 
+## Measuring Kayer's own work
+
+**Added 2026-09-12, after an instrument produced a number that was about the
+instrument.** A J-cut measurement over his seven reference videos returned
+"audio leads picture 43% of the time" — a coin flip — which reads as refuting
+his own description of how he edits. **It was caught only because the same
+script was run against the app's output as a control.** The app has never
+executed a J-cut (H4: `work/audio.sh` is never invoked), so it should have
+shown no lead by construction. It showed the same spread, and the 3-clip cut
+looked *more* audio-first than five of his seven. **An instrument that cannot
+tell his hand-cut work from output with none of the technique in it is not
+measuring the technique.**
+
+**The rule: any measurement of his work is run against the app's output as a
+control before it is believed.** If the instrument cannot separate them, it is
+not measuring the thing, and the result is a **null** rather than a
+falsification.
+
+**This is the same discipline as the first assertion in S8's test** — prove the
+harm still reproduces before asserting the guard — moved from tests to
+measurements. Both exist because a check that cannot fail is indistinguishable
+from a check that passed.
+
+**And one thing that follows about J-cuts specifically: the technique may be
+undetectable from a rendered file in principle.** Its purpose is to leave no
+audible seam, so the better it is done the less evidence it leaves. **Do not
+read "we could not measure it" as "he does not do it."**
+
 ## Retro
 
 After each milestone, `snipai-pm` asks two questions and writes the answers

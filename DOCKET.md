@@ -1071,6 +1071,129 @@ routine.** The corpus is duplicated outside the library and verified
 byte-identical, `qa-m08` is a throwaway tree, and his real projects were opened
 read-only last time. **It is not fixed, it is survivable, and it is his to fix.**
 
+**2026-09-12: Theo is confirmed on E5. The hold is lifted, and the useful thing
+is the rule that comes out of it rather than the correction itself.**
+
+**Kayer described mid-sentence splicing, and one more question settled what it
+was worth:** *"I first take the best take. If I don't have a best take I do
+option two. It doesn't happen all the time but maybe keep in mind."* **So
+best-take selection is his primary method and composition is an occasional
+fallback.** E5's scope was **incomplete, not wrong** — and it is his primary
+technique, which the app does not do today: it keeps eight attempts as **eight
+beats**.
+
+**THE RULE, and it is cheap, specific and reusable — which "don't conclude
+fast" is not.** When he describes a technique, **ask whether it is primary or
+occasional before re-scoping anything.** Both of his descriptions tonight were
+true; the second was incomplete, and the error was treating a described
+mechanism as a complete model. One question — *"is that how you usually do it,
+or the exception?"* — separated a lever from a footnote and cost nothing.
+**That is the same class as B7, B8 and the frames-versus-milliseconds question:
+every expensive mistake available tonight was one question away from being
+avoided, and every question was cheap.**
+
+**On the correction itself: it cost a held dispatch of minutes and no code, and
+the loop is what caught it.** Held, questioned, corrected, unheld, before
+anything was built — that is the process functioning rather than failing, and it
+should not be over-weighted. The version of the ledger that said *"E5 would have
+shipped something that changes nothing"* **never entered history**; it was
+corrected in the working tree, so the record carries only what turned out to be
+true. **The thing worth keeping is that the correction came from him and not
+from us** — twice tonight, and neither was inferable from the footage.
+
+**What survives from the wrong turn, and it is not nothing:** **E8 is filed** —
+real, his, and occasional, behind E5 and not folded into it. Its content is
+unchanged and well-founded: `lib/types.ts` cannot express one line whose picture
+comes from two source spans, and the type's **own comment at `:16-19`** records
+why (*"two rows saying the same line"*), which is the invariant any fix must
+preserve. **And `verify_edges.py` will flag his splices as defects** — a third
+false-positive family after S44 and S47, now a future problem rather than a
+blocker.
+
+**Two updates to rows that the correction pointed the other way.** **H4 gets
+STRONGER, not weaker:** he applies the audio lead at *every* cut — *"when I cut
+each clip"* — and composition is occasional, so **the J-cut covers all his
+junctions and E8 is a special case of it.** And **E7's emergent hypothesis now
+runs through H4 rather than E8**: his 0.00s internal silence is more likely a
+consequence of *how he joins* every cut than of *where* he occasionally splices.
+**Which the measurement already running will show**, and it is why E7 should not
+be started before it lands.
+
+**Confirmed assignments, all four running:** Claude on the audio-lead
+measurement with the prediction pre-registered; Desmond on the nightly's six
+with T20 first; **Theo on E5 alone, as originally ruled**; Ruth on G1/G2/G3 and
+the repo-root pile with `QA_BUGREPORT2026-09-12.md` untouchable until Desmond
+and my filing are done. Me on Desmond's fifteen. **Nadia still idle by design**,
+her next run being the batched verification.
+
+**2026-09-12: THEO IS CONFIRMED ON E5 — go. No second J-cut measurement. Ruth's
+constraint extended. And the control condition becomes a process rule.**
+
+**1. Theo: E5, confirmed, and the null result made this decision stronger rather
+than weaker.** E5 is verifiable **without Kayer** — fewer beats, correct
+grouping, the picker choosing per line instead of per clip, all measurable on
+disk. **H4 now is not:** the measurement cannot confirm its constant, so its
+only verification is his ear. **So the row that can be proven goes first**, and
+that is E5 on its own, exactly as ruled before the detour.
+
+**2. No second attempt at measuring the J-cut, and the reason is not cost.** The
+deeper finding in that report is decisive: **a J-cut's purpose is to leave no
+audible seam, so the better it is done the less evidence it leaves.** Spectral
+flux or MFCC discontinuity would be a better instrument aimed at a signal that
+is *designed to be absent*. **And we do not need it: the constant gets validated
+by the gate that was always going to be the gate** — M0.85's exit is *he says the
+cuts are fast*. Spending another cycle on instrumentation to avoid asking him to
+listen is backwards; listening is cheaper and it is the actual acceptance test.
+
+**So H4 is built on his number, and the row must say so: 1-3 frames, from his
+recollection, NOT from measurement.** Default **2 frames (67 ms)**, **adjustable
+rather than compiled** — which is B7 and B8's lesson applied to an engineering
+constant, since he is the only one who can hear whether it is right. **And it is
+a net figure, not an additional one:** it has to be reconciled against
+`FRAME_PAD`'s 40 ms and `--snap-lead`'s 10 ms, which is already the row's stated
+difficulty. **If it sounds wrong, the first hypothesis is the constant and not
+the implementation** — recorded now so that is cheap to test later.
+
+**3. The control condition is now a PROCESS.md rule, and it is the most valuable
+thing produced in the last hour.** *Any measurement of his work is run against
+the app's output as a control before it is believed.* If the instrument cannot
+separate them, it is not measuring the thing. **It is the same discipline as the
+first assertion in S8's test** — prove the harm reproduces before asserting the
+guard — moved from tests to measurements.
+
+**On the two proxy instances that arrived within an hour of each other from
+opposite directions**, now six tonight: one where an instrument certified a
+property it could not see (the J-cut null), and one where two surfaces "agreed"
+because **they were reading the same variable** (the nightly's row 15, appended
+to S26). **The single line worth keeping: an agreement between two readings of
+the same variable is not an agreement between two measurements.** Six instances
+in one night stops being a series of accidents and starts being this project's
+dominant failure mode — and the control condition is the first *general* defence
+anyone has proposed for it. Every previous fix was per-instance.
+
+**4. The nightly's six are triaged and filed**, on Desmond's verification rather
+than on the report's word — which was the point of reading before believing.
+**BUG-003 is NOT T20** and is filed as **T21** in a broader form than reported:
+four separate "I could not read the board" conditions all print as *"the ledger
+and the bug board disagree"*, which sends the reader to edit the ledger when the
+fault is a filename. **BUG-001, BUG-004 and BUG-005 fold into C33** with one
+genuinely new sub-claim (`page.tsx:2496` gates on `candidates ?` rather than
+`candidatesLoading`, so a failure renders under *"Scanning source region..."*)
+and one that is worse than reported (**"Cut" is the verb for four different
+operations**, against the spec's own reserved meaning). **BUG-002 is S53.**
+**BUG-006 is refuted and the discard is recorded** so it is not re-filed — it is
+pinned by `tests/reorder.test.mts:28-29`, and **its own "needs clarification"
+label was right while its defect framing was not**, which is the distinction C38
+exists to honour.
+
+**5. Ruth's constraint is extended, and she is clear to go otherwise.**
+`QA_BUGREPORT2026-09-12.md` **and `qa-screenshots/2026-09-12-nightly/` (38
+files)** are untouchable — the report is filed now, but those screenshots are
+the only evidence behind claims we have partly refuted and partly folded, and a
+hygiene sweep would delete the ability to re-check them. **Everything else on
+her checklist is clear: G1 (10 unpushed), G2, G3, `_to_delete/` and
+`.qa-stage/`. Minus the push.**
+
 | # | Milestone | Exit line | Ledger / docket ids |
 |---|---|---|---|
 | M0 | Prove drop-in auto-cut on a brand-new clip | A raw file dropped in the dashboard produces a finished cut in `cuts/`, no terminal touched. **Pipeline half banked 2026-09-10** by `snipai-tester` on both surfaces: all four stages ran to completion, a finished file landed in `cuts/` every time, no >1s silence, no black frames, both streams present, frame count matches duration, `state/jobs.json` `done`/`100` with no unhandled traceback. **Does not close yet** — the one unverified thing is the one the exit line is actually about: nobody has *dropped* a file in. Import-picker and drag-and-drop cannot be driven from here (see Blocked). Remaining scope: that single act. **Unblocked 2026-09-11** — Kayer granted Screen Recording and Accessibility, both verified directly (`osascript` returns real window geometry; a captured window region measures 256/256 distinct bytes rather than stripped wallpaper). **Scope of the proof, added 2026-09-11: single-clip projects only.** **MET AND CLOSED 2026-09-11.** Both routes work in the real window, no terminal touched. **Import footage** opens a genuine `AXSheet` NSOpenPanel ("Choose the video files to bring in.") — the class of bug that once made that button inert in WKWebView is gone. A real Finder→WKWebView **drag** also worked: the window dimmed, the dashed drop zone appeared, and on release the file landed in the tray. Both ran to finished cuts — `qa-drop-test-v1.mp4` (7 segs, EDL 14.999s, ffmpeg 15.45s) and `qa-drag-test-v1.mp4` (9 segs, EDL 14.010s, ffmpeg 14.52s) — both `ftyp, moov, free, mdat`, both h264 406x720 + aac, both ~0.057s per clip over the EDL. Queue card, EDL and ffmpeg all agree. S19 and E1 both confirmed again on fresh packaged builds | S3 (fixed) |

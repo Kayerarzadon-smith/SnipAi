@@ -98,6 +98,71 @@ convenient real project to cross-check numbers against, and **nobody asked why
 there were six of them.** The version history was a bug report written in the
 file system, available since before any of this started.
 
+**AND NOW THERE IS A REFERENCE SET: eight videos he cut himself, 2026-09-11.**
+Same instrument throughout, `silencedetect=n=-35dB:d=0.25`:
+
+| file | duration | gaps | silence | % |
+|---|---|---|---|---|
+| `ef69d650` | 37.40s | **0** | 0.00s | 0.0% |
+| `5ca5169e` | 40.97s | 3 | 6.14s | **15.0%** |
+| `f4f5b159` | 44.14s | **0** | 0.00s | 0.0% |
+| `d4a94f7c` | 45.90s | 1 | 0.44s | 1.0% |
+| `443f5cff` | 54.45s | **0** | 0.00s | 0.0% |
+| `b08bd9bf` | 57.00s | **0** | 0.00s | 0.0% |
+| `36c80188` | 57.45s | 2 | 0.54s | 0.9% |
+| `bbe0c896` | 83.40s | **0** | 0.00s | 0.0% |
+
+Against what the app produces: 3-clip **190.09s / 25 gaps / 11.78s / 6.2%**;
+2-clip **105.02s / 10 / 5.90s / 5.6%**; `img-9817` v6 **98.39s / 4 / 1.38s /
+1.4%**; `img-9823` v2 **178.92s / 14 / 4.65s / 2.6%**.
+
+**(a) Dead air is not a band, it is an absolute — filed as E7.** **Six of eight
+have zero internal gaps; five contain 0.00s of detectable silence.** The two
+non-outlier non-zeros are 0.44s and 0.54s and in both the gap is the tail. So
+the pipeline's ~3s flag threshold and tonight's shipped **1.99s** internal gap
+do not merely run loose — **they permit a thing that never occurs in his work.**
+
+**(b) Air and length are independent problems, and his own hand work proves the
+first is reachable without the second.** `img-9817` v6 reached **1.4% silence —
+his own standard, by hand, over six versions — and is still 98.39s** against a
+median reference of ~50s. **Strip every millisecond of air out of v6 and it is
+97 seconds.** The most useful single measurement in the set.
+
+**(c) But the app is NOT cutting timidly — it already cuts harder than he does,
+and the length gap is upstream of the cut.** His own `reference/house-style.json`
+records his reference pair as **332.8s raw → 67.47s finished = 20.3% kept**.
+Tonight: 3-clip **190.09 of 1130.63 = 16.8%**; 2-clip **105.02 of 548.80 =
+19.1%**. **The app keeps a smaller fraction of his footage than he did by hand.**
+So "most of the reduction must come from leaving content out" is arithmetically
+true for reaching 50s and **misdiagnoses where the slack is**: the output is long
+because **he recorded 18:50 of source for a video that should run about a
+minute.** That is E5 from the other end, and **the lever is collapsing
+near-duplicate beats, not deciding which of his lines are cut.**
+
+**The outlier gets a question, not an average.** `5ca5169e` is 40.97s with
+**6.14s of silence in three gaps, 15%** — an order of magnitude from the other
+seven, in his shortest-but-one video. Music or b-roll under a silent stretch, a
+deliberate beat, or a different format; he has been asked. **Seven-of-eight is
+the pattern and that file is unexplained rather than contradictory.** And it
+does not need solving separately: **the app's own reference machinery already
+takes the MEDIAN** — `app/api/references/route.ts:167`, *"measure_finished.py
+across reference/inspiration — median of them all"* — which is outlier-resistant
+by construction.
+
+**Caveat every citing row must carry: these evidence EDITING DECISIONS ONLY.**
+All eight are 576x1024 TikTok-served copies, and `36c80188` is a `.mov`
+re-export of a served copy rather than an upload master. **No artifact we have
+carries his export settings**, so none of this bears on M0.95, whose
+full-resolution target has no reference to aim at except *matches the source*.
+
+**Where they live is itself a problem: eight files, 2.4-4.3 MB, ~25 MB total, in
+`~/.claude/uploads/7bd12c30-.../`** — a chat upload directory. Not the repo, not
+his library, **nowhere a build or a test can reach**, for the only examples in
+existence of the output this app is meant to produce. **Which is why the numbers
+above are in this file and not only in a message:** the measurements are the
+durable part; the artifacts matter for re-measuring. DOCKET has where they go
+and who moves them.
+
 **What this changes here, concretely:** **E5** was downgraded to Low tonight and
 that was assessed against the wrong yardstick — see its row. **S26** stops being
 a display defect and becomes the wrong instrument for the only judgement he is
@@ -364,27 +429,6 @@ renders (C2, C8, C16, C21).
 only C14 and C22 were still accurate. All corrected below. If you are reading
 a client row written before this date somewhere else, distrust its line.
 
-**Two findings in flight against S38, recorded 2026-09-11 so they are durable
-if the commit carrying them does not name them.** Both are Desmond's, both land
-inside the row Theo has open right now (`lib/grouping.ts`), so they are written
-here rather than into S38's or C37's own rows — those rows are his to flip and
-a second writer on the same lines is the collision this file has a rule about.
-
-1. **`confident` is arithmetically empty on joins.** Enumerated over all 27
-   signal combinations: **13 of 13 `same` verdicts come out confident, and 1 of
-   5 `separate` verdicts does.** So the field S38 exists to surface is nearly a
-   constant on exactly the verdict it would matter least for, and nearly always
-   false on the one where being wrong costs him a re-shoot. A flag that is
-   `true` for every join is not a confidence signal.
-2. **The `decidedBy` sort discards direction**, so **8 of the 9 `unsure`
-   combinations print a pro-join sentence underneath a split.** That is C37's
-   defect reached through the fix for C37: the card would name *a* deciding
-   reason and name one arguing the opposite way. **Whoever closes C37 has to
-   assert on the direction, not only on which reason scored highest.**
-
-**If Theo's commit records both, delete this block.** It exists only because a
-finding that lives in a message is not a finding.
-
 ### Root causes — the dispatch unit
 
 The 22 rows are **six jobs**. The ids stay (each has its own exit condition,
@@ -610,8 +654,9 @@ comment saying why — "a key in one is a key in someone else's".
 |----|-------|--------|--------|------|
 | E1 | beat out-point placement | Two beats end 20-30ms before their own final word finishes: `under-eyes-looks` leaves 26ms of `'this,'` past the out-point (mean -22.5dB, peak -12.4dB) and `egf-going-improve` leaves 21ms of `'face.'` (mean -22.9dB, peak -11.6dB), both above the project's -26.2dB speech floor. Both fragments sit **inside** their line, not past an abandoned take, so this is clipping and not take selection. `img-9823`'s two flagged fragments **are** take selection working and are not filed. Note `snap_tail` is **0.01** today, so this is not P2's 0.881 residue — the boundary placement itself is tight. **Traced 2026-09-11: not the boundary placement after all.** `edl.json` shows `snap()` already placed both out-points correctly, exactly on Whisper's own word-end timestamp (96.92, 164.02). The loss happens one step later, in `build_cut.py`'s per-clip ffmpeg extraction: `-ss <x> -i <source> -t <dur> -r 30 ...` truncates the re-encode to whole output frames, which can drop up to one frame (33ms at `-r 30`) off the requested tail — invisible when that frame was silence, audible when it held the end of a word. Both measured losses (26ms, 21ms) are under one frame. **Fix written, not render-verified** — `FRAME_PAD = 0.04` added to the requested `-t` duration (and threaded through the fade-out math so a fitted fade still lands on the true tail). Confirmed the corrected `-t` value reaches `extract.sh` (2.28→2.32, 3.22→3.26). Could not render a real sample tonight: pulling even 2.3s out of the 1.5GB source through this session's connection to the Mac timed out twice, likely that connection's own I/O to a large file rather than anything about the fix. Needs a real rebuild (which runs natively on the Mac, not through this connection, so should not hit the same wall) to confirm `qa/verify_edges.py` reports 0 of 34. **Confirmed by a real render 2026-09-10 — and the stated test was the wrong test.** `qa/verify_edges.py` reads `work/edl.json`, `work/transcript.json` and the source audio; **it never opens a rendered clip.** E1's truncation happens *downstream* of the EDL, in ffmpeg's per-clip re-encode, so the tool reports clean with or without `FRAME_PAD` — and did report clean on a packaged build that was demonstrably still clipping. It could never have proven this fix. What actually proves it is measuring each rendered clip's real duration against its requested `dur`: **dev, +0.037s to +0.059s across all 26 clips, 0 short.** The packaged app measured 3 of 7 clips short only because the bundle was three days stale and had no `FRAME_PAD` at all (see T5) — a packaging failure, not this one | fixed 2026-09-10 (dev-verified by real render; packaged pending the rebundle) | **replaced** — not `verify_edges.py`. Measure each rendered clip's duration against its requested `dur`; green when none is short |
 | E4 | EDL boundary placement, on a joined multi-clip source | **Suspected.** Six EDL boundaries land inside words too short for the Whisper-timing explanation: `up` **0.58s**, `This` **0.44s**, `I'm` **0.36s**. E1's fix (`FRAME_PAD`, `WORD_RESCUE`) addresses a 20-30ms overhang at a beat's out-point; a boundary inside a 0.36s word is an order of magnitude away from that, so the standing explanation does not cover these. **Filed as suspected on purpose, and it is only checkable once S34 lands** — Nadia had 90-second excerpts, and the full clips are the joined ones | open — **suspected, needs a full-clip measurement.** **Exit: measure every EDL boundary on a joined project against its word timings — either the six reproduce (a defect with a named cause) or they do not (the row closes as an artifact of the excerpt, and says which)** | no — needs the measurement first |
-| E5 | the beat drafter's take handling, seen on a joined cut | **Eight consecutive beats are eight attempts at one line, and the cut says it eight times across 24 of its 33.75s — 71% of the finished video is one sentence repeated, and none of it is marked `needs_review`.** For scale, the longest such run in his two real projects is **2**, so this is not a known level of repetition; it is what happens when the take picker meets how he actually shoots — *"he says each line over and over until he nails it, then stops recording after a completed take"*, which is S37's first mechanism from the same root. **The check that would have caught it ran and was not heard:** `verify_cut.py` detects repeated phrases, and S28 already records that its FAIL reaches no surface the user looks at | open — Medium today, **High the moment a joined cut is postable.** **Exit: on the joined `{0060,0061,0062}`, either one attempt survives per line, or the run is marked `needs_review` and the review screen shows it** — measured on a real join, so it needs S34. **MEASURED 2026-09-11 on the real two-clip join, and the numbers are much better than the 90-second excerpt suggested — plus the second branch is satisfied.** Longest run of near-duplicate beats is **3, not 8**; runs total **26.07s of a 100.90s cut (25.8%, not 71%)**; and **both duplicate-attempt beats are flagged** — *"Repeats itself — two attempts at the same line are inside this take"* at 0.15 confidence — with the review screen showing `12 of 36 need a call`. So the row's own exit is met on its **second** branch: the run is marked and shown. **What remains is the first branch and it is Part 5 #10's known gap** — the repetition still reaches the finished file. **Kept open at Low rather than closed**, because the exit was written as either/or and the either/or was satisfied honestly; it stays as the place the known gap is tracked against real numbers **RE-WEIGHTED 2026-09-11 from Low back to High, and the row says plainly that its severity was assessed against the wrong yardstick.** Tonight I downgraded this to Low because both duplicate beats were correctly flagged — judging it as a *correctness* row. Against Kayer's stated target of **about a minute**, the same measurement reads completely differently: **26.07s of near-duplicate beat runs is not a 25.8% blemish on a 100.90s cut, it is 43% of the entire video he wants.** Him saying the same line twice is the single largest recoverable block of time in any cut we have measured. **And the mechanism that should reclaim it already exists and is connected** — the take picker choosing the better of two attempts is exactly this job, and on the three-clip run it *did* choose across clips (98% over 90%), so the machinery works and is simply not being pointed at intra-beat repeats. **The first branch of this row's exit — one attempt survives per line — stops being Part 5 #10's known gap and becomes M0.85's principal lever** | open — **High, re-weighted; was Low on the wrong yardstick** | no — measured directly on the join |
+| E5 | the beat drafter's take handling, seen on a joined cut | **Eight consecutive beats are eight attempts at one line, and the cut says it eight times across 24 of its 33.75s — 71% of the finished video is one sentence repeated, and none of it is marked `needs_review`.** For scale, the longest such run in his two real projects is **2**, so this is not a known level of repetition; it is what happens when the take picker meets how he actually shoots — *"he says each line over and over until he nails it, then stops recording after a completed take"*, which is S37's first mechanism from the same root. **The check that would have caught it ran and was not heard:** `verify_cut.py` detects repeated phrases, and S28 already records that its FAIL reaches no surface the user looks at | open — Medium today, **High the moment a joined cut is postable.** **Exit: on the joined `{0060,0061,0062}`, either one attempt survives per line, or the run is marked `needs_review` and the review screen shows it** — measured on a real join, so it needs S34. **MEASURED 2026-09-11 on the real two-clip join, and the numbers are much better than the 90-second excerpt suggested — plus the second branch is satisfied.** Longest run of near-duplicate beats is **3, not 8**; runs total **26.07s of a 100.90s cut (25.8%, not 71%)**; and **both duplicate-attempt beats are flagged** — *"Repeats itself — two attempts at the same line are inside this take"* at 0.15 confidence — with the review screen showing `12 of 36 need a call`. So the row's own exit is met on its **second** branch: the run is marked and shown. **What remains is the first branch and it is Part 5 #10's known gap** — the repetition still reaches the finished file. **Kept open at Low rather than closed**, because the exit was written as either/or and the either/or was satisfied honestly; it stays as the place the known gap is tracked against real numbers **RE-WEIGHTED 2026-09-11 from Low back to High, and the row says plainly that its severity was assessed against the wrong yardstick.** Tonight I downgraded this to Low because both duplicate beats were correctly flagged — judging it as a *correctness* row. Against Kayer's stated target of **about a minute**, the same measurement reads completely differently: **26.07s of near-duplicate beat runs is not a 25.8% blemish on a 100.90s cut, it is 43% of the entire video he wants.** Him saying the same line twice is the single largest recoverable block of time in any cut we have measured. **And the mechanism that should reclaim it already exists and is connected** — the take picker choosing the better of two attempts is exactly this job, and on the three-clip run it *did* choose across clips (98% over 90%), so the machinery works and is simply not being pointed at intra-beat repeats. **The first branch of this row's exit — one attempt survives per line — stops being Part 5 #10's known gap and becomes M0.85's principal lever** **Sharpened 2026-09-11 against the eight references, and the mechanism is now named rather than described: this is a BEAT-IDENTIFICATION failure, not a take-selection one.** `draft_beats.py`'s own definition of a beat is *"ONE complete recitation"* and it produced **eight beats for eight attempts at one line**. So the fix is not *pick a better take* — the picker demonstrably works, it chose 98% over 90% across clips tonight — it is **collapsing near-duplicate beats into one beat carrying many candidate takes**, after which the existing picker does the rest. **And this is where M0.85's length half actually lives:** the app keeps **16.8-19.1%** of his raw footage against the **20.3%** he kept by hand on his own reference pair, so it is already cutting harder than he does — the output is long because he records ~19 minutes of takes for a one-minute video | open — **High, and the named principal lever for M0.85's length half** | no — measured directly on the join |
 | E6 | the export versus its EDL, on a joined source | **Export ran 1.29s longer than its EDL.** This is **S26's arithmetic, not a new mechanism**: the render adds `FRAME_PAD` (0.04s) per clip and the EDL sum does not account for it, so drift is `0.04 x clip count` and 1.29 / 0.04 is about 32 clips. **Filed as its own id because it is the first measurement of that drift on a joined source, and so the finding stays findable — but it is not a second fix.** It closes when S26 closes, and whoever takes S26 re-measures here | open — Low, **closes with S26.** **Exit: S26's exit, re-measured on a joined multi-clip project** | no — S26's test covers it |
+| E7 | the pipeline's internal-silence threshold, against his eight reference videos | **The dead-air check permits something that never occurs in his own work.** The pipeline flags internal silence over **~3s**. Measured across eight videos he cut himself: **six of eight have zero internal gaps, five contain 0.00s of detectable silence**, and the two non-outlier non-zeros are **0.44s and 0.54s with the gap at the tail**. Tonight's cut shipped a **1.99s internal gap and nothing objected**, carrying **11.78s over 25 gaps — 6.2% of runtime**. **This is not a loose threshold, it is the wrong shape of rule: his standard is an absolute, not a budget.** **The cheapest half of M0.85, and he has proved it reachable** — fighting `img-9817` by hand over six versions he got to **1.38s / 1.4%**. **Do NOT simply set the threshold to 0.25s:** his tail gaps are legitimately his, `5ca5169e` is one of his own videos at 15% silence and a hard rule would reject it, and a pause before a punchline is not dead air. This wants a measured rule with his reference set as the yardstick, not one constant swapped for another | open — High, **M0.85's air half**. **Exit: a cut built from his footage has no unexplained internal gap, measured with `silencedetect=n=-35dB:d=0.25` — the same instrument used on all eight references — and the eight remain the yardstick rather than a threshold we chose** | yes, not yet written; the eight references are the corpus and no video generation is needed |
 
 ## Unused / dead
 

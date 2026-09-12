@@ -4,6 +4,7 @@ import { runTool } from "@/lib/pipeline";
 import { updateReviewState, loadReviewState } from "@/lib/reviewState";
 import type { CandidateTakesResult } from "@/lib/types";
 import { projectDir } from "@/lib/paths";
+import { takeRegion } from "@/lib/retakes";
 
 /* Never prerendered. Every route here answers from the filesystem or from
    live job state, and Next will happily freeze a GET-only route at build
@@ -22,8 +23,16 @@ export async function GET(req: NextRequest, { params }: { params: { project: str
 
   const url = new URL(req.url);
   const forceRefresh = url.searchParams.get("refresh") === "1";
-  const regionStart = Number(url.searchParams.get("start") ?? beat.start - 8);
-  const regionEnd = Number(url.searchParams.get("end") ?? beat.end + 8);
+  /* The default region covers the beat's whole RUN of attempts, not just a
+     fixed 8s either side of it. A collapsed beat carries every attempt at its
+     line (ledger E5), and those can be sixty seconds apart -- his six goes at
+     "right here is straight up a supplement powerhouse for women" span 818s
+     to 888s. Searching 8s around the kept take would show the picker one
+     candidate and call it a choice. Widened here rather than in the review
+     screen so every caller of this route gets it. */
+  const region = takeRegion(beat);
+  const regionStart = Number(url.searchParams.get("start") ?? region.start - 8);
+  const regionEnd = Number(url.searchParams.get("end") ?? region.end + 8);
 
   // A read, and only a read. This was updateReviewState(p, () => {}), which
   // rewrites the whole file to peek at one field -- so a GET wrote to disk,

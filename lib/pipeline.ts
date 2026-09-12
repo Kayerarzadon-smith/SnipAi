@@ -343,8 +343,7 @@ export async function runDraftBeatsJob(jobId: string, project: string): Promise<
     return;
   }
   log("scoring every take and picking the winners...");
-  const res = await runTool("draft_beats.py", [projectDir(project), "--force"], { onLine: log });
-  if (!res.ok) {
+  if (!(await draftBeatsAndCollapse(project, log))) {
     failJob(jobId, "draft_beats.py failed — see log");
     return;
   }
@@ -826,9 +825,52 @@ async function stepTranscribe(project: string, log: (l: string) => void): Promis
   return true;
 }
 
-async function stepDraftBeats(project: string, log: (l: string) => void): Promise<boolean> {
+/**
+ * Draft the beats, then collapse the retakes. (ledger E5)
+ *
+ * One helper because `draft_beats.py` has TWO callers -- the standalone job
+ * and the auto pipeline's phase -- and a collapse bolted onto one of them
+ * would mean an import produced different beats from a re-draft. The tool
+ * itself is not touched: it lives under `ugc-edit-system/`, and this is the
+ * app deciding what to do with what it wrote.
+ *
+ * He says a line over and over until he nails it, and the drafter keeps every
+ * attempt as its own beat: six for one sentence on the joined three-clip
+ * project. `collapseRetakes` makes that one beat carrying all six, so the
+ * take picker -- which chose his 98% delivery over a 90% one unaided -- has
+ * them to choose between.
+ */
+async function draftBeatsAndCollapse(project: string, log: (l: string) => void): Promise<boolean> {
   const r = await runTool("draft_beats.py", [projectDir(project), "--force"], { onLine: log });
-  return r.ok;
+  if (!r.ok) return false;
+
+  const { collapseRetakes } = await import("./retakes");
+  const { loadBeats, saveBeats } = await import("./beats");
+  const data = loadBeats(project);
+  if (!data) {
+    log("drafted, but beats.json could not be read back -- leaving it as written");
+    return true;
+  }
+
+  const { beats, collapsed } = collapseRetakes(data.beats);
+  if (!collapsed.length) {
+    log(`${data.beats.length} lines, none said twice`);
+    return true;
+  }
+
+  const saved = collapsed.reduce((n, c) => n + c.secondsSaved, 0);
+  data.beats = beats;
+  saveBeats(project, data, "collapse-retakes");
+  log(
+    `${collapsed.length} line(s) he said more than once: ${data.beats.length} beats ` +
+    `instead of ${collapsed.reduce((n, c) => n + c.attempts, 0) + beats.length - collapsed.length}, ` +
+    `${saved.toFixed(1)}s of repetition off the cut. Every attempt is kept as a take to choose from.`
+  );
+  return true;
+}
+
+async function stepDraftBeats(project: string, log: (l: string) => void): Promise<boolean> {
+  return draftBeatsAndCollapse(project, log);
 }
 
 async function stepSourceProxy(project: string, log: (l: string) => void): Promise<boolean> {

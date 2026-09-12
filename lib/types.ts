@@ -18,6 +18,20 @@ export type Beat = {
    * rows saying the same line. It is one line with a piece taken out, so it
    * stays one beat and the picture either side butts together. */
   holes?: [number, number][];
+  /**
+   * The attempts at this line, when he said it more than once.
+   *
+   * He re-records a line until he nails it, and the drafter kept every
+   * attempt as its own beat -- six of them for one sentence on the joined
+   * three-clip project, 25.8% of that cut spent repeating itself (ledger E5).
+   * `lib/retakes.ts` collapses a run into one beat and records the attempts
+   * here, including the one whose range the beat now carries, so the take
+   * picker has the complete set to choose from rather than a list with a hole
+   * in it.
+   *
+   * Absent on a line he said once, which is most of them.
+   */
+  retakes?: { start: number; end: number; text?: string }[];
 };
 
 export type BeatsFile = {
